@@ -18,6 +18,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/pipeline':    'Pipeline',
   '/returns':     'Devoluciones',
   '/suppliers':   'Proveedores',
+  '/payments':    'Pagos',
   '/cartera':     'Cartera',
 }
 

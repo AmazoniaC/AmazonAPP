@@ -188,6 +188,20 @@ export interface Supplier {
   createdAt?: string
 }
 
+export interface Payment {
+  id: string
+  saleOrderId: string
+  saleOrderNumber: string
+  customer: string
+  customerId: string
+  date: string
+  amount: number
+  method: string
+  reference: string
+  notes: string
+  createdAt?: string
+}
+
 export interface Return {
   id: string
   returnNumber: string

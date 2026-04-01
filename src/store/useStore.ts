@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import {
   Supply, Product, ProductionOrder, Customer, SaleOrder, Recipe, Quotation, CustomerActivity,
-  PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return,
+  PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return, Payment,
 } from '../data/mockData'
 import { toast } from '../components/Toast'
 
@@ -69,6 +69,7 @@ interface AppState {
   priceLists:       PriceList[]
   suppliers:        Supplier[]
   returns:          Return[]
+  payments:         Payment[]
   // Company settings
   companySettings:  CompanySettings
   // UI
@@ -135,6 +136,10 @@ interface AppState {
   addOpportunity:    (o: Opportunity) => Promise<void>
   updateOpportunity: (o: Opportunity) => Promise<void>
   deleteOpportunity: (id: string)     => Promise<void>
+  // Actions – payments
+  addPayment:    (p: Payment) => Promise<void>
+  deletePayment: (id: string) => Promise<void>
+  getOrderPayments: (saleOrderId: string) => Payment[]
   // Actions – suppliers
   addSupplier:    (s: Supplier) => Promise<void>
   updateSupplier: (s: Supplier) => Promise<void>
@@ -254,6 +259,7 @@ export const useStore = create<AppState>((set, get) => ({
   priceLists:       [],
   suppliers:        [],
   returns:          [],
+  payments:         [],
   companySettings:  defaultCompanySettings,
   sidebarOpen:      true,
   darkMode:         initialDark,
@@ -268,7 +274,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (get().dataLoaded && !force) return
     if (force) set({ dataLoaded: false })
     try {
-      const [supplies, products, productionOrders, customers, saleOrders, recipes, settings, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns] =
+      const [supplies, products, productionOrders, customers, saleOrders, recipes, settings, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments] =
         await Promise.all([
           apiFetch<Supply[]>('/api/supplies'),
           apiFetch<Product[]>('/api/products'),
@@ -286,6 +292,7 @@ export const useStore = create<AppState>((set, get) => ({
           apiFetch<PriceList[]>('/api/price-lists').catch(() => [] as PriceList[]),
           apiFetch<Supplier[]>('/api/suppliers').catch(() => [] as Supplier[]),
           apiFetch<Return[]>('/api/returns').catch(() => [] as Return[]),
+          apiFetch<Payment[]>('/api/payments').catch(() => [] as Payment[]),
         ])
 
       const companySettings: CompanySettings = {
@@ -315,7 +322,7 @@ export const useStore = create<AppState>((set, get) => ({
         invoicePrefix:      settings.invoicePrefix      ?? defaultCompanySettings.invoicePrefix,
       }
 
-      set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, companySettings, dataLoaded: true })
+      set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, companySettings, dataLoaded: true })
       // Run smart alerts after data is ready
       get().checkAlerts()
     } catch (e) {
@@ -665,6 +672,44 @@ export const useStore = create<AppState>((set, get) => ({
     toast.success('Oportunidad eliminada')
   },
 
+  // ── Payments ─────────────────────────────────────────────────────────────
+  addPayment: async (payment) => {
+    await apiFetch('/api/payments', { method: 'POST', body: JSON.stringify(payment) })
+    set((s) => ({ payments: [payment, ...s.payments] }))
+    // Update the sale order payment status locally
+    if (payment.saleOrderId) {
+      const s = get()
+      const orderPayments = [...s.payments.filter(p => p.saleOrderId === payment.saleOrderId), payment]
+      const totalPaid = orderPayments.reduce((sum, p) => sum + p.amount, 0)
+      const order = s.saleOrders.find(o => o.id === payment.saleOrderId)
+      if (order) {
+        const newStatus = totalPaid >= order.total ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+        set((s2) => ({ saleOrders: s2.saleOrders.map(o => o.id === payment.saleOrderId ? { ...o, paymentStatus: newStatus } : o) }))
+      }
+    }
+    toast.success('Pago registrado correctamente')
+  },
+  deletePayment: async (id) => {
+    const payment = get().payments.find(p => p.id === id)
+    await apiFetch(`/api/payments/${id}`, { method: 'DELETE' })
+    set((s) => ({ payments: s.payments.filter(p => p.id !== id) }))
+    // Recalculate sale order payment status
+    if (payment?.saleOrderId) {
+      const s = get()
+      const remaining = s.payments.filter(p => p.saleOrderId === payment.saleOrderId)
+      const totalPaid = remaining.reduce((sum, p) => sum + p.amount, 0)
+      const order = s.saleOrders.find(o => o.id === payment.saleOrderId)
+      if (order) {
+        const newStatus = totalPaid >= order.total ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+        set((s2) => ({ saleOrders: s2.saleOrders.map(o => o.id === payment.saleOrderId ? { ...o, paymentStatus: newStatus } : o) }))
+      }
+    }
+    toast.success('Pago eliminado')
+  },
+  getOrderPayments: (saleOrderId) => {
+    return get().payments.filter(p => p.saleOrderId === saleOrderId)
+  },
+
   // ── Suppliers ────────────────────────────────────────────────────────────
   addSupplier: async (s) => {
     await apiFetch('/api/suppliers', { method: 'POST', body: JSON.stringify(s) })
@@ -806,7 +851,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Reset store to blank state (keep page alive, logout will redirect)
     set({
       supplies: [], products: [], productionOrders: [],
-      customers: [], saleOrders: [], recipes: [], quotations: [], activities: [], purchaseOrders: [], priceLists: [], suppliers: [], returns: [],
+      customers: [], saleOrders: [], recipes: [], quotations: [], activities: [], purchaseOrders: [], priceLists: [], suppliers: [], returns: [], payments: [],
       companySettings: defaultCompanySettings,
       notifications: [],
       dataLoaded: false,

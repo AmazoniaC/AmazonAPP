@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck } from 'lucide-react'
+import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck, Banknote } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { SaleOrder } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
@@ -11,6 +11,7 @@ import Pagination from '../components/Pagination'
 import FacturaModal from '../components/InvoiceModal'
 import { formatCOP } from '../utils/currency'
 import { openWhatsApp, buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
+import { PaymentModal } from './Payments'
 
 const STATUS_BADGE: Record<string, string> = {
   pending:'badge-yellow', confirmed:'badge-blue', processing:'badge-blue',
@@ -758,6 +759,7 @@ export default function Sales() {
   const [generatingInv, setGeneratingInv] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SaleOrder | null>(null)
   const [deleting, setDeleting]         = useState(false)
+  const [payTarget, setPayTarget]       = useState<SaleOrder | null>(null)
   const [duplicated, setDuplicated]     = useState<string | null>(null)
   const [dateFrom, setDateFrom]         = useState('')
   const [dateTo, setDateTo]             = useState('')
@@ -999,6 +1001,12 @@ export default function Sales() {
                         </button>
                       )
                     })()}
+                    {o.paymentStatus !== 'paid' && (
+                      <button className="btn btn-sm flex items-center gap-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
+                        onClick={() => setPayTarget(o)} title="Registrar pago">
+                        <Banknote size={12} />
+                      </button>
+                    )}
                     <button className="btn btn-sm flex items-center gap-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
                       onClick={() => handleDuplicate(o)} title="Duplicar orden">
                       <Copy size={12} />
@@ -1038,6 +1046,18 @@ export default function Sales() {
       {detail    && <OrderDetail order={detail} onClose={() => setDetail(null)} onInvoice={() => { setInvoice(detail); setDetail(null) }} />}
       {invoice   && <InvoiceModal order={invoice} onClose={() => setInvoice(null)} />}
       {invoiceOrder && <FacturaModal order={invoiceOrder} settings={companySettings} onClose={() => setInvoiceOrder(null)} />}
+      {payTarget && (
+        <PaymentModal
+          onClose={() => setPayTarget(null)}
+          prefill={{
+            saleOrderId: payTarget.id,
+            saleOrderNumber: payTarget.orderNumber,
+            customer: payTarget.customer,
+            customerId: payTarget.customerId,
+            remaining: payTarget.total,
+          }}
+        />
+      )}
       {deleteTarget && (
         <ConfirmDelete
           name={`${deleteTarget.orderNumber} — ${deleteTarget.customer}`}

@@ -27,6 +27,7 @@ import priceListsRouter          from './routes/priceLists.js'
 import importRouter              from './routes/import.js'
 import returnsRouter             from './routes/returns.js'
 import suppliersRouter           from './routes/suppliers.js'
+import paymentsRouter            from './routes/payments.js'
 
 dotenv.config()
 
@@ -156,6 +157,19 @@ async function migrate() {
         discount_percent NUMERIC NOT NULL DEFAULT 0,
         is_active        BOOLEAN NOT NULL DEFAULT TRUE,
         created_at       TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS payments (
+        id                  TEXT PRIMARY KEY,
+        sale_order_id       TEXT DEFAULT '',
+        sale_order_number   TEXT DEFAULT '',
+        customer            TEXT NOT NULL DEFAULT '',
+        customer_id         TEXT DEFAULT '',
+        date                DATE NOT NULL,
+        amount              NUMERIC(14,2) NOT NULL DEFAULT 0,
+        method              TEXT NOT NULL DEFAULT 'Transferencia',
+        reference           TEXT DEFAULT '',
+        notes               TEXT DEFAULT '',
+        created_at          TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS suppliers (
         id            TEXT PRIMARY KEY,
@@ -295,6 +309,7 @@ app.use('/api/price-lists',        priceListsRouter)
 app.use('/api/import',             importRouter)
 app.use('/api/returns',            returnsRouter)
 app.use('/api/suppliers',          suppliersRouter)
+app.use('/api/payments',           paymentsRouter)
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 

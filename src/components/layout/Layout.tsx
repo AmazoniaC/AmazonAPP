@@ -20,6 +20,7 @@ const titles: Record<string, string> = {
   '/settings':   'Configuración',
   '/returns':    'Devoluciones',
   '/suppliers':  'Proveedores',
+  '/payments':   'Pagos — Tesorería',
   '/cartera':    'Cartera — Cuentas por Cobrar',
   '/quotations': 'Cotizaciones',
   '/purchases':  'Órdenes de Compra',

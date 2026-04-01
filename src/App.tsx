@@ -21,6 +21,7 @@ import PublicCatalog from './pages/PublicCatalog'
 import ReturnsPage from './pages/Returns'
 import SuppliersPage from './pages/Suppliers'
 import CarteraPage from './pages/Cartera'
+import PaymentsPage from './pages/Payments'
 import { useStore } from './store/useStore'
 
 export default function App() {
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/returns"     element={<ReturnsPage />} />
           <Route path="/suppliers"   element={<SuppliersPage />} />
           <Route path="/cartera"     element={<CarteraPage />} />
+          <Route path="/payments"    element={<PaymentsPage />} />
           <Route path="/settings"    element={<Settings />} />
           <Route path="*"            element={<Navigate to="/dashboard" replace />} />
         </Route>
