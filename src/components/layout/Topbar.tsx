@@ -82,13 +82,14 @@ export default function Topbar({ title }: { title?: string }) {
       {/* Search */}
       <div className="flex items-center gap-4">
         {title && <h2 className="font-semibold text-slate-700 dark:text-gray-200 hidden sm:block">{title}</h2>}
-        <div className="relative hidden sm:block">
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+          className="hidden sm:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-gray-700 dark:text-gray-400 border border-slate-200 dark:border-gray-600 rounded-lg w-64 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-600 transition-colors relative cursor-pointer"
+        >
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            className="pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 border border-slate-200 dark:border-gray-600 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-amazonia-600 focus:border-transparent"
-            placeholder="Buscar producto, cliente, orden..."
-          />
-        </div>
+          <span className="flex-1 text-left">Buscar...</span>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-600 text-[10px] font-mono border border-slate-300 dark:border-gray-500">⌘K</kbd>
+        </button>
       </div>
 
       <div className="flex items-center gap-2">

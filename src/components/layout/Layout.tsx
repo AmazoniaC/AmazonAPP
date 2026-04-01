@@ -1,6 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import GlobalSearch from './GlobalSearch'
+import Breadcrumbs from '../Breadcrumbs'
+import { PageSkeleton } from '../Skeletons'
 import { useStore } from '../../store/useStore'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { useSessionTimeout }    from '../../hooks/useSessionTimeout'
@@ -18,10 +21,16 @@ const titles: Record<string, string> = {
   '/returns':    'Devoluciones',
   '/suppliers':  'Proveedores',
   '/cartera':    'Cartera — Cuentas por Cobrar',
+  '/quotations': 'Cotizaciones',
+  '/purchases':  'Órdenes de Compra',
+  '/dispatch':   'Despachos',
+  '/expenses':   'Gastos',
+  '/pipeline':   'Pipeline de Ventas',
+  '/calendar':   'Calendario',
 }
 
 export default function Layout() {
-  const { sidebarOpen } = useStore()
+  const { sidebarOpen, dataLoaded } = useStore()
   const { pathname } = useLocation()
   usePushNotifications()
   useSessionTimeout()
@@ -35,11 +44,17 @@ export default function Layout() {
       >
         <Topbar title={titles[pathname]} />
         <main className="flex-1 p-6 overflow-auto">
-          <div className="animate-fadeIn">
-            <Outlet />
-          </div>
+          <Breadcrumbs />
+          {!dataLoaded && pathname !== '/settings' ? (
+            <PageSkeleton />
+          ) : (
+            <div className="animate-fadeIn">
+              <Outlet />
+            </div>
+          )}
         </main>
       </div>
+      <GlobalSearch />
       <InstallPWA />
     </div>
   )

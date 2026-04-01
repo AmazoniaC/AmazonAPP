@@ -8,6 +8,7 @@ import { Return } from '../data/mockData'
 import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import DateRangeFilter from '../components/DateRangeFilter'
 import * as XLSX from 'xlsx'
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Clock }> = {
@@ -194,13 +195,16 @@ export default function ReturnsPage() {
   const [page, setPage] = useState(1)
   const [sortKey, setSortKey] = useState<'date' | 'total'>('date')
   const [sortAsc, setSortAsc] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const filtered = returns
     .filter(r => {
       const q = search.toLowerCase()
       const match = !q || r.customer.toLowerCase().includes(q) || r.returnNumber?.toLowerCase().includes(q) || r.saleOrderNumber?.toLowerCase().includes(q)
       const statusMatch = !statusFilter || r.status === statusFilter
-      return match && statusMatch
+      const dateMatch = (!dateFrom || (r.date ?? '') >= dateFrom) && (!dateTo || (r.date ?? '') <= dateTo)
+      return match && statusMatch && dateMatch
     })
     .sort((a, b) => {
       const mul = sortAsc ? 1 : -1
@@ -277,6 +281,7 @@ export default function ReturnsPage() {
             <option value="">Todos los estados</option>
             {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); setPage(1) }} />
           <button className="btn btn-secondary text-xs" onClick={exportExcel}>Excel</button>
           <button className="btn btn-primary flex items-center gap-1.5" onClick={() => setModal('new')}>
             <Plus size={16} /> Nueva Devolución

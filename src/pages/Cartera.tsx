@@ -6,6 +6,7 @@ import {
 import { useStore } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
 import Pagination from '../components/Pagination'
+import DateRangeFilter from '../components/DateRangeFilter'
 import * as XLSX from 'xlsx'
 
 type PayFilter = '' | 'pending' | 'partial' | 'paid'
@@ -35,6 +36,8 @@ export default function CarteraPage() {
   const [page, setPage] = useState(1)
   const [sortKey, setSortKey] = useState<'date' | 'total' | 'aging'>('date')
   const [sortAsc, setSortAsc] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   // Build accounts receivable from sale orders that are not fully paid
   const arItems = useMemo(() => {
@@ -50,7 +53,8 @@ export default function CarteraPage() {
       const q = search.toLowerCase()
       const match = !q || o.customer.toLowerCase().includes(q) || o.orderNumber.toLowerCase().includes(q)
       const payMatch = !payFilter || o.paymentStatus === payFilter
-      return match && payMatch
+      const dateMatch = (!dateFrom || o.date >= dateFrom) && (!dateTo || o.date <= dateTo)
+      return match && payMatch && dateMatch
     })
     .sort((a, b) => {
       const mul = sortAsc ? 1 : -1
@@ -190,6 +194,7 @@ export default function CarteraPage() {
             <option value="">Todos los pagos</option>
             {Object.entries(PAY_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); setPage(1) }} />
           <button className="btn btn-secondary text-xs" onClick={exportExcel}>Excel</button>
         </div>
       </div>
