@@ -3,6 +3,7 @@ import {
   Supply, Product, ProductionOrder, Customer, SaleOrder, Recipe, Quotation, CustomerActivity,
   PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return,
 } from '../data/mockData'
+import { toast } from '../components/Toast'
 
 export type NotifCategory = 'inventory' | 'purchases' | 'sales' | 'crm' | 'production' | 'dispatch' | 'general'
 
@@ -319,6 +320,7 @@ export const useStore = create<AppState>((set, get) => ({
       get().checkAlerts()
     } catch (e) {
       console.error('No se pudo conectar con el servidor:', e)
+      toast.error('Error al conectar con el servidor')
     }
   },
 
@@ -419,53 +421,65 @@ export const useStore = create<AppState>((set, get) => ({
   addSupply: async (supply) => {
     await apiFetch('/api/supplies', { method: 'POST', body: JSON.stringify(supply) })
     set((s) => ({ supplies: [...s.supplies, supply] }))
+    toast.success('Insumo creado correctamente')
   },
   updateSupply: async (supply) => {
     await apiFetch(`/api/supplies/${supply.id}`, { method: 'PUT', body: JSON.stringify(supply) })
     set((s) => ({ supplies: s.supplies.map((x) => x.id === supply.id ? supply : x) }))
+    toast.success('Insumo actualizado')
   },
   deleteSupply: async (id) => {
     await apiFetch(`/api/supplies/${id}`, { method: 'DELETE' })
     set((s) => ({ supplies: s.supplies.filter((x) => x.id !== id) }))
+    toast.success('Insumo eliminado')
   },
 
   addProduct: async (product) => {
     await apiFetch('/api/products', { method: 'POST', body: JSON.stringify(product) })
     set((s) => ({ products: [...s.products, product] }))
+    toast.success('Producto creado correctamente')
   },
   updateProduct: async (product) => {
     await apiFetch(`/api/products/${product.id}`, { method: 'PUT', body: JSON.stringify(product) })
     set((s) => ({ products: s.products.map((x) => x.id === product.id ? product : x) }))
+    toast.success('Producto actualizado')
   },
   deleteProduct: async (id) => {
     await apiFetch(`/api/products/${id}`, { method: 'DELETE' })
     set((s) => ({ products: s.products.filter((x) => x.id !== id) }))
+    toast.success('Producto eliminado')
   },
 
   addCustomer: async (customer) => {
     await apiFetch('/api/customers', { method: 'POST', body: JSON.stringify(customer) })
     set((s) => ({ customers: [...s.customers, customer] }))
+    toast.success('Cliente creado correctamente')
   },
   updateCustomer: async (customer) => {
     await apiFetch(`/api/customers/${customer.id}`, { method: 'PUT', body: JSON.stringify(customer) })
     set((s) => ({ customers: s.customers.map((x) => x.id === customer.id ? customer : x) }))
+    toast.success('Cliente actualizado')
   },
   deleteCustomer: async (id) => {
     await apiFetch(`/api/customers/${id}`, { method: 'DELETE' })
     set((s) => ({ customers: s.customers.filter((x) => x.id !== id) }))
+    toast.success('Cliente eliminado')
   },
 
   addSaleOrder: async (order) => {
     await apiFetch('/api/sale-orders', { method: 'POST', body: JSON.stringify(order) })
     set((s) => ({ saleOrders: [...s.saleOrders, order] }))
+    toast.success('Orden de venta creada')
   },
   updateSaleOrder: async (order) => {
     await apiFetch(`/api/sale-orders/${order.id}`, { method: 'PUT', body: JSON.stringify(order) })
     set((s) => ({ saleOrders: s.saleOrders.map((x) => x.id === order.id ? order : x) }))
+    toast.success('Orden de venta actualizada')
   },
   deleteSaleOrder: async (id) => {
     await apiFetch(`/api/sale-orders/${id}`, { method: 'DELETE' })
     set((s) => ({ saleOrders: s.saleOrders.filter((x) => x.id !== id) }))
+    toast.success('Orden de venta eliminada')
   },
   generateInvoice: async (id) => {
     const s = get()
@@ -506,14 +520,17 @@ export const useStore = create<AppState>((set, get) => ({
   addQuotation: async (quotation) => {
     await apiFetch('/api/quotations', { method: 'POST', body: JSON.stringify(quotation) })
     set((s) => ({ quotations: [quotation, ...s.quotations] }))
+    toast.success('Cotización creada')
   },
   updateQuotation: async (quotation) => {
     await apiFetch(`/api/quotations/${quotation.id}`, { method: 'PUT', body: JSON.stringify(quotation) })
     set((s) => ({ quotations: s.quotations.map((x) => x.id === quotation.id ? quotation : x) }))
+    toast.success('Cotización actualizada')
   },
   deleteQuotation: async (id) => {
     await apiFetch(`/api/quotations/${id}`, { method: 'DELETE' })
     set((s) => ({ quotations: s.quotations.filter((x) => x.id !== id) }))
+    toast.success('Cotización eliminada')
   },
   convertQuotation: async (id) => {
     const s = get()
@@ -556,14 +573,17 @@ export const useStore = create<AppState>((set, get) => ({
   addPurchaseOrder: async (order) => {
     await apiFetch('/api/purchase-orders', { method: 'POST', body: JSON.stringify(order) })
     set((s) => ({ purchaseOrders: [order, ...s.purchaseOrders] }))
+    toast.success('Orden de compra creada')
   },
   updatePurchaseOrder: async (order) => {
     await apiFetch(`/api/purchase-orders/${order.id}`, { method: 'PUT', body: JSON.stringify(order) })
     set((s) => ({ purchaseOrders: s.purchaseOrders.map((x) => x.id === order.id ? order : x) }))
+    toast.success('Orden de compra actualizada')
   },
   deletePurchaseOrder: async (id) => {
     await apiFetch(`/api/purchase-orders/${id}`, { method: 'DELETE' })
     set((s) => ({ purchaseOrders: s.purchaseOrders.filter((x) => x.id !== id) }))
+    toast.success('Orden de compra eliminada')
   },
   receivePurchaseOrder: async (id, receivedQtyMap) => {
     const s = get()
@@ -602,66 +622,81 @@ export const useStore = create<AppState>((set, get) => ({
   addDispatch: async (d) => {
     await apiFetch('/api/dispatches', { method: 'POST', body: JSON.stringify(d) })
     set((s) => ({ dispatches: [d, ...s.dispatches] }))
+    toast.success('Despacho creado')
   },
   updateDispatch: async (d) => {
     await apiFetch(`/api/dispatches/${d.id}`, { method: 'PUT', body: JSON.stringify(d) })
     set((s) => ({ dispatches: s.dispatches.map((x) => x.id === d.id ? d : x) }))
+    toast.success('Despacho actualizado')
   },
   deleteDispatch: async (id) => {
     await apiFetch(`/api/dispatches/${id}`, { method: 'DELETE' })
     set((s) => ({ dispatches: s.dispatches.filter((x) => x.id !== id) }))
+    toast.success('Despacho eliminado')
   },
   addExpense: async (e) => {
     await apiFetch('/api/expenses', { method: 'POST', body: JSON.stringify(e) })
     set((s) => ({ expenses: [e, ...s.expenses] }))
+    toast.success('Gasto registrado')
   },
   updateExpense: async (e) => {
     await apiFetch(`/api/expenses/${e.id}`, { method: 'PUT', body: JSON.stringify(e) })
     set((s) => ({ expenses: s.expenses.map((x) => x.id === e.id ? e : x) }))
+    toast.success('Gasto actualizado')
   },
   deleteExpense: async (id) => {
     await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' })
     set((s) => ({ expenses: s.expenses.filter((x) => x.id !== id) }))
+    toast.success('Gasto eliminado')
   },
   addOpportunity: async (o) => {
     await apiFetch('/api/opportunities', { method: 'POST', body: JSON.stringify(o) })
     set((s) => ({ opportunities: [o, ...s.opportunities] }))
+    toast.success('Oportunidad creada')
   },
   updateOpportunity: async (o) => {
     await apiFetch(`/api/opportunities/${o.id}`, { method: 'PUT', body: JSON.stringify(o) })
     set((s) => ({ opportunities: s.opportunities.map((x) => x.id === o.id ? o : x) }))
+    toast.success('Oportunidad actualizada')
   },
   deleteOpportunity: async (id) => {
     await apiFetch(`/api/opportunities/${id}`, { method: 'DELETE' })
     set((s) => ({ opportunities: s.opportunities.filter((x) => x.id !== id) }))
+    toast.success('Oportunidad eliminada')
   },
 
   // ── Suppliers ────────────────────────────────────────────────────────────
   addSupplier: async (s) => {
     await apiFetch('/api/suppliers', { method: 'POST', body: JSON.stringify(s) })
     set((st) => ({ suppliers: [...st.suppliers, s] }))
+    toast.success('Proveedor creado')
   },
   updateSupplier: async (s) => {
     await apiFetch(`/api/suppliers/${s.id}`, { method: 'PUT', body: JSON.stringify(s) })
     set((st) => ({ suppliers: st.suppliers.map((x) => x.id === s.id ? s : x) }))
+    toast.success('Proveedor actualizado')
   },
   deleteSupplier: async (id) => {
     await apiFetch(`/api/suppliers/${id}`, { method: 'DELETE' })
     set((st) => ({ suppliers: st.suppliers.filter((x) => x.id !== id) }))
+    toast.success('Proveedor eliminado')
   },
 
   // ── Returns ─────────────────────────────────────────────────────────────
   addReturn: async (r) => {
     await apiFetch('/api/returns', { method: 'POST', body: JSON.stringify(r) })
     set((st) => ({ returns: [r, ...st.returns] }))
+    toast.success('Devolución registrada')
   },
   updateReturn: async (r) => {
     await apiFetch(`/api/returns/${r.id}`, { method: 'PUT', body: JSON.stringify(r) })
     set((st) => ({ returns: st.returns.map((x) => x.id === r.id ? r : x) }))
+    toast.success('Devolución actualizada')
   },
   deleteReturn: async (id) => {
     await apiFetch(`/api/returns/${id}`, { method: 'DELETE' })
     set((st) => ({ returns: st.returns.filter((x) => x.id !== id) }))
+    toast.success('Devolución eliminada')
   },
 
   // ── Price lists ───────────────────────────────────────────────────────────
@@ -783,8 +818,8 @@ export const useStore = create<AppState>((set, get) => ({
   // ── Company settings ───────────────────────────────────────────────────────
   saveCompanySettings: async (settings) => {
     await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify(settings) })
-    // logo también en localStorage para carga rápida antes de la API
     lsSet('erp_logo', settings.logo)
     set({ companySettings: settings })
+    toast.success('Configuración guardada')
   },
 }))
