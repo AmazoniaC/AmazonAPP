@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, X, Users, TrendingUp, Star, Phone, Mail, MapPin,
   MessageCircle, Send, Pencil, Trash2, FileSpreadsheet,
@@ -618,6 +619,7 @@ function CustomerDrawer({ customer, onClose, onEdit, onDelete, canEdit, canDelet
 export default function CRM() {
   const { customers, saleOrders, activities, deleteCustomer, loadAllData } = useStore()
   const { canEdit, canDelete } = usePermissions()
+  const navigate = useNavigate()
   const [search, setSearch]       = useState('')
   const [segFilter, setSeg]       = useState('all')
   const [showModal, setShowModal] = useState(false)
@@ -805,7 +807,7 @@ export default function CRM() {
             <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">Clientes en riesgo — sin compra ni actividad en 30+ días:</p>
             <div className="flex flex-wrap gap-2">
               {clvMetrics.atRisk.slice(0, 8).map(c => (
-                <button key={c.id} onClick={() => setSelected(c)}
+                <button key={c.id} onClick={() => navigate(`/crm/${c.id}`)}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
                   <AlertCircle size={11} /> {c.name}
                 </button>
@@ -841,7 +843,7 @@ export default function CRM() {
             totalPurchases={customerStats[c.id]?.total ?? 0}
             pendingActivities={pendingActivitiesPerCustomer[c.id] ?? 0}
             canEdit={canEdit('customers')} canDelete={canDelete('customers')}
-            onClick={() => setSelected(c)}
+            onClick={() => navigate(`/crm/${c.id}`)}
             onEdit={() => { setEditCustomer(c); setShowModal(true) }}
             onDelete={() => setDeleteTarget(c)}
           />

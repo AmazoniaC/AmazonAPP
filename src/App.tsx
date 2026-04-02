@@ -22,6 +22,7 @@ import ReturnsPage from './pages/Returns'
 import SuppliersPage from './pages/Suppliers'
 import CarteraPage from './pages/Cartera'
 import PaymentsPage from './pages/Payments'
+import CustomerDetail from './pages/CustomerDetail'
 import { useStore } from './store/useStore'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/production"  element={<Production />} />
           <Route path="/sales"       element={<Sales />} />
           <Route path="/crm"         element={<CRM />} />
+          <Route path="/crm/:id"     element={<CustomerDetail />} />
           <Route path="/reports"     element={<Reports />} />
           <Route path="/catalog"     element={<Catalog />} />
           <Route path="/quotations"  element={<Quotations />} />
