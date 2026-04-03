@@ -12,6 +12,7 @@ import InstallPWA from '../InstallPWA'
 const titles: Record<string, string> = {
   '/dashboard':  'Dashboard',
   '/inventory':  'Inventario',
+  '/inventory/movements': 'Movimientos de Inventario',
   '/production': 'Producción',
   '/sales':      'Ventas',
   '/crm':        'Clientes — CRM',

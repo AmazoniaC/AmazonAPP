@@ -22,16 +22,31 @@ function StockBar({ value, min }: { value: number; min: number }) {
 }
 
 function MovementModal({ supply, onClose }: { supply: Supply; onClose: () => void }) {
-  const { updateSupply } = useStore()
+  const { updateSupply, addInventoryMovement, user } = useStore()
   const [type, setType] = useState<'entry' | 'exit'>('entry')
   const [qty, setQty] = useState('')
   const [notes, setNotes] = useState('')
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const n = parseFloat(qty)
     if (!n || n <= 0) return
     const newStock = type === 'entry' ? supply.stock + n : Math.max(0, supply.stock - n)
-    updateSupply({ ...supply, stock: newStock })
+    await updateSupply({ ...supply, stock: newStock })
+    await addInventoryMovement({
+      id: `im${Date.now()}`,
+      itemId: supply.id,
+      itemName: supply.name,
+      itemType: 'supply',
+      movementType: type,
+      quantity: n,
+      previousStock: supply.stock,
+      newStock,
+      unit: supply.unit,
+      reference: '',
+      notes: notes.trim(),
+      createdBy: user?.name || 'Sistema',
+      createdAt: new Date().toISOString(),
+    })
     onClose()
   }
 
@@ -205,6 +220,9 @@ export default function Inventory() {
           <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de insumos y materias primas</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link to="/inventory/movements" className="btn btn-secondary flex items-center gap-2">
+            <ArrowUpCircle size={14} /> Movimientos
+          </Link>
           <button className="btn btn-secondary flex items-center gap-2" onClick={() => setShowImport(true)}>
             <Upload size={14} /> Importar
           </button>

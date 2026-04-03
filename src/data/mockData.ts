@@ -202,6 +202,22 @@ export interface Payment {
   createdAt?: string
 }
 
+export interface InventoryMovement {
+  id: string
+  itemId: string
+  itemName: string
+  itemType: 'supply' | 'product'
+  movementType: 'entry' | 'exit' | 'adjustment' | 'production' | 'return'
+  quantity: number
+  previousStock: number
+  newStock: number
+  unit: string
+  reference: string
+  notes: string
+  createdBy: string
+  createdAt: string
+}
+
 export interface Return {
   id: string
   returnNumber: string

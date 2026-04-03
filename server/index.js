@@ -28,6 +28,7 @@ import importRouter              from './routes/import.js'
 import returnsRouter             from './routes/returns.js'
 import suppliersRouter           from './routes/suppliers.js'
 import paymentsRouter            from './routes/payments.js'
+import inventoryMovementsRouter  from './routes/inventoryMovements.js'
 
 dotenv.config()
 
@@ -238,6 +239,21 @@ async function migrate() {
         details     TEXT,
         created_at  TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS inventory_movements (
+        id              TEXT PRIMARY KEY,
+        item_id         TEXT NOT NULL,
+        item_name       TEXT NOT NULL DEFAULT '',
+        item_type       TEXT NOT NULL DEFAULT 'supply',
+        movement_type   TEXT NOT NULL DEFAULT 'entry',
+        quantity         NUMERIC(14,2) NOT NULL DEFAULT 0,
+        previous_stock   NUMERIC(14,2) DEFAULT 0,
+        new_stock        NUMERIC(14,2) DEFAULT 0,
+        unit            TEXT DEFAULT 'u',
+        reference       TEXT DEFAULT '',
+        notes           TEXT DEFAULT '',
+        created_by      TEXT DEFAULT 'Sistema',
+        created_at      TIMESTAMP DEFAULT NOW()
+      );
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')
@@ -310,6 +326,7 @@ app.use('/api/import',             importRouter)
 app.use('/api/returns',            returnsRouter)
 app.use('/api/suppliers',          suppliersRouter)
 app.use('/api/payments',           paymentsRouter)
+app.use('/api/inventory-movements', inventoryMovementsRouter)
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 

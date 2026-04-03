@@ -6,6 +6,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/dashboard':   'Dashboard',
   '/calendar':    'Calendario',
   '/inventory':   'Inventario',
+  '/inventory/movements': 'Movimientos',
   '/production':  'Producción',
   '/sales':       'Ventas',
   '/crm':         'Clientes — CRM',
@@ -45,6 +46,24 @@ export default function Breadcrumbs() {
         </NavLink>
         <ChevronRight size={12} className="flex-shrink-0" />
         <span className="text-slate-600 dark:text-gray-300 font-medium">{customer?.name || 'Detalle'}</span>
+      </nav>
+    )
+  }
+
+  // Handle nested paths like /inventory/movements
+  if (pathname === '/inventory/movements') {
+    return (
+      <nav className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-gray-500 mb-4">
+        <NavLink to="/dashboard" className="flex items-center gap-1 hover:text-amazonia-600 dark:hover:text-amazonia-400 transition-colors">
+          <Home size={12} />
+          <span>Inicio</span>
+        </NavLink>
+        <ChevronRight size={12} className="flex-shrink-0" />
+        <NavLink to="/inventory" className="hover:text-amazonia-600 dark:hover:text-amazonia-400 transition-colors">
+          Inventario
+        </NavLink>
+        <ChevronRight size={12} className="flex-shrink-0" />
+        <span className="text-slate-600 dark:text-gray-300 font-medium">Movimientos</span>
       </nav>
     )
   }

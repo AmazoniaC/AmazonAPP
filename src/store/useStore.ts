@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import {
   Supply, Product, ProductionOrder, Customer, SaleOrder, Recipe, Quotation, CustomerActivity,
-  PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return, Payment,
+  PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return, Payment, InventoryMovement,
 } from '../data/mockData'
 import { toast } from '../components/Toast'
 
@@ -70,6 +70,7 @@ interface AppState {
   suppliers:        Supplier[]
   returns:          Return[]
   payments:         Payment[]
+  inventoryMovements: InventoryMovement[]
   // Company settings
   companySettings:  CompanySettings
   // UI
@@ -148,6 +149,9 @@ interface AppState {
   addReturn:    (r: Return) => Promise<void>
   updateReturn: (r: Return) => Promise<void>
   deleteReturn: (id: string) => Promise<void>
+  // Actions – inventory movements
+  addInventoryMovement: (m: InventoryMovement) => Promise<void>
+  loadInventoryMovements: () => Promise<void>
   // Actions – price lists
   addPriceList:    (p: PriceList) => Promise<void>
   updatePriceList: (p: PriceList) => Promise<void>
@@ -260,6 +264,7 @@ export const useStore = create<AppState>((set, get) => ({
   suppliers:        [],
   returns:          [],
   payments:         [],
+  inventoryMovements: [],
   companySettings:  defaultCompanySettings,
   sidebarOpen:      true,
   darkMode:         initialDark,
@@ -744,6 +749,16 @@ export const useStore = create<AppState>((set, get) => ({
     toast.success('Devolución eliminada')
   },
 
+  // ── Inventory movements ──────────────────────────────────────────────────
+  addInventoryMovement: async (m) => {
+    await apiFetch('/api/inventory-movements', { method: 'POST', body: JSON.stringify(m) })
+    set((st) => ({ inventoryMovements: [m, ...st.inventoryMovements] }))
+  },
+  loadInventoryMovements: async () => {
+    const data = await apiFetch<InventoryMovement[]>('/api/inventory-movements').catch(() => [] as InventoryMovement[])
+    set({ inventoryMovements: data })
+  },
+
   // ── Price lists ───────────────────────────────────────────────────────────
   addPriceList: async (pl) => {
     await apiFetch('/api/price-lists', { method: 'POST', body: JSON.stringify(pl) })
@@ -851,7 +866,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Reset store to blank state (keep page alive, logout will redirect)
     set({
       supplies: [], products: [], productionOrders: [],
-      customers: [], saleOrders: [], recipes: [], quotations: [], activities: [], purchaseOrders: [], priceLists: [], suppliers: [], returns: [], payments: [],
+      customers: [], saleOrders: [], recipes: [], quotations: [], activities: [], purchaseOrders: [], priceLists: [], suppliers: [], returns: [], payments: [], inventoryMovements: [],
       companySettings: defaultCompanySettings,
       notifications: [],
       dataLoaded: false,

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, Factory, ShoppingCart,
   Users, BarChart3, BookOpen, Settings, ChevronLeft, ChevronRight,
   Leaf, LogOut, FileText, Truck, Navigation, Receipt, Kanban, CalendarDays,
-  RotateCcw, Building2, Wallet, Banknote,
+  RotateCcw, Building2, Wallet, Banknote, ArrowLeftRight,
 } from 'lucide-react'
 import { useStore } from '../../store/useStore'
 import { useMemo } from 'react'
@@ -12,6 +12,7 @@ const nav = [
   { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',      category: null,         roles: null },
   { to: '/calendar',   icon: CalendarDays,    label: 'Calendario',     category: null,         roles: null },
   { to: '/inventory',  icon: Package,         label: 'Inventario',     category: 'inventory',  roles: ['Administrador','Inventario','Producción'] },
+  { to: '/inventory/movements', icon: ArrowLeftRight, label: 'Movimientos', category: 'inventory', roles: ['Administrador','Inventario'] },
   { to: '/production', icon: Factory,         label: 'Producción',     category: 'production', roles: ['Administrador','Producción'] },
   { to: '/sales',      icon: ShoppingCart,    label: 'Ventas',         category: 'sales',      roles: ['Administrador','Ventas','Contabilidad'] },
   { to: '/quotations', icon: FileText,        label: 'Cotizaciones',   category: 'sales',      roles: ['Administrador','Ventas'] },

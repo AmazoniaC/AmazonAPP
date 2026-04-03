@@ -23,6 +23,7 @@ import SuppliersPage from './pages/Suppliers'
 import CarteraPage from './pages/Cartera'
 import PaymentsPage from './pages/Payments'
 import CustomerDetail from './pages/CustomerDetail'
+import InventoryMovements from './pages/InventoryMovements'
 import { useStore } from './store/useStore'
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/dashboard"   element={<Dashboard />} />
           <Route path="/calendar"    element={<CalendarPage />} />
           <Route path="/inventory"   element={<Inventory />} />
+          <Route path="/inventory/movements" element={<InventoryMovements />} />
           <Route path="/production"  element={<Production />} />
           <Route path="/sales"       element={<Sales />} />
           <Route path="/crm"         element={<CRM />} />
