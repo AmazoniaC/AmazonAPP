@@ -1,20 +1,21 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag } from 'lucide-react'
+import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { UserAvatar } from '../components/layout/Topbar'
 import Pagination from '../components/Pagination'
+import UserManual from '../components/UserManual'
 import { WA_TEMPLATES, WaTemplateKey } from '../utils/whatsapp'
 
 const TAB_ICONS: Record<string, any> = {
   empresa: Building, usuarios: Users, pagos: CreditCard, precios: Tag,
-  impuestos: Percent, notificaciones: Bell, whatsapp: MessageCircle, seguridad: Shield, auditoria: ClipboardList,
+  impuestos: Percent, notificaciones: Bell, whatsapp: MessageCircle, seguridad: Shield, auditoria: ClipboardList, manual: BookOpen,
 }
 
-const tabs = ['empresa','usuarios','pagos','precios','impuestos','notificaciones','whatsapp','seguridad','auditoria']
+const tabs = ['empresa','usuarios','pagos','precios','impuestos','notificaciones','whatsapp','seguridad','auditoria','manual']
 const TAB_LABELS: Record<string, string> = {
   empresa:'Empresa', usuarios:'Usuarios y roles', pagos:'Métodos de pago', precios:'Listas de precios',
-  impuestos:'Impuestos', notificaciones:'Notificaciones', whatsapp:'WhatsApp', seguridad:'Seguridad', auditoria:'Auditoría',
+  impuestos:'Impuestos', notificaciones:'Notificaciones', whatsapp:'WhatsApp', seguridad:'Seguridad', auditoria:'Auditoría', manual:'Manual de usuario',
 }
 
 interface AuditEntry {
@@ -1225,6 +1226,8 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {activeTab === 'manual' && <UserManual />}
         </div>
       </div>
     </div>
