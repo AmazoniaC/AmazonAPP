@@ -279,7 +279,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (get().dataLoaded && !force) return
     if (force) set({ dataLoaded: false })
     try {
-      const [supplies, products, productionOrders, customers, saleOrders, recipes, settings, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments] =
+      const [supplies, products, productionOrders, customers, saleOrders, recipes, settings, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements] =
         await Promise.all([
           apiFetch<Supply[]>('/api/supplies'),
           apiFetch<Product[]>('/api/products'),
@@ -298,6 +298,7 @@ export const useStore = create<AppState>((set, get) => ({
           apiFetch<Supplier[]>('/api/suppliers').catch(() => [] as Supplier[]),
           apiFetch<Return[]>('/api/returns').catch(() => [] as Return[]),
           apiFetch<Payment[]>('/api/payments').catch(() => [] as Payment[]),
+          apiFetch<InventoryMovement[]>('/api/inventory-movements').catch(() => [] as InventoryMovement[]),
         ])
 
       const companySettings: CompanySettings = {
@@ -327,7 +328,7 @@ export const useStore = create<AppState>((set, get) => ({
         invoicePrefix:      settings.invoicePrefix      ?? defaultCompanySettings.invoicePrefix,
       }
 
-      set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, companySettings, dataLoaded: true })
+      set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })
       // Run smart alerts after data is ready
       get().checkAlerts()
     } catch (e) {

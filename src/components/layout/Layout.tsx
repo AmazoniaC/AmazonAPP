@@ -32,10 +32,21 @@ const titles: Record<string, string> = {
 }
 
 export default function Layout() {
-  const { sidebarOpen, dataLoaded } = useStore()
+  const { sidebarOpen, dataLoaded, customers } = useStore()
   const { pathname } = useLocation()
   usePushNotifications()
   useSessionTimeout()
+
+  // Resolve title for dynamic routes
+  const resolveTitle = () => {
+    if (titles[pathname]) return titles[pathname]
+    const crmMatch = pathname.match(/^\/crm\/(.+)$/)
+    if (crmMatch) {
+      const customer = customers.find(c => c.id === crmMatch[1])
+      return customer ? `${customer.name} — Cliente` : 'Detalle de Cliente'
+    }
+    return ''
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex">
@@ -44,7 +55,7 @@ export default function Layout() {
         className="flex-1 flex flex-col min-h-screen transition-all duration-300"
         style={{ marginLeft: sidebarOpen ? '240px' : '64px' }}
       >
-        <Topbar title={titles[pathname]} />
+        <Topbar title={resolveTitle()} />
         <main className="flex-1 p-6 overflow-auto">
           <Breadcrumbs />
           {!dataLoaded && pathname !== '/settings' ? (
