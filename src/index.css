@@ -21,30 +21,47 @@ body {
 
 /* ── Sidebar ─────────────────────────────── */
 .sidebar-link {
-  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer;
 }
 .sidebar-link:hover        { @apply bg-amazonia-800/60 text-white; }
-.sidebar-link.active       { @apply bg-amazonia-700 text-white shadow-sm; }
+.sidebar-link.active       { @apply bg-amazonia-700 text-white shadow-sm shadow-amazonia-900/30; }
 .sidebar-link.active svg   { @apply text-white; }
 
 .dark .sidebar-link:hover  { @apply bg-amazonia-800/60 text-white; }
 .dark .sidebar-link.active { @apply bg-amazonia-700 text-white; }
 
 /* ── Card ─────────────────────────────────── */
-.card { @apply bg-white rounded-xl border border-slate-200 shadow-sm; }
-.dark .card { @apply bg-gray-800 border-gray-700; }
+.card {
+  @apply bg-white rounded-xl border border-slate-200/80 shadow-sm transition-shadow duration-200;
+}
+.card:hover { box-shadow: 0 4px 12px -2px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.04); }
+.dark .card { @apply bg-gray-800 border-gray-700/80; }
+.dark .card:hover { box-shadow: 0 4px 12px -2px rgba(0,0,0,0.3); }
+
+/* ── Card variants ──────────────────────────── */
+.card-gradient {
+  @apply rounded-xl border border-slate-200/60 shadow-sm;
+  background: linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%);
+}
+.dark .card-gradient {
+  @apply border-gray-700/60;
+  background: linear-gradient(135deg, rgba(31,41,55,1) 0%, rgba(17,24,39,1) 100%);
+}
 
 /* ── Buttons ──────────────────────────────── */
 .btn {
-  @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer;
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 cursor-pointer active:scale-[0.97];
 }
-.btn-primary   { @apply bg-amazonia-700 text-white hover:bg-amazonia-800 shadow-sm; }
-.btn-secondary { @apply bg-white text-slate-700 border border-slate-200 hover:bg-stone-50; }
-.btn-danger    { @apply bg-red-600 text-white hover:bg-red-700; }
-.btn-success   { @apply bg-emerald-600 text-white hover:bg-emerald-700; }
+.btn-primary {
+  @apply bg-amazonia-700 text-white hover:bg-amazonia-800 shadow-sm shadow-amazonia-900/20;
+}
+.btn-primary:hover { @apply shadow-md shadow-amazonia-900/25; }
+.btn-secondary { @apply bg-white text-slate-700 border border-slate-200 hover:bg-stone-50 hover:border-slate-300; }
+.btn-danger    { @apply bg-red-600 text-white hover:bg-red-700 shadow-sm shadow-red-900/20; }
+.btn-success   { @apply bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-900/20; }
 .btn-sm        { @apply px-3 py-1.5 text-xs; }
 
-.dark .btn-secondary { @apply bg-gray-700 text-gray-100 border-gray-600 hover:bg-gray-600; }
+.dark .btn-secondary { @apply bg-gray-700 text-gray-100 border-gray-600 hover:bg-gray-600 hover:border-gray-500; }
 
 /* ── Badges ───────────────────────────────── */
 .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
@@ -64,31 +81,147 @@ body {
 
 /* ── Input ────────────────────────────────── */
 .input {
-  @apply w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amazonia-600 focus:border-transparent transition-all;
+  @apply w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white
+         focus:outline-none focus:ring-2 focus:ring-amazonia-500/40 focus:border-amazonia-500 transition-all duration-200;
 }
-.dark .input { @apply bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400; }
+.dark .input { @apply bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 focus:ring-amazonia-400/30 focus:border-amazonia-400; }
 
 .label       { @apply block text-sm font-medium text-slate-700 mb-1; }
 .dark .label { @apply text-slate-300; }
 
 /* ── Table rows ───────────────────────────── */
-.table-row { @apply border-b border-slate-100 hover:bg-stone-50 transition-colors; }
+.table-row { @apply border-b border-slate-100 hover:bg-stone-50/80 transition-colors duration-150; }
 .dark .table-row { @apply border-gray-700 hover:bg-gray-700/50; }
+
+/* ── KPI Card ─────────────────────────────── */
+.kpi-card {
+  @apply relative overflow-hidden rounded-xl border border-slate-200/60 shadow-sm p-5;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  opacity: 0.06;
+}
+.dark .kpi-card {
+  @apply border-gray-700/60;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+}
+
+/* ── Stat Number Animation ────────────────── */
+.stat-value {
+  @apply text-2xl font-bold text-slate-800 tabular-nums tracking-tight;
+}
+.dark .stat-value { @apply text-white; }
+
+/* ── Glow effects for icons ───────────────── */
+.icon-glow {
+  @apply transition-all duration-300;
+  filter: drop-shadow(0 0 0 transparent);
+}
+.icon-glow:hover {
+  filter: drop-shadow(0 2px 4px currentColor);
+}
+
+/* ── Progress bar ─────────────────────────── */
+.progress-bar {
+  @apply h-2 rounded-full overflow-hidden bg-slate-100;
+}
+.progress-bar-fill {
+  @apply h-full rounded-full transition-all duration-700 ease-out;
+}
+.dark .progress-bar { @apply bg-gray-700; }
 
 /* ── Animations ───────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+.animate-fadeIn { animation: fadeIn 0.25s ease-out; }
 
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-.animate-slideIn { animation: slideIn 0.15s ease-out; }
+.animate-slideIn { animation: slideIn 0.2s ease-out; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp { animation: slideUp 0.3s ease-out; }
 
 @keyframes toastIn {
   from { opacity: 0; transform: translateX(16px) scale(0.95); }
   to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scaleIn { animation: scaleIn 0.2s ease-out; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.3) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-countUp { animation: countUp 0.4s ease-out; }
+
+/* ── Staggered children animation ─────────── */
+.stagger-children > * { animation: fadeIn 0.3s ease-out both; }
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+
+/* ── Glass effect ─────────────────────────── */
+.glass {
+  @apply bg-white/70 backdrop-blur-md border border-white/20;
+}
+.dark .glass {
+  @apply bg-gray-800/70 border-gray-700/30;
+}
+
+/* ── Gradient text ────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #2d4a1e, #4a7c32);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
+  background: linear-gradient(135deg, #6bba45, #90d56c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Focus visible for accessibility ─────── */
+.btn:focus-visible, .input:focus-visible {
+  @apply outline-2 outline-offset-2 outline-amazonia-500;
+}
+
+/* ── Smooth page transitions ─────────────── */
+.page-enter {
+  animation: fadeIn 0.3s ease-out, slideUp 0.3s ease-out;
 }

@@ -56,12 +56,13 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-amazonia-900 flex flex-col transition-all duration-300 z-40 ${
+      className={`fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-40 ${
         sidebarOpen ? 'w-60' : 'w-16'
       }`}
+      style={{ background: 'linear-gradient(180deg, #1a3312 0%, #12200d 100%)' }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-4 h-16 border-b border-amazonia-800/60">
+      <div className="flex items-center justify-between px-4 h-16 border-b border-white/10">
         {sidebarOpen && (
           <div className="flex items-center gap-2.5 animate-slideIn overflow-hidden">
             {logo ? (

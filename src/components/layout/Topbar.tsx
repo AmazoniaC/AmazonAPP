@@ -78,17 +78,17 @@ export default function Topbar({ title }: { title?: string }) {
   }
 
   return (
-    <header className="h-16 bg-white dark:bg-gray-800 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 z-30">
+    <header className="h-16 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-slate-200/60 dark:border-gray-700/60 flex items-center justify-between px-6 sticky top-0 z-30">
       {/* Search */}
       <div className="flex items-center gap-4">
-        {title && <h2 className="font-semibold text-slate-700 dark:text-gray-200 hidden sm:block">{title}</h2>}
+        {title && <h2 className="font-semibold text-slate-800 dark:text-gray-100 hidden sm:block tracking-tight">{title}</h2>}
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-          className="hidden sm:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-gray-700 dark:text-gray-400 border border-slate-200 dark:border-gray-600 rounded-lg w-64 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-600 transition-colors relative cursor-pointer"
+          className="hidden sm:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-slate-50/80 dark:bg-gray-700/80 dark:text-gray-400 border border-slate-200 dark:border-gray-600 rounded-xl w-64 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-600 hover:shadow-sm transition-all duration-200 relative cursor-pointer"
         >
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <span className="flex-1 text-left">Buscar...</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-600 text-[10px] font-mono border border-slate-300 dark:border-gray-500">⌘K</kbd>
+          <kbd className="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-gray-600 text-[10px] font-mono border border-slate-300/60 dark:border-gray-500">⌘K</kbd>
         </button>
       </div>
 

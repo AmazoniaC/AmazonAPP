@@ -18,26 +18,29 @@ const AUTO_REFRESH_MIN = 5
 const PIE_COLORS = ['#2563eb', '#0f766e', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#65a30d']
 
 function KPICard({
-  icon: Icon, label, value, sub, trend, color,
+  icon: Icon, label, value, sub, trend, color, accent,
 }: {
   icon: any; label: string; value: string; sub: string
-  trend?: 'up' | 'down'; color: string
+  trend?: 'up' | 'down'; color: string; accent?: string
 }) {
   return (
-    <div className="card p-5 flex items-start justify-between">
-      <div>
-        <p className="text-sm text-slate-500 dark:text-gray-400 font-medium">{label}</p>
-        <p className="text-2xl font-bold text-slate-800 dark:text-white mt-1">{value}</p>
-        <div className="flex items-center gap-1 mt-1">
-          {trend === 'up'   && <TrendingUp  size={13} className="text-emerald-500" />}
-          {trend === 'down' && <TrendingDown size={13} className="text-red-500" />}
-          <span className={`text-xs font-medium ${
-            trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-red-600' : 'text-slate-500 dark:text-gray-400'
-          }`}>{sub}</span>
+    <div className="kpi-card group">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-slate-500 dark:text-gray-400 font-medium uppercase tracking-wider">{label}</p>
+          <p className="stat-value mt-1.5 animate-countUp">{value}</p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            {trend === 'up'   && <ArrowUpRight  size={14} className="text-emerald-500" />}
+            {trend === 'down' && <ArrowDownRight size={14} className="text-red-500" />}
+            <span className={`text-xs font-medium ${
+              trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : trend === 'down' ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-gray-400'
+            }`}>{sub}</span>
+          </div>
         </div>
-      </div>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-        <Icon size={22} className="text-white" />
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color} shadow-lg group-hover:scale-105 transition-transform duration-200`}
+          style={accent ? { boxShadow: `0 4px 14px -3px ${accent}` } : undefined}>
+          <Icon size={20} className="text-white" />
+        </div>
       </div>
     </div>
   )
@@ -204,21 +207,25 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
-            {isAdmin ? 'Panel de Control' : `Panel — ${role}`}
-          </h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm mt-0.5">
-            {user?.name ? `Hola, ${user.name.split(' ')[0]}` : 'Resumen'} —{' '}
+          <p className="text-sm text-slate-500 dark:text-gray-400 font-medium">
             {new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+          </p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">
+            {user?.name ? `Hola, ${user.name.split(' ')[0]}` : 'Panel de Control'} 👋
+          </h1>
+          <p className="text-sm text-slate-400 dark:text-gray-500 mt-0.5">
+            {isAdmin ? 'Vista general de tu negocio' : `Panel de ${role}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 dark:text-gray-500">
-            Actualizado: {lastRefresh.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })}
-            <span className="ml-1 opacity-60">(auto cada {AUTO_REFRESH_MIN} min)</span>
-          </span>
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              {lastRefresh.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })}
+            </span>
+          </div>
           <button onClick={refresh} disabled={refreshing}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-slate-200 dark:border-gray-600 rounded-lg text-xs font-medium text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50">
+            className="btn btn-sm btn-secondary">
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Actualizando...' : 'Actualizar'}
           </button>
@@ -241,13 +248,13 @@ export default function Dashboard() {
         const pendingPayTotal = saleOrders.filter(o => o.paymentStatus === 'pending' || o.paymentStatus === 'partial').reduce((a,o)=>a+o.total,0)
         const scheduledDispatches = dispatches.filter(d => d.status === 'scheduled' || d.status === 'in_transit').length
         const cards: React.ReactNode[] = []
-        if (showSales)      cards.push(<KPICard key="sales" icon={DollarSign}  label="Ventas totales"        value={formatCOP(totalSales)} sub={`${saleOrders.length} órdenes registradas`} color="bg-blue-600" />)
-        if (showSales || showFinance) cards.push(<KPICard key="receivable" icon={Clock}       label="Por cobrar"             value={formatCOP(pendingPayTotal)} sub="Pagos pendientes" trend={pendingPayTotal>0?'down':undefined} color="bg-rose-500" />)
-        if (showInventory)  cards.push(<KPICard key="stock" icon={Package}     label="Alertas de inventario"  value={`${lowStock.length}`}  sub="Insumos bajo mínimo"   trend={lowStock.length>0?'down':undefined} color="bg-amber-500" />)
-        if (showProduction) cards.push(<KPICard key="prod" icon={Factory}      label="En producción"          value={`${inProd.length}`}    sub={`${productionOrders.filter(o=>o.status==='pending').length} órdenes pendientes`} color="bg-teal-600" />)
-        if (showSales)      cards.push(<KPICard key="dispatch" icon={Users}    label="Despachos activos"      value={`${scheduledDispatches}`} sub="Programados / en tránsito" color="bg-violet-600" />)
+        if (showSales)      cards.push(<KPICard key="sales" icon={DollarSign}  label="Ventas totales"        value={formatCOP(totalSales)} sub={`${saleOrders.length} órdenes registradas`} color="bg-blue-600" accent="rgba(37,99,235,0.35)" />)
+        if (showSales || showFinance) cards.push(<KPICard key="receivable" icon={Clock}       label="Por cobrar"             value={formatCOP(pendingPayTotal)} sub="Pagos pendientes" trend={pendingPayTotal>0?'down':undefined} color="bg-rose-500" accent="rgba(244,63,94,0.35)" />)
+        if (showInventory)  cards.push(<KPICard key="stock" icon={Package}     label="Alertas de inventario"  value={`${lowStock.length}`}  sub="Insumos bajo mínimo"   trend={lowStock.length>0?'down':undefined} color="bg-amber-500" accent="rgba(245,158,11,0.35)" />)
+        if (showProduction) cards.push(<KPICard key="prod" icon={Factory}      label="En producción"          value={`${inProd.length}`}    sub={`${productionOrders.filter(o=>o.status==='pending').length} órdenes pendientes`} color="bg-teal-600" accent="rgba(13,148,136,0.35)" />)
+        if (showSales)      cards.push(<KPICard key="dispatch" icon={Users}    label="Despachos activos"      value={`${scheduledDispatches}`} sub="Programados / en tránsito" color="bg-violet-600" accent="rgba(124,58,237,0.35)" />)
         return (
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${cards.length >= 4 ? 'xl:grid-cols-4' : cards.length === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-2'} gap-4`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${cards.length >= 4 ? 'xl:grid-cols-4' : cards.length === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-2'} gap-4 stagger-children`}>
             {cards}
           </div>
         )
@@ -292,8 +299,8 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <div className="relative h-3 bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${onTrack ? 'bg-emerald-500' : 'bg-amber-500'}`}
+            <div className="progress-bar relative !h-3">
+              <div className={`progress-bar-fill ${onTrack ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-amber-400 to-amber-600'}`}
                 style={{ width: `${goalPct}%` }} />
               <div className="absolute top-0 h-full w-0.5 bg-slate-400 dark:bg-gray-500"
                 style={{ left: `${expectedPct}%` }}
