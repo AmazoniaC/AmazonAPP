@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, CalendarDays, Truck, Factory,
-  ShoppingCart, FileText, Clock, Package, Filter,
+  ShoppingCart, FileText, Clock, Package, Filter, Users, Bell,
+  Plus, Trash2, Check, MessageCircle, X,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import type { CalendarItem, CalendarItemKind } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type EventType = 'dispatch' | 'production' | 'delivery' | 'sale' | 'quotation' | 'purchase'
+type EventType = 'dispatch' | 'production' | 'delivery' | 'sale' | 'quotation' | 'purchase' | 'meeting' | 'reminder'
 
 interface CalendarEvent {
   id: string
@@ -20,6 +22,8 @@ interface CalendarEvent {
   status: string
   link: string
   amount?: number
+  itemId?: string       // present for user-created meetings/reminders
+  done?: boolean
 }
 
 const EVENT_CONFIG: Record<EventType, { icon: any; color: string; bg: string; label: string }> = {
@@ -29,9 +33,17 @@ const EVENT_CONFIG: Record<EventType, { icon: any; color: string; bg: string; la
   sale:       { icon: ShoppingCart,  color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30 border-violet-200 dark:border-violet-800', label: 'Venta' },
   quotation:  { icon: FileText,     color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800', label: 'Cotización' },
   purchase:   { icon: Clock,        color: 'text-rose-700 dark:text-rose-400',   bg: 'bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800',   label: 'Compra' },
+  meeting:    { icon: Users,        color: 'text-indigo-700 dark:text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800', label: 'Reunión' },
+  reminder:   { icon: Bell,         color: 'text-fuchsia-700 dark:text-fuchsia-400', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/30 border-fuchsia-200 dark:border-fuchsia-800', label: 'Recordatorio' },
 }
 
-const ALL_TYPES: EventType[] = ['dispatch', 'production', 'delivery', 'sale', 'quotation', 'purchase']
+const ALL_TYPES: EventType[] = ['dispatch', 'production', 'delivery', 'sale', 'quotation', 'purchase', 'meeting', 'reminder']
+
+const TYPE_DOT_COLOR: Record<EventType, string> = {
+  dispatch: '#2563eb', production: '#0d9488', delivery: '#16a34a',
+  sale: '#7c3aed', quotation: '#d97706', purchase: '#e11d48',
+  meeting: '#4f46e5', reminder: '#c026d3',
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getDaysInMonth(year: number, month: number) {
@@ -56,7 +68,13 @@ const MONTHS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
-  const { saleOrders, productionOrders, dispatches, quotations, purchaseOrders } = useStore()
+  const {
+    saleOrders, productionOrders, dispatches, quotations, purchaseOrders,
+    calendarItems, addCalendarItem, deleteCalendarItem, toggleCalendarItemDone,
+    companySettings,
+  } = useStore()
+
+  const [showModal, setShowModal] = useState(false)
 
   const today = new Date()
   const [year, setYear]   = useState(today.getFullYear())
@@ -170,8 +188,24 @@ export default function CalendarPage() {
       }
     }
 
+    // User-created meetings & reminders
+    for (const it of calendarItems) {
+      list.push({
+        id: `cal-${it.id}`,
+        type: it.kind === 'meeting' ? 'meeting' : 'reminder',
+        title: it.title,
+        subtitle: it.description || it.location,
+        date: it.date,
+        time: it.time,
+        status: it.done ? 'done' : 'pending',
+        link: '/calendar',
+        itemId: it.id,
+        done: it.done,
+      })
+    }
+
     return list
-  }, [dispatches, productionOrders, saleOrders, quotations, purchaseOrders])
+  }, [dispatches, productionOrders, saleOrders, quotations, purchaseOrders, calendarItems])
 
   // Index events by date, respecting active filters
   const eventsByDate = useMemo(() => {
@@ -206,9 +240,14 @@ export default function CalendarPage() {
             <CalendarDays size={24} /> Calendario
           </h1>
           <p className="text-slate-500 dark:text-gray-400 text-sm mt-0.5">
-            Vista consolidada de despachos, producción, entregas y vencimientos
+            Despachos, producción, entregas, reuniones y recordatorios
           </p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm">
+          <Plus size={16} /> Agendar
+        </button>
       </div>
 
       {/* Filters */}
@@ -268,7 +307,7 @@ export default function CalendarPage() {
               const isToday = dateISO === todayISO
               const isSelected = dateISO === selectedDay
               // Unique event types for dots
-              const typesPresent = [...new Set(dayEvents.map(e => e.type))]
+              const typesPresent = Array.from(new Set(dayEvents.map(e => e.type))) as EventType[]
 
               return (
                 <button key={day} onClick={() => setSelectedDay(isSelected ? null : dateISO)}
@@ -285,7 +324,7 @@ export default function CalendarPage() {
                     <div className="flex gap-0.5">
                       {typesPresent.slice(0, 4).map(type => (
                         <div key={type} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : ''}`}
-                          style={!isSelected ? { backgroundColor: type === 'dispatch' ? '#2563eb' : type === 'production' ? '#0d9488' : type === 'delivery' ? '#16a34a' : type === 'sale' ? '#7c3aed' : type === 'quotation' ? '#d97706' : '#e11d48' } : undefined} />
+                          style={!isSelected ? { backgroundColor: TYPE_DOT_COLOR[type] } : undefined} />
                       ))}
                     </div>
                   )}
@@ -330,29 +369,68 @@ export default function CalendarPage() {
           {/* Selected day events */}
           {selectedDay && (
             <div className="card p-4">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-white mb-1">
-                {new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </h3>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </h3>
+                {selectedEvents.length > 0 && companySettings.whatsapp && (() => {
+                  const phone = companySettings.whatsapp.replace(/\D/g, '')
+                  const summary = selectedEvents
+                    .map((e) => `• ${e.time ? e.time + ' ' : ''}${e.title}`)
+                    .join('\n')
+                  const text = `Agenda ${selectedDay}:\n${summary}`
+                  return (
+                    <a
+                      href={`https://wa.me/${phone}?text=${encodeURIComponent(text)}`}
+                      target="_blank" rel="noreferrer"
+                      title="Enviar agenda del día por WhatsApp"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white text-[10px] font-semibold">
+                      <MessageCircle size={11} /> WhatsApp
+                    </a>
+                  )
+                })()}
+              </div>
               {selectedEvents.length === 0 ? (
                 <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">Sin eventos programados</p>
               ) : (
                 <div className="space-y-2 mt-3">
                   {selectedEvents.map(ev => {
                     const cfg = EVENT_CONFIG[ev.type]
-                    return (
-                      <Link key={ev.id} to={ev.link}
-                        className={`block border rounded-lg p-3 ${cfg.bg} hover:opacity-80 transition-opacity`}>
-                        <div className="flex items-start gap-2">
-                          <cfg.icon size={14} className={`${cfg.color} mt-0.5 flex-shrink-0`} />
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-xs font-semibold ${cfg.color} truncate`}>{ev.title}</p>
-                            {ev.subtitle && <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{ev.subtitle}</p>}
-                            <div className="flex items-center justify-between mt-1">
-                              {ev.time && <span className="text-[10px] text-slate-500 dark:text-gray-400">{ev.time}</span>}
-                              {ev.amount != null && <span className="text-[10px] font-semibold text-slate-600 dark:text-gray-300">{formatCOP(ev.amount)}</span>}
-                            </div>
+                    const inner = (
+                      <div className="flex items-start gap-2">
+                        <cfg.icon size={14} className={`${cfg.color} mt-0.5 flex-shrink-0`} />
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-semibold ${cfg.color} truncate ${ev.done ? 'line-through opacity-60' : ''}`}>{ev.title}</p>
+                          {ev.subtitle && <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{ev.subtitle}</p>}
+                          <div className="flex items-center justify-between mt-1">
+                            {ev.time && <span className="text-[10px] text-slate-500 dark:text-gray-400">{ev.time}</span>}
+                            {ev.amount != null && <span className="text-[10px] font-semibold text-slate-600 dark:text-gray-300">{formatCOP(ev.amount)}</span>}
                           </div>
                         </div>
+                        {ev.itemId && (
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCalendarItemDone(ev.itemId!) }}
+                              title={ev.done ? 'Reabrir' : 'Marcar como hecho'}
+                              className="p-1 rounded hover:bg-white/40 dark:hover:bg-black/20">
+                              <Check size={12} className={cfg.color} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteCalendarItem(ev.itemId!) }}
+                              title="Eliminar"
+                              className="p-1 rounded hover:bg-white/40 dark:hover:bg-black/20">
+                              <Trash2 size={12} className="text-rose-600" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                    return ev.itemId ? (
+                      <div key={ev.id} className={`block border rounded-lg p-3 ${cfg.bg}`}>{inner}</div>
+                    ) : (
+                      <Link key={ev.id} to={ev.link}
+                        className={`block border rounded-lg p-3 ${cfg.bg} hover:opacity-80 transition-opacity`}>
+                        {inner}
                       </Link>
                     )
                   })}
@@ -395,6 +473,177 @@ export default function CalendarPage() {
           })()}
         </div>
       </div>
+
+      {showModal && (
+        <NewItemModal
+          defaultDate={selectedDay || todayISO}
+          defaultPhone={companySettings.whatsapp || ''}
+          onClose={() => setShowModal(false)}
+          onSave={(item) => { addCalendarItem(item); setShowModal(false) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── New meeting / reminder modal ─────────────────────────────────────────────
+function NewItemModal({
+  defaultDate, defaultPhone, onClose, onSave,
+}: {
+  defaultDate: string
+  defaultPhone: string
+  onClose: () => void
+  onSave: (item: Omit<CalendarItem, 'id' | 'notifiedAt'>) => void
+}) {
+  const [kind, setKind]               = useState<CalendarItemKind>('meeting')
+  const [title, setTitle]             = useState('')
+  const [description, setDescription] = useState('')
+  const [location, setLocation]       = useState('')
+  const [date, setDate]               = useState(defaultDate)
+  const [time, setTime]               = useState('09:00')
+  const [reminderMinutes, setReminderMinutes] = useState(15)
+  const [notifyApp, setNotifyApp]     = useState(true)
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false)
+  const [whatsappPhone, setWhatsappPhone]   = useState(defaultPhone)
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!title.trim() || !date) return
+    onSave({
+      kind,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      location: location.trim() || undefined,
+      date,
+      time: time || undefined,
+      reminderMinutes,
+      notifyApp,
+      notifyWhatsapp,
+      whatsappPhone: notifyWhatsapp ? whatsappPhone.replace(/\D/g, '') : undefined,
+      done: false,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={submit}
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Nuevo en el calendario</h2>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-gray-700">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setKind('meeting')}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium ${
+              kind === 'meeting'
+                ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 text-indigo-700 dark:text-indigo-300'
+                : 'border-slate-200 dark:border-gray-600 text-slate-500 dark:text-gray-400'
+            }`}>
+            <Users size={14} /> Reunión
+          </button>
+          <button type="button" onClick={() => setKind('reminder')}
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium ${
+              kind === 'reminder'
+                ? 'bg-fuchsia-100 dark:bg-fuchsia-900/30 border-fuchsia-300 text-fuchsia-700 dark:text-fuchsia-300'
+                : 'border-slate-200 dark:border-gray-600 text-slate-500 dark:text-gray-400'
+            }`}>
+            <Bell size={14} /> Recordatorio
+          </button>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Título *</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            placeholder={kind === 'meeting' ? 'Reunión con cliente' : 'Llamar al proveedor'}
+            className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Descripción</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+        </div>
+
+        {kind === 'meeting' && (
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Lugar</label>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Oficina, Zoom, etc."
+              className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Fecha *</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+              className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Hora</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+              className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-600 dark:text-gray-300">Avisarme</label>
+          <select
+            value={reminderMinutes}
+            onChange={(e) => setReminderMinutes(Number(e.target.value))}
+            className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white">
+            <option value={0}>En el momento</option>
+            <option value={5}>5 minutos antes</option>
+            <option value={15}>15 minutos antes</option>
+            <option value={30}>30 minutos antes</option>
+            <option value={60}>1 hora antes</option>
+            <option value={1440}>1 día antes</option>
+          </select>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-gray-200">
+            <input type="checkbox" checked={notifyApp} onChange={(e) => setNotifyApp(e.target.checked)} />
+            Notificación en la APP
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-gray-200">
+            <input type="checkbox" checked={notifyWhatsapp} onChange={(e) => setNotifyWhatsapp(e.target.checked)} />
+            Enviar por WhatsApp
+          </label>
+          {notifyWhatsapp && (
+            <input
+              type="tel"
+              value={whatsappPhone}
+              onChange={(e) => setWhatsappPhone(e.target.value)}
+              placeholder="573001234567 (con código de país)"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-slate-800 dark:text-white" />
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose}
+            className="px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700">
+            Cancelar
+          </button>
+          <button type="submit"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+            Guardar
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

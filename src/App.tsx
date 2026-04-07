@@ -27,11 +27,19 @@ import InventoryMovements from './pages/InventoryMovements'
 import { useStore } from './store/useStore'
 
 export default function App() {
-  const { isAuthenticated, loadAllData } = useStore()
+  const { isAuthenticated, loadAllData, checkCalendarReminders } = useStore()
 
   useEffect(() => {
     if (isAuthenticated) loadAllData()
   }, [isAuthenticated])
+
+  // Poll calendar reminders every minute while authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return
+    checkCalendarReminders()
+    const id = window.setInterval(() => checkCalendarReminders(), 60_000)
+    return () => window.clearInterval(id)
+  }, [isAuthenticated, checkCalendarReminders])
 
   return (
     <Routes>
