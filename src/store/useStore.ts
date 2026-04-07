@@ -498,35 +498,43 @@ export const useStore = create<AppState>((set, get) => ({
     const s = get()
     const now = Date.now()
     const todayISO = new Date().toISOString().split('T')[0]
-    let mutated = false
-    const updatedItems = s.calendarItems.map((it) => {
-      if (it.done || it.notifiedAt || !it.notifyApp) return it
+
+    // In-app delivered IDs are tracked separately from server `notifiedAt`
+    // (which only tracks WhatsApp delivery). This prevents re-firing in-app
+    // notifications after the items are reloaded from the API.
+    const deliveredKey = 'erp_calendar_inapp_delivered'
+    let delivered: string[] = []
+    try { delivered = JSON.parse(localStorage.getItem(deliveredKey) || '[]') } catch {}
+    const deliveredSet = new Set(delivered)
+
+    for (const it of s.calendarItems) {
+      if (it.done || !it.notifyApp) continue
+      if (deliveredSet.has(it.id)) continue
       const t = it.time || '09:00'
       const eventMs = new Date(`${it.date}T${t}:00`).getTime()
-      if (Number.isNaN(eventMs)) return it
+      if (Number.isNaN(eventMs)) continue
       const lead = (it.reminderMinutes ?? 15) * 60 * 1000
-      if (now >= eventMs - lead) {
-        const label = it.kind === 'meeting' ? 'Reunión' : 'Recordatorio'
-        const when = it.time ? ` a las ${it.time}` : ''
-        const link = it.notifyWhatsapp && it.whatsappPhone
-          ? `https://wa.me/${it.whatsappPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`${label}: ${it.title}${when} (${it.date})${it.description ? ' — ' + it.description : ''}`)}`
-          : '/calendar'
-        s.addNotification({
-          type: 'info',
-          category: 'general',
-          message: `${label}: ${it.title}${when}`,
-          link,
-        })
-        mutated = true
-        return { ...it, notifiedAt: new Date().toISOString() }
-      }
-      return it
-    })
+      if (now < eventMs - lead) continue
+
+      const label = it.kind === 'meeting' ? 'Reunión' : 'Recordatorio'
+      const when = it.time ? ` a las ${it.time}` : ''
+      const link = it.notifyWhatsapp && it.whatsappPhone
+        ? `https://wa.me/${it.whatsappPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`${label}: ${it.title}${when} (${it.date})${it.description ? ' — ' + it.description : ''}`)}`
+        : '/calendar'
+      s.addNotification({
+        type: 'info',
+        category: 'general',
+        message: `${label}: ${it.title}${when}`,
+        link,
+      })
+      deliveredSet.add(it.id)
+    }
+    localStorage.setItem(deliveredKey, JSON.stringify([...deliveredSet]))
 
     // Daily agenda summary — fire once per day if there are any items today
     const lastAgenda = localStorage.getItem('erp_last_agenda_date')
     if (lastAgenda !== todayISO) {
-      const todayItems = updatedItems.filter((i) => i.date === todayISO && !i.done)
+      const todayItems = s.calendarItems.filter((i) => i.date === todayISO && !i.done)
       if (todayItems.length > 0) {
         const summary = todayItems
           .map((i) => `• ${i.time ? i.time + ' ' : ''}${i.kind === 'meeting' ? '📅' : '🔔'} ${i.title}`)
@@ -543,11 +551,6 @@ export const useStore = create<AppState>((set, get) => ({
         })
       }
       localStorage.setItem('erp_last_agenda_date', todayISO)
-    }
-
-    if (mutated) {
-      lsSet('erp_calendar_items', updatedItems)
-      set({ calendarItems: updatedItems })
     }
   },
 
@@ -1018,7 +1021,7 @@ export const useStore = create<AppState>((set, get) => ({
   factoryReset: async () => {
     await apiFetch('/api/reset', { method: 'DELETE' })
     // Clear all localStorage keys used by the app
-    ;['erp_auth', 'erp_notifications', 'erp_theme', 'erp_logo', 'erp_calendar_items', 'erp_last_agenda_date'].forEach((k) =>
+    ;['erp_auth', 'erp_notifications', 'erp_theme', 'erp_logo', 'erp_calendar_items', 'erp_last_agenda_date', 'erp_calendar_inapp_delivered'].forEach((k) =>
       localStorage.removeItem(k)
     )
     // Reset store to blank state (keep page alive, logout will redirect)

@@ -47,12 +47,23 @@ export async function startWhatsApp() {
     version = v.version
   } catch { /* offline — Baileys uses bundled default */ }
 
+  // Minimal pino-compatible silent logger. Baileys calls .child() recursively
+  // so it must return another logger of the same shape.
+  const makeSilentLogger = () => {
+    const logger = {
+      level: 'silent',
+      trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {},
+      child() { return makeSilentLogger() },
+    }
+    return logger
+  }
+
   status = 'connecting'
   sock = makeWASocket({
     version,
     auth: state,
     printQRInTerminal: false,
-    logger: { level: 'silent', child: () => ({ level: 'silent', trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {}, child() { return this } }), trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} },
+    logger: makeSilentLogger(),
     browser: ['Amazonia ERP', 'Chrome', '1.0.0'],
   })
 
