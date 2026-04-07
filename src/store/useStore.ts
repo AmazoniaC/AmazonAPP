@@ -17,6 +17,24 @@ export interface Notification {
   link?: string
 }
 
+export type CalendarItemKind = 'meeting' | 'reminder'
+
+export interface CalendarItem {
+  id: string
+  kind: CalendarItemKind
+  title: string
+  description?: string
+  location?: string
+  date: string         // YYYY-MM-DD
+  time?: string        // HH:MM (24h)
+  reminderMinutes?: number   // minutes before event to notify
+  notifyApp: boolean
+  notifyWhatsapp: boolean
+  whatsappPhone?: string     // E.164 / digits only
+  notifiedAt?: string        // ISO timestamp when reminder fired
+  done?: boolean
+}
+
 export interface AuthUser {
   name: string
   email: string
@@ -83,6 +101,8 @@ interface AppState {
   lastActivity: number
   // Notifications
   notifications: Notification[]
+  // Calendar items (meetings & reminders)
+  calendarItems: CalendarItem[]
   // Actions – data loading
   loadAllData: (force?: boolean) => Promise<void>
   // Actions – UI
@@ -98,6 +118,12 @@ interface AppState {
   markAsRead:       (id: string) => void
   markAllAsRead:    () => void
   clearNotifications: () => void
+  // Actions – calendar items
+  addCalendarItem:    (i: Omit<CalendarItem, 'id' | 'notifiedAt'>) => void
+  updateCalendarItem: (i: CalendarItem) => void
+  deleteCalendarItem: (id: string) => void
+  toggleCalendarItemDone: (id: string) => void
+  checkCalendarReminders: () => void
   // Actions – business data
   updateProductionOrderStatus: (id: string, status: ProductionOrder['status']) => void
   addSupply:    (s: Supply)    => Promise<void>
@@ -192,6 +218,14 @@ const getNotifications = (): Notification[] => {
   } catch { return [] }
 }
 
+const getCalendarItems = (): CalendarItem[] => {
+  try {
+    const raw = localStorage.getItem('erp_calendar_items')
+    if (!raw) return []
+    return JSON.parse(raw) as CalendarItem[]
+  } catch { return [] }
+}
+
 const getDarkMode = (): boolean => localStorage.getItem('erp_theme') === 'dark'
 
 if (getDarkMode()) document.documentElement.classList.add('dark')
@@ -218,6 +252,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
 const initialAuth          = getAuth()
 const initialNotifications = getNotifications()
+const initialCalendarItems = getCalendarItems()
 const initialDark          = getDarkMode()
 
 const defaultCompanySettings: CompanySettings = {
@@ -273,6 +308,7 @@ export const useStore = create<AppState>((set, get) => ({
   user:             initialAuth.user,
   lastActivity:     Date.now(),
   notifications:    initialNotifications,
+  calendarItems:    initialCalendarItems,
 
   // ── Load all data from API ─────────────────────────────────────────────────
   loadAllData: async (force = false) => {
@@ -331,6 +367,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })
       // Run smart alerts after data is ready
       get().checkAlerts()
+      get().checkCalendarReminders()
     } catch (e) {
       console.error('No se pudo conectar con el servidor:', e)
       toast.error('Error al conectar con el servidor')
@@ -392,6 +429,100 @@ export const useStore = create<AppState>((set, get) => ({
   clearNotifications: () => {
     localStorage.removeItem('erp_notifications')
     set({ notifications: [] })
+  },
+
+  // ── Calendar items (meetings & reminders) ─────────────────────────────────
+  addCalendarItem: (item) => {
+    const newItem: CalendarItem = { ...item, id: crypto.randomUUID() }
+    set((s) => {
+      const updated = [...s.calendarItems, newItem]
+      lsSet('erp_calendar_items', updated)
+      return { calendarItems: updated }
+    })
+    toast.success(item.kind === 'meeting' ? 'Reunión agendada' : 'Recordatorio creado')
+    setTimeout(() => get().checkCalendarReminders(), 0)
+  },
+
+  updateCalendarItem: (item) => {
+    set((s) => {
+      const updated = s.calendarItems.map((x) => x.id === item.id ? item : x)
+      lsSet('erp_calendar_items', updated)
+      return { calendarItems: updated }
+    })
+  },
+
+  deleteCalendarItem: (id) => {
+    set((s) => {
+      const updated = s.calendarItems.filter((x) => x.id !== id)
+      lsSet('erp_calendar_items', updated)
+      return { calendarItems: updated }
+    })
+    toast.success('Eliminado del calendario')
+  },
+
+  toggleCalendarItemDone: (id) => {
+    set((s) => {
+      const updated = s.calendarItems.map((x) => x.id === id ? { ...x, done: !x.done } : x)
+      lsSet('erp_calendar_items', updated)
+      return { calendarItems: updated }
+    })
+  },
+
+  checkCalendarReminders: () => {
+    const s = get()
+    const now = Date.now()
+    const todayISO = new Date().toISOString().split('T')[0]
+    let mutated = false
+    const updatedItems = s.calendarItems.map((it) => {
+      if (it.done || it.notifiedAt || !it.notifyApp) return it
+      const t = it.time || '09:00'
+      const eventMs = new Date(`${it.date}T${t}:00`).getTime()
+      if (Number.isNaN(eventMs)) return it
+      const lead = (it.reminderMinutes ?? 15) * 60 * 1000
+      if (now >= eventMs - lead) {
+        const label = it.kind === 'meeting' ? 'Reunión' : 'Recordatorio'
+        const when = it.time ? ` a las ${it.time}` : ''
+        const link = it.notifyWhatsapp && it.whatsappPhone
+          ? `https://wa.me/${it.whatsappPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`${label}: ${it.title}${when} (${it.date})${it.description ? ' — ' + it.description : ''}`)}`
+          : '/calendar'
+        s.addNotification({
+          type: 'info',
+          category: 'general',
+          message: `${label}: ${it.title}${when}`,
+          link,
+        })
+        mutated = true
+        return { ...it, notifiedAt: new Date().toISOString() }
+      }
+      return it
+    })
+
+    // Daily agenda summary — fire once per day if there are any items today
+    const lastAgenda = localStorage.getItem('erp_last_agenda_date')
+    if (lastAgenda !== todayISO) {
+      const todayItems = updatedItems.filter((i) => i.date === todayISO && !i.done)
+      if (todayItems.length > 0) {
+        const summary = todayItems
+          .map((i) => `• ${i.time ? i.time + ' ' : ''}${i.kind === 'meeting' ? '📅' : '🔔'} ${i.title}`)
+          .join('\n')
+        const phone = s.companySettings.whatsapp?.replace(/\D/g, '') || ''
+        const waLink = phone
+          ? `https://wa.me/${phone}?text=${encodeURIComponent(`Tu agenda de hoy (${todayISO}):\n${summary}`)}`
+          : '/calendar'
+        s.addNotification({
+          type: 'info',
+          category: 'general',
+          message: `Tienes ${todayItems.length} evento${todayItems.length > 1 ? 's' : ''} agendado${todayItems.length > 1 ? 's' : ''} hoy`,
+          link: waLink,
+        })
+      }
+      localStorage.setItem('erp_last_agenda_date', todayISO)
+    }
+
+    if (mutated) {
+      lsSet('erp_calendar_items', updatedItems)
+      set({ calendarItems: updatedItems })
+    }
   },
 
   // ── Business data mutations (via API) ──────────────────────────────────────
@@ -861,7 +992,7 @@ export const useStore = create<AppState>((set, get) => ({
   factoryReset: async () => {
     await apiFetch('/api/reset', { method: 'DELETE' })
     // Clear all localStorage keys used by the app
-    ;['erp_auth', 'erp_notifications', 'erp_theme', 'erp_logo'].forEach((k) =>
+    ;['erp_auth', 'erp_notifications', 'erp_theme', 'erp_logo', 'erp_calendar_items', 'erp_last_agenda_date'].forEach((k) =>
       localStorage.removeItem(k)
     )
     // Reset store to blank state (keep page alive, logout will redirect)
@@ -870,6 +1001,7 @@ export const useStore = create<AppState>((set, get) => ({
       customers: [], saleOrders: [], recipes: [], quotations: [], activities: [], purchaseOrders: [], priceLists: [], suppliers: [], returns: [], payments: [], inventoryMovements: [],
       companySettings: defaultCompanySettings,
       notifications: [],
+      calendarItems: [],
       dataLoaded: false,
       isAuthenticated: false,
       user: null,
