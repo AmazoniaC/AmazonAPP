@@ -119,10 +119,11 @@ interface AppState {
   markAllAsRead:    () => void
   clearNotifications: () => void
   // Actions – calendar items
-  addCalendarItem:    (i: Omit<CalendarItem, 'id' | 'notifiedAt'>) => void
-  updateCalendarItem: (i: CalendarItem) => void
-  deleteCalendarItem: (id: string) => void
-  toggleCalendarItemDone: (id: string) => void
+  loadCalendarItems:  () => Promise<void>
+  addCalendarItem:    (i: Omit<CalendarItem, 'id' | 'notifiedAt'>) => Promise<void>
+  updateCalendarItem: (i: CalendarItem) => Promise<void>
+  deleteCalendarItem: (id: string) => Promise<void>
+  toggleCalendarItemDone: (id: string) => Promise<void>
   checkCalendarReminders: () => void
   // Actions – business data
   updateProductionOrderStatus: (id: string, status: ProductionOrder['status']) => void
@@ -337,6 +338,9 @@ export const useStore = create<AppState>((set, get) => ({
           apiFetch<InventoryMovement[]>('/api/inventory-movements').catch(() => [] as InventoryMovement[]),
         ])
 
+      // Calendar items load (best-effort, separate so we can ignore failures)
+      get().loadCalendarItems().catch(() => {})
+
       const companySettings: CompanySettings = {
         companyName:        settings.companyName        ?? defaultCompanySettings.companyName,
         slogan:             settings.slogan             ?? defaultCompanySettings.slogan,
@@ -432,8 +436,25 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   // ── Calendar items (meetings & reminders) ─────────────────────────────────
-  addCalendarItem: (item) => {
+  loadCalendarItems: async () => {
+    try {
+      const items = await apiFetch<CalendarItem[]>('/api/calendar-items')
+      set({ calendarItems: items })
+      lsSet('erp_calendar_items', items)
+    } catch (e) {
+      console.warn('No se pudo cargar calendario, usando caché local:', (e as Error).message)
+    }
+  },
+
+  addCalendarItem: async (item) => {
     const newItem: CalendarItem = { ...item, id: crypto.randomUUID() }
+    try {
+      await apiFetch('/api/calendar-items', { method: 'POST', body: JSON.stringify(newItem) })
+    } catch (e) {
+      toast.error('No se pudo guardar en el servidor')
+      console.error(e)
+      return
+    }
     set((s) => {
       const updated = [...s.calendarItems, newItem]
       lsSet('erp_calendar_items', updated)
@@ -443,7 +464,10 @@ export const useStore = create<AppState>((set, get) => ({
     setTimeout(() => get().checkCalendarReminders(), 0)
   },
 
-  updateCalendarItem: (item) => {
+  updateCalendarItem: async (item) => {
+    try {
+      await apiFetch(`/api/calendar-items/${item.id}`, { method: 'PUT', body: JSON.stringify(item) })
+    } catch (e) { toast.error('No se pudo actualizar'); return }
     set((s) => {
       const updated = s.calendarItems.map((x) => x.id === item.id ? item : x)
       lsSet('erp_calendar_items', updated)
@@ -451,7 +475,10 @@ export const useStore = create<AppState>((set, get) => ({
     })
   },
 
-  deleteCalendarItem: (id) => {
+  deleteCalendarItem: async (id) => {
+    try {
+      await apiFetch(`/api/calendar-items/${id}`, { method: 'DELETE' })
+    } catch (e) { toast.error('No se pudo eliminar'); return }
     set((s) => {
       const updated = s.calendarItems.filter((x) => x.id !== id)
       lsSet('erp_calendar_items', updated)
@@ -460,12 +487,11 @@ export const useStore = create<AppState>((set, get) => ({
     toast.success('Eliminado del calendario')
   },
 
-  toggleCalendarItemDone: (id) => {
-    set((s) => {
-      const updated = s.calendarItems.map((x) => x.id === id ? { ...x, done: !x.done } : x)
-      lsSet('erp_calendar_items', updated)
-      return { calendarItems: updated }
-    })
+  toggleCalendarItemDone: async (id) => {
+    const current = get().calendarItems.find((x) => x.id === id)
+    if (!current) return
+    const updatedItem = { ...current, done: !current.done }
+    await get().updateCalendarItem(updatedItem)
   },
 
   checkCalendarReminders: () => {

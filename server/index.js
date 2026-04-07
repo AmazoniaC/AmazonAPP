@@ -29,6 +29,10 @@ import returnsRouter             from './routes/returns.js'
 import suppliersRouter           from './routes/suppliers.js'
 import paymentsRouter            from './routes/payments.js'
 import inventoryMovementsRouter  from './routes/inventoryMovements.js'
+import calendarItemsRouter       from './routes/calendarItems.js'
+import whatsappRouter            from './routes/whatsapp.js'
+import { startWhatsApp }         from './whatsapp.js'
+import { startScheduler }        from './scheduler.js'
 
 dotenv.config()
 
@@ -239,6 +243,22 @@ async function migrate() {
         details     TEXT,
         created_at  TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS calendar_items (
+        id               TEXT PRIMARY KEY,
+        kind             TEXT NOT NULL DEFAULT 'meeting',
+        title            TEXT NOT NULL DEFAULT '',
+        description      TEXT DEFAULT '',
+        location         TEXT DEFAULT '',
+        date             DATE NOT NULL,
+        time             TEXT DEFAULT '',
+        reminder_minutes INTEGER DEFAULT 15,
+        notify_app       BOOLEAN DEFAULT TRUE,
+        notify_whatsapp  BOOLEAN DEFAULT FALSE,
+        whatsapp_phone   TEXT DEFAULT '',
+        notified_at      TIMESTAMP,
+        done             BOOLEAN DEFAULT FALSE,
+        created_at       TIMESTAMP DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS inventory_movements (
         id              TEXT PRIMARY KEY,
         item_id         TEXT NOT NULL,
@@ -327,9 +347,14 @@ app.use('/api/returns',            returnsRouter)
 app.use('/api/suppliers',          suppliersRouter)
 app.use('/api/payments',           paymentsRouter)
 app.use('/api/inventory-movements', inventoryMovementsRouter)
+app.use('/api/calendar-items',     calendarItemsRouter)
+app.use('/api/whatsapp',           whatsappRouter)
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor ERP corriendo en http://localhost:${PORT}`)
+  // Start background services after the HTTP server is up
+  startWhatsApp().catch((e) => console.warn('WhatsApp init failed:', e.message))
+  startScheduler()
 })

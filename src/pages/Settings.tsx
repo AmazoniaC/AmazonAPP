@@ -993,6 +993,7 @@ export default function Settings() {
 
           {activeTab === 'whatsapp' && (
             <div className="space-y-5">
+              <WhatsAppConnectionPanel />
               <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><MessageCircle size={18} className="text-green-600" /> Plantillas de WhatsApp</h2>
               <p className="text-sm text-slate-500 dark:text-gray-400">
                 Estas plantillas se usan para enviar mensajes automáticos por WhatsApp. Los textos entre <code className="px-1 py-0.5 bg-slate-100 dark:bg-gray-700 rounded text-xs">{'{placeholder}'}</code> se reemplazan automáticamente con datos reales.
@@ -1230,6 +1231,118 @@ export default function Settings() {
           {activeTab === 'manual' && <UserManual />}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── WhatsApp connection (Baileys) ────────────────────────────────────────────
+function WhatsAppConnectionPanel() {
+  const [info, setInfo] = useState<{ available: boolean; status: string; qr: string | null; error: string | null } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch('/api/whatsapp/status', {
+        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+      })
+      if (res.ok) setInfo(await res.json())
+    } catch { /* offline */ }
+  }
+
+  useEffect(() => {
+    fetchStatus()
+    const id = window.setInterval(fetchStatus, 4000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const connect = async () => {
+    setBusy(true)
+    try {
+      await fetch('/api/whatsapp/connect', {
+        method: 'POST',
+        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+      })
+      await fetchStatus()
+    } finally { setBusy(false) }
+  }
+
+  const logout = async () => {
+    if (!confirm('¿Cerrar sesión de WhatsApp en el servidor? Tendrás que escanear el QR de nuevo.')) return
+    setBusy(true)
+    try {
+      await fetch('/api/whatsapp/logout', {
+        method: 'POST',
+        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+      })
+      await fetchStatus()
+    } finally { setBusy(false) }
+  }
+
+  const statusLabel: Record<string, { text: string; color: string }> = {
+    connected:    { text: 'Conectado',         color: 'text-green-600 dark:text-green-400' },
+    qr:           { text: 'Esperando escaneo', color: 'text-amber-600 dark:text-amber-400' },
+    connecting:   { text: 'Conectando…',       color: 'text-blue-600 dark:text-blue-400' },
+    disconnected: { text: 'Desconectado',      color: 'text-slate-500 dark:text-gray-400' },
+  }
+  const s = info?.status || 'disconnected'
+  const label = statusLabel[s] || statusLabel.disconnected
+
+  return (
+    <div className="border border-slate-200 dark:border-gray-600 rounded-xl p-5 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+            <MessageCircle size={18} className="text-green-600" /> Envío automático de WhatsApp
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+            Vincula tu número una sola vez. El servidor enviará automáticamente los recordatorios de calendario sin que tengas que abrir nada.
+          </p>
+        </div>
+        <span className={`text-xs font-semibold px-2 py-1 rounded-full bg-white dark:bg-gray-800 ${label.color}`}>
+          ● {label.text}
+        </span>
+      </div>
+
+      {info && !info.available && (
+        <div className="text-xs p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg text-rose-700 dark:text-rose-300">
+          La librería de WhatsApp no está instalada. Ejecuta <code className="font-mono bg-white dark:bg-gray-800 px-1 rounded">npm install</code> en el servidor para activarla.
+        </div>
+      )}
+
+      {info?.available && s === 'qr' && info.qr && (
+        <div className="flex flex-col items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg">
+          <p className="text-sm font-medium text-slate-700 dark:text-gray-200 text-center">
+            Abre WhatsApp en tu celular → Menú → Dispositivos vinculados → Vincular dispositivo
+          </p>
+          <img src={info.qr} alt="QR de WhatsApp" className="w-64 h-64" />
+          <p className="text-xs text-slate-500 dark:text-gray-400">El QR se actualiza automáticamente cada pocos segundos.</p>
+        </div>
+      )}
+
+      {info?.available && s === 'connected' && (
+        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+          <p className="text-sm text-slate-700 dark:text-gray-200">
+            ✅ Tu número está vinculado. Los recordatorios marcados con &quot;Enviar por WhatsApp&quot; se enviarán automáticamente.
+          </p>
+          <button onClick={logout} disabled={busy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50">
+            Desvincular
+          </button>
+        </div>
+      )}
+
+      {info?.available && (s === 'disconnected' || s === 'connecting') && (
+        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+          <p className="text-sm text-slate-700 dark:text-gray-200">
+            {s === 'connecting' ? 'Iniciando conexión…' : 'Sin sesión activa.'}
+            {info.error && <span className="block text-xs text-rose-600 mt-1">{info.error}</span>}
+          </p>
+          <button onClick={connect} disabled={busy}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">
+            {busy ? '…' : 'Generar QR'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
