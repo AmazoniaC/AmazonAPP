@@ -231,6 +231,10 @@ export default function Settings() {
     whatsapp:          companySettings.whatsapp,
     instagram:         companySettings.instagram,
     instagramHandle:   companySettings.instagramHandle,
+    smtpHost:          companySettings.smtpHost,
+    smtpPort:          companySettings.smtpPort,
+    smtpUser:          companySettings.smtpUser,
+    smtpPass:          companySettings.smtpPass,
     smtpFrom:          companySettings.smtpFrom,
     resendApiKey:      companySettings.resendApiKey,
     invoicePrefix:     companySettings.invoicePrefix,
@@ -258,6 +262,10 @@ export default function Settings() {
       whatsapp:          companySettings.whatsapp,
       instagram:         companySettings.instagram,
       instagramHandle:   companySettings.instagramHandle,
+      smtpHost:          companySettings.smtpHost,
+      smtpPort:          companySettings.smtpPort,
+      smtpUser:          companySettings.smtpUser,
+      smtpPass:          companySettings.smtpPass,
       smtpFrom:          companySettings.smtpFrom,
       resendApiKey:      companySettings.resendApiKey,
       invoicePrefix:     companySettings.invoicePrefix,
@@ -298,10 +306,10 @@ export default function Settings() {
         whatsapp:           company.whatsapp,
         instagram:          company.instagram,
         instagramHandle:    company.instagramHandle,
-        smtpHost:           '',
-        smtpPort:           587,
-        smtpUser:           '',
-        smtpPass:           '',
+        smtpHost:           company.smtpHost,
+        smtpPort:           company.smtpPort,
+        smtpUser:           company.smtpUser,
+        smtpPass:           company.smtpPass,
         smtpFrom:           company.smtpFrom,
         resendApiKey:       company.resendApiKey,
         invoicePrefix:      company.invoicePrefix,
@@ -492,42 +500,76 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* ── Resend / Correo electrónico ── */}
+              {/* ── Correo electrónico — SMTP (recomendado) + Resend (alternativa) ── */}
               <div className="border-t border-slate-100 dark:border-gray-700 pt-5">
                 <h3 className="text-sm font-semibold text-slate-600 dark:text-gray-300 mb-1 flex items-center gap-2">
-                  📧 Correo electrónico — envío de facturas (Resend)
+                  📧 Correo electrónico — envío de facturas
                 </h3>
                 <p className="text-xs text-slate-400 dark:text-gray-500 mb-3">
-                  Usa <strong>Resend</strong> para enviar facturas por correo. Crea una cuenta gratis en{' '}
-                  <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline text-blue-500">resend.com</a>,
-                  ve a <em>API Keys</em> y copia tu clave aquí.
+                  Configura tu servidor SMTP (recomendado) para enviar desde tu propio correo. Como alternativa puedes usar Resend.
                 </p>
-                <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-xs text-amber-700 dark:text-amber-400">
-                  ⚠️ <strong>Importante:</strong> No puedes usar correos de Gmail, Hotmail o Yahoo como remitente —
-                  el correo saldrá automáticamente desde <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">onboarding@resend.dev</code>.
-                  Si quieres usar tu propio dominio (ej: <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">facturas@tuempresa.com</code>),
-                  primero verifícalo en <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">resend.com/domains</a>.
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="label">API Key de Resend</label>
-                    <input className="input font-mono" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" value={company.resendApiKey}
-                      onChange={(e) => setCompany({ ...company, resendApiKey: e.target.value })} />
+
+                {/* SMTP block */}
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg mb-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">✉️ Servidor SMTP <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">(recomendado — gratis, envía desde tu correo real)</span></p>
                   </div>
-                  <div className="col-span-2">
-                    <label className="label">Remitente personalizado <span className="font-normal text-slate-400">(solo si tienes dominio verificado en Resend)</span></label>
-                    <input className="input" placeholder="Amazonia Concrete &lt;facturas@tudominio.com&gt;" value={company.smtpFrom}
-                      onChange={(e) => setCompany({ ...company, smtpFrom: e.target.value })} />
-                    <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
-                      Si dejas vacío o usas Gmail/Hotmail, se enviará desde <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">{company.name || 'Tu empresa'} &lt;onboarding@resend.dev&gt;</code> automáticamente.
-                    </p>
+                  <details className="mb-3">
+                    <summary className="text-xs text-emerald-700 dark:text-emerald-400 cursor-pointer hover:underline">📘 Cómo configurar Gmail con "Contraseña de aplicación"</summary>
+                    <ol className="mt-2 text-xs text-slate-600 dark:text-gray-300 space-y-1 list-decimal list-inside pl-2">
+                      <li>Activa la verificación en 2 pasos en <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="underline text-blue-500">myaccount.google.com/security</a>.</li>
+                      <li>Ve a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline text-blue-500">myaccount.google.com/apppasswords</a> y genera una contraseña para "Correo".</li>
+                      <li>Pega esa contraseña de 16 caracteres en el campo "Contraseña" de abajo (no tu contraseña normal).</li>
+                      <li>Host: <code className="bg-white dark:bg-gray-800 px-1 rounded">smtp.gmail.com</code> · Puerto: <code className="bg-white dark:bg-gray-800 px-1 rounded">587</code> · Usuario: tu correo de Gmail.</li>
+                    </ol>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">Para Outlook: <code className="bg-white dark:bg-gray-800 px-1 rounded">smtp-mail.outlook.com</code> puerto 587. Para otros proveedores busca "SMTP server settings".</p>
+                  </details>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Servidor SMTP (host)</label>
+                      <input className="input" placeholder="smtp.gmail.com" value={company.smtpHost}
+                        onChange={(e) => setCompany({ ...company, smtpHost: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="label">Puerto</label>
+                      <input className="input" type="number" placeholder="587" value={company.smtpPort || 587}
+                        onChange={(e) => setCompany({ ...company, smtpPort: parseInt(e.target.value || '587', 10) })} />
+                    </div>
+                    <div>
+                      <label className="label">Usuario (tu correo)</label>
+                      <input className="input" type="email" placeholder="tucorreo@gmail.com" value={company.smtpUser}
+                        onChange={(e) => setCompany({ ...company, smtpUser: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="label">Contraseña de aplicación</label>
+                      <input className="input font-mono" type="password" placeholder="xxxx xxxx xxxx xxxx" value={company.smtpPass}
+                        onChange={(e) => setCompany({ ...company, smtpPass: e.target.value })} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label">Remitente <span className="font-normal text-slate-400">(opcional — por defecto se usa tu correo)</span></label>
+                      <input className="input" placeholder="Amazonia Concrete <tucorreo@gmail.com>" value={company.smtpFrom}
+                        onChange={(e) => setCompany({ ...company, smtpFrom: e.target.value })} />
+                    </div>
                   </div>
                 </div>
+
+                {/* Resend block */}
+                <div className="p-4 bg-slate-50 dark:bg-gray-900/30 border border-slate-200 dark:border-gray-700 rounded-lg">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-2">🔄 Resend API <span className="text-xs font-normal text-slate-500">(alternativa / respaldo)</span></p>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">
+                    Crea una cuenta gratis en <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline text-blue-500">resend.com</a> →
+                    <em> API Keys</em>. <strong>Importante:</strong> sin un dominio verificado en <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">resend.com/domains</a>, Resend solo permite enviarte correos a ti mismo.
+                  </p>
+                  <label className="label">API Key de Resend</label>
+                  <input className="input font-mono" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" value={company.resendApiKey}
+                    onChange={(e) => setCompany({ ...company, resendApiKey: e.target.value })} />
+                </div>
+
                 {/* Test button */}
-                <div className="mt-3 flex items-center gap-3">
+                <div className="mt-4 flex items-center gap-3">
                   <button
                     type="button"
-                    disabled={smtpTesting || !company.resendApiKey}
+                    disabled={smtpTesting || (!company.smtpHost && !company.resendApiKey)}
                     className="btn btn-secondary text-xs flex items-center gap-2 disabled:opacity-50"
                     onClick={async () => {
                       const testEmail = window.prompt('¿A qué correo enviar el correo de prueba?')
@@ -537,15 +579,22 @@ export default function Settings() {
                       try {
                         const res = await fetch('/api/email/test', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'x-user': localStorage.getItem('erp_auth') || '',
+                          },
                           body: JSON.stringify({
-                            resendApiKey: company.resendApiKey,
+                            smtpHost: company.smtpHost,
+                            smtpPort: company.smtpPort,
+                            smtpUser: company.smtpUser,
+                            smtpPass: company.smtpPass,
                             smtpFrom: company.smtpFrom,
+                            resendApiKey: company.resendApiKey,
                             testEmail,
                           }),
                         })
                         const data = await res.json()
-                        if (res.ok) setSmtpTestMsg({ ok: true, text: `✅ Correo de prueba enviado a ${testEmail}` })
+                        if (res.ok) setSmtpTestMsg({ ok: true, text: `✅ Correo de prueba enviado a ${testEmail} (${data.provider || 'ok'})` })
                         else setSmtpTestMsg({ ok: false, text: data.error ?? 'Error desconocido' })
                       } catch { setSmtpTestMsg({ ok: false, text: 'Error de conexión' })
                       } finally { setSmtpTesting(false) }

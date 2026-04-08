@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import nodemailer from 'nodemailer'
 import { pool }   from '../db.js'
 import { log, getUser } from '../audit.js'
 
@@ -6,6 +7,49 @@ const router = Router()
 
 // Free email providers that cannot be used as senders in Resend without verification
 const FREE_EMAIL_DOMAINS = ['gmail.com','hotmail.com','outlook.com','yahoo.com','icloud.com','live.com']
+
+// ── SMTP helpers (nodemailer) ────────────────────────────────────────────────
+function buildSmtpFromAddress(displayName, smtpFrom, smtpUser) {
+  if (smtpFrom && smtpFrom.trim()) return smtpFrom.trim()
+  return `${displayName} <${smtpUser}>`
+}
+
+function isSmtpConfigured(s) {
+  return !!(s && s.smtpHost && s.smtpUser && s.smtpPass)
+}
+
+function createTransporter(s) {
+  const port = Number(s.smtpPort) || 587
+  return nodemailer.createTransport({
+    host: s.smtpHost,
+    port,
+    secure: port === 465, // true for 465 (SMTPS), false for 587/STARTTLS
+    auth: { user: s.smtpUser, pass: s.smtpPass },
+    // Reasonable timeouts so the request doesn't hang forever
+    connectionTimeout: 15_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+  })
+}
+
+async function sendViaSmtp({ settings, to, subject, html, text, pdfBase64, pdfFilename }) {
+  const transporter = createTransporter(settings)
+  // Throws with a clear error if credentials/host are wrong
+  await transporter.verify()
+  const from = buildSmtpFromAddress(settings.companyName || 'Amazonia ERP', settings.smtpFrom, settings.smtpUser)
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    html,
+    text,
+    attachments: pdfBase64 ? [{
+      filename: pdfFilename || 'documento.pdf',
+      content: Buffer.from(pdfBase64, 'base64'),
+      contentType: 'application/pdf',
+    }] : undefined,
+  })
+}
 
 /**
  * Build a safe "From" address for Resend.
@@ -156,7 +200,7 @@ router.post('/invoice', async (req, res) => {
     return res.status(400).json({ error: 'Se requiere el correo del destinatario' })
   }
 
-  // Load Resend API key + company settings from DB
+  // Load all email-related settings from DB
   let settings
   try {
     const { rows } = await pool.query(
@@ -168,6 +212,10 @@ router.post('/invoice', async (req, res) => {
               tiktok, whatsapp, instagram,
               instagram_handle AS "instagramHandle",
               logo,
+              smtp_host AS "smtpHost",
+              smtp_port AS "smtpPort",
+              smtp_user AS "smtpUser",
+              smtp_pass AS "smtpPass",
               smtp_from AS "smtpFrom",
               resend_api_key AS "resendApiKey"
        FROM settings WHERE id = 1`
@@ -177,13 +225,54 @@ router.post('/invoice', async (req, res) => {
     return res.status(500).json({ error: 'Error leyendo configuración: ' + e.message })
   }
 
-  if (!settings?.resendApiKey) {
+  if (!isSmtpConfigured(settings) && !settings?.resendApiKey) {
     return res.status(400).json({
-      error: 'Configura tu API Key de Resend en Configuración → Empresa → Correo Electrónico.',
+      error: 'Configura un servidor SMTP (recomendado) o una API Key de Resend en '
+           + 'Configuración → Empresa → Correo Electrónico.',
     })
   }
 
   const html = buildInvoiceHtml({ order, customer, settings })
+  const subject = `Factura ${order.orderNumber} — ${settings.companyName}`
+
+  // ── 1) Try SMTP (nodemailer) first if configured ─────────────────────────
+  if (isSmtpConfigured(settings)) {
+    try {
+      await sendViaSmtp({
+        settings,
+        to: recipientEmail,
+        subject,
+        html,
+        pdfBase64,
+        pdfFilename: `Factura-${order.orderNumber}.pdf`,
+      })
+      const u = getUser(req)
+      await log({
+        userName: u.name, userEmail: u.email,
+        action: 'crear', entity: 'Factura',
+        entityId: order.id, entityName: `${order.orderNumber} → ${recipientEmail}`,
+        details: `Enviada por SMTP a ${recipientEmail}`,
+      })
+      return res.json({ ok: true, message: `Factura enviada a ${recipientEmail}`, provider: 'smtp' })
+    } catch (e) {
+      // Translate common SMTP errors so the user can fix them
+      const raw = e.message || String(e)
+      let friendly = raw
+      if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
+        friendly = `No se pudo conectar al servidor SMTP "${settings.smtpHost}". Verifica el host.`
+      else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
+        friendly = `Conexión rechazada por ${settings.smtpHost}:${settings.smtpPort}. Verifica puerto y firewall.`
+      else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
+        friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
+      else if (/self.signed certificate|unable to verify/i.test(raw))
+        friendly = 'Certificado SSL del servidor SMTP no válido.'
+      // If Resend is also configured, fall through and try it as backup
+      if (!settings.resendApiKey) {
+        return res.status(500).json({ error: `Error SMTP: ${friendly}` })
+      }
+      console.warn('SMTP falló, intentando Resend como respaldo:', friendly)
+    }
+  }
 
   // Always use onboarding@resend.dev as the sending address (no domain verification needed).
   // Only allow a custom domain if the user explicitly configured one (not gmail/hotmail/yahoo/etc.)
@@ -239,10 +328,48 @@ router.post('/invoice', async (req, res) => {
 })
 
 // ── POST /api/email/test ──────────────────────────────────────────────────────
+// Accepts either SMTP credentials (preferred) or a Resend API key. Tries SMTP
+// first if provided, then falls back to Resend.
 router.post('/test', async (req, res) => {
-  const { resendApiKey, smtpFrom, testEmail } = req.body
-  if (!resendApiKey || !testEmail) {
-    return res.status(400).json({ error: 'Se requiere el API Key de Resend y el correo de prueba' })
+  const { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey, testEmail } = req.body
+
+  if (!testEmail) {
+    return res.status(400).json({ error: 'Se requiere el correo de destino para la prueba' })
+  }
+
+  const subject = 'Prueba de configuración — Amazonia ERP'
+  const text = '¡La configuración de correo está funcionando correctamente! Ya puedes enviar facturas por correo.'
+  const html = `<p>${text}</p>`
+
+  // ── 1) SMTP path ─────────────────────────────────────────────────────────
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      await sendViaSmtp({
+        settings: { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, companyName: 'Amazonia ERP' },
+        to: testEmail,
+        subject,
+        html,
+        text,
+      })
+      return res.json({ ok: true, provider: 'smtp' })
+    } catch (e) {
+      const raw = e.message || String(e)
+      let friendly = raw
+      if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
+        friendly = `No se pudo conectar al servidor SMTP "${smtpHost}". Verifica el host.`
+      else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
+        friendly = `Conexión rechazada por ${smtpHost}:${smtpPort || 587}. Verifica puerto y firewall.`
+      else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
+        friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
+      return res.status(500).json({ error: `Error SMTP: ${friendly}` })
+    }
+  }
+
+  // ── 2) Resend fallback ───────────────────────────────────────────────────
+  if (!resendApiKey) {
+    return res.status(400).json({
+      error: 'Configura SMTP (host + usuario + contraseña) o un API Key de Resend antes de probar.',
+    })
   }
   try {
     const fromAddress = buildFromAddress('Amazonia ERP', smtpFrom)
@@ -252,18 +379,13 @@ router.post('/test', async (req, res) => {
         'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: fromAddress,
-        to: [testEmail],
-        subject: 'Prueba de configuración — Amazonia ERP',
-        text: '¡La configuración de correo está funcionando correctamente! Ya puedes enviar facturas por correo.',
-      }),
+      body: JSON.stringify({ from: fromAddress, to: [testEmail], subject, text }),
     })
     const data = await response.json()
     if (!response.ok) {
       return res.status(500).json({ error: `Error Resend: ${data.message || JSON.stringify(data)}` })
     }
-    res.json({ ok: true })
+    res.json({ ok: true, provider: 'resend' })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
