@@ -131,10 +131,11 @@ function normalizePhone(phone) {
 
 export async function sendWhatsAppMessage(phone, text) {
   if (!sock || status !== 'connected') {
-    throw new Error('WhatsApp no está conectado')
+    const reason = lastError ? ` (${lastError})` : ''
+    throw new Error(`WhatsApp no está conectado [estado: ${status}]${reason}. Escanea el QR desde Configuración → WhatsApp.`)
   }
   const jid = normalizePhone(phone)
-  if (!jid) throw new Error('Teléfono inválido')
+  if (!jid) throw new Error(`Teléfono inválido: "${phone}". Debe contener al menos 8 dígitos con código de país.`)
   await sock.sendMessage(jid, { text })
   return true
 }
