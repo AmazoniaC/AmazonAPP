@@ -39,6 +39,16 @@ router.put('/', async (req, res) => {
     smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey, invoicePrefix,
   } = req.body
   try {
+    // Preserve existing secrets when the frontend sends empty/undefined for
+    // password fields (password inputs are often cleared on re-render).
+    const { rows: existing } = await pool.query(
+      `SELECT smtp_pass AS "smtpPass", resend_api_key AS "resendApiKey"
+       FROM settings WHERE id = 1`
+    )
+    const prev = existing[0] || {}
+    const finalSmtpPass    = (smtpPass    !== undefined && smtpPass    !== '') ? smtpPass    : (prev.smtpPass    ?? '')
+    const finalResendApi   = (resendApiKey!== undefined && resendApiKey!== '') ? resendApiKey: (prev.resendApiKey?? '')
+
     const { rows } = await pool.query(
       `INSERT INTO settings (
          id, company_name, slogan, email, phone, address, currency, timezone, logo,
@@ -61,8 +71,8 @@ router.put('/', async (req, res) => {
         bankName ?? '', bankKey ?? '', bankAccountType ?? '',
         bankAccountNumber ?? '', bankMessage ?? '',
         tiktok ?? '', whatsapp ?? '', instagram ?? '', instagramHandle ?? '',
-        smtpHost ?? '', smtpPort ?? 587, smtpUser ?? '', smtpPass ?? '', smtpFrom ?? '',
-        resendApiKey ?? '', invoicePrefix ?? 'VTA',
+        smtpHost ?? '', smtpPort ?? 587, smtpUser ?? '', finalSmtpPass, smtpFrom ?? '',
+        finalResendApi, invoicePrefix ?? 'VTA',
       ]
     )
     const u = getUser(req)

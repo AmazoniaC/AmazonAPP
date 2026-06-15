@@ -8,6 +8,12 @@ import { pool } from './db.js'
 import { sendWhatsAppMessage, getWhatsAppStatus } from './whatsapp.js'
 
 const TICK_MS = 60 * 1000
+// Do not send WhatsApp reminders for events older than 24h (likely stale)
+const MAX_STALE_MS = 24 * 60 * 60 * 1000
+
+// Throttle "WhatsApp not connected" warnings so we don't spam logs every minute
+let lastNotConnectedWarn = 0
+const NOT_CONNECTED_WARN_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
 function buildMessage(item) {
   const label = item.kind === 'meeting' ? '📅 Reunión' : '🔔 Recordatorio'
@@ -19,9 +25,6 @@ function buildMessage(item) {
 }
 
 async function tick() {
-  const wa = getWhatsAppStatus()
-  if (wa.status !== 'connected') return // skip until WhatsApp linked
-
   let due
   try {
     const { rows } = await pool.query(
@@ -37,6 +40,24 @@ async function tick() {
     return
   }
 
+  if (due.length === 0) return
+
+  // Check WhatsApp status AFTER we know there's work to do — this way the user
+  // gets a clear log explaining why pending reminders are not being delivered.
+  const wa = getWhatsAppStatus()
+  if (wa.status !== 'connected') {
+    const now = Date.now()
+    if (now - lastNotConnectedWarn > NOT_CONNECTED_WARN_INTERVAL_MS) {
+      lastNotConnectedWarn = now
+      console.warn(
+        `⚠️  scheduler: ${due.length} recordatorio(s) pendiente(s) pero WhatsApp está "${wa.status}". ` +
+        `Conecta WhatsApp en Configuración → WhatsApp para enviarlos.` +
+        (wa.error ? ` Último error: ${wa.error}` : '')
+      )
+    }
+    return
+  }
+
   const now = Date.now()
   for (const r of due) {
     const dateStr = String(r.date).split('T')[0]
@@ -45,6 +66,17 @@ async function tick() {
     if (Number.isNaN(eventMs)) continue
     const lead = (r.reminder_minutes ?? 15) * 60 * 1000
     if (now < eventMs - lead) continue
+
+    // Skip stale reminders (event is more than MAX_STALE_MS in the past) so we
+    // don't suddenly spam users with week-old reminders if WhatsApp was offline.
+    if (now > eventMs + MAX_STALE_MS) {
+      await pool.query(
+        `UPDATE calendar_items SET notified_at = NOW() WHERE id = $1`,
+        [r.id]
+      ).catch(() => {})
+      console.log(`⏭️  scheduler: saltando recordatorio vencido "${r.title}" (${dateStr} ${timeStr})`)
+      continue
+    }
 
     const item = {
       kind: r.kind, title: r.title, description: r.description,
@@ -61,8 +93,12 @@ async function tick() {
 }
 
 export function startScheduler() {
-  setInterval(() => { tick().catch(() => {}) }, TICK_MS)
+  setInterval(() => {
+    tick().catch((e) => console.error('scheduler tick error:', e.message))
+  }, TICK_MS)
   // first tick after a short delay so Baileys has time to connect
-  setTimeout(() => { tick().catch(() => {}) }, 10_000)
+  setTimeout(() => {
+    tick().catch((e) => console.error('scheduler initial tick error:', e.message))
+  }, 10_000)
   console.log('⏰ Scheduler de recordatorios iniciado (cada 60s)')
 }

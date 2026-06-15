@@ -34,8 +34,15 @@ function createTransporter(s) {
 
 async function sendViaSmtp({ settings, to, subject, html, text, pdfBase64, pdfFilename }) {
   const transporter = createTransporter(settings)
-  // Throws with a clear error if credentials/host are wrong
-  await transporter.verify()
+  // Some SMTP servers (corporate Outlook, certain Gmail setups) reject the
+  // EHLO/verify handshake but still accept real sendMail. Run verify as a
+  // best-effort probe and only log the warning — the actual send call below
+  // is the source of truth.
+  try {
+    await transporter.verify()
+  } catch (verifyErr) {
+    console.warn('SMTP verify falló (intentando envío de todas formas):', verifyErr.message)
+  }
   const from = buildSmtpFromAddress(settings.companyName || 'Amazonia ERP', settings.smtpFrom, settings.smtpUser)
   await transporter.sendMail({
     from,
