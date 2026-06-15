@@ -499,9 +499,6 @@ export const useStore = create<AppState>((set, get) => ({
     const now = Date.now()
     const todayISO = new Date().toISOString().split('T')[0]
 
-    // In-app delivered IDs are tracked separately from server `notifiedAt`
-    // (which only tracks WhatsApp delivery). This prevents re-firing in-app
-    // notifications after the items are reloaded from the API.
     const deliveredKey = 'erp_calendar_inapp_delivered'
     let delivered: string[] = []
     try { delivered = JSON.parse(localStorage.getItem(deliveredKey) || '[]') } catch {}
@@ -518,15 +515,40 @@ export const useStore = create<AppState>((set, get) => ({
 
       const label = it.kind === 'meeting' ? 'Reunión' : 'Recordatorio'
       const when = it.time ? ` a las ${it.time}` : ''
-      const link = it.notifyWhatsapp && it.whatsappPhone
-        ? `https://wa.me/${it.whatsappPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`${label}: ${it.title}${when} (${it.date})${it.description ? ' — ' + it.description : ''}`)}`
-        : '/calendar'
-      s.addNotification({
-        type: 'info',
-        category: 'general',
-        message: `${label}: ${it.title}${when}`,
-        link,
-      })
+
+      // Auto-send WhatsApp message via backend (Baileys) if configured
+      if (it.notifyWhatsapp && it.whatsappPhone) {
+        const phone = it.whatsappPhone.replace(/\D/g, '')
+        const msgLines = [`${it.kind === 'meeting' ? '📅' : '🔔'} ${label}: ${it.title}${when} (${it.date})`]
+        if (it.description) msgLines.push(it.description)
+        apiFetch('/api/whatsapp/send', {
+          method: 'POST',
+          body: JSON.stringify({ phone, text: msgLines.join('\n') }),
+        }).then(() => {
+          s.addNotification({
+            type: 'success',
+            category: 'general',
+            message: `WhatsApp enviado: ${it.title}${when}`,
+            link: '/calendar',
+          })
+        }).catch(() => {
+          // If backend send fails, show notification with manual wa.me fallback
+          const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(msgLines.join('\n'))}`
+          s.addNotification({
+            type: 'warning',
+            category: 'general',
+            message: `${label}: ${it.title}${when} — WhatsApp no conectado, enviar manualmente`,
+            link: waLink,
+          })
+        })
+      } else {
+        s.addNotification({
+          type: 'info',
+          category: 'general',
+          message: `${label}: ${it.title}${when}`,
+          link: '/calendar',
+        })
+      }
       deliveredSet.add(it.id)
     }
     localStorage.setItem(deliveredKey, JSON.stringify([...deliveredSet]))
@@ -539,16 +561,36 @@ export const useStore = create<AppState>((set, get) => ({
         const summary = todayItems
           .map((i) => `• ${i.time ? i.time + ' ' : ''}${i.kind === 'meeting' ? '📅' : '🔔'} ${i.title}`)
           .join('\n')
+        // Auto-send daily agenda via WhatsApp if company WhatsApp is configured
         const phone = s.companySettings.whatsapp?.replace(/\D/g, '') || ''
-        const waLink = phone
-          ? `https://wa.me/${phone}?text=${encodeURIComponent(`Tu agenda de hoy (${todayISO}):\n${summary}`)}`
-          : '/calendar'
-        s.addNotification({
-          type: 'info',
-          category: 'general',
-          message: `Tienes ${todayItems.length} evento${todayItems.length > 1 ? 's' : ''} agendado${todayItems.length > 1 ? 's' : ''} hoy`,
-          link: waLink,
-        })
+        if (phone) {
+          apiFetch('/api/whatsapp/send', {
+            method: 'POST',
+            body: JSON.stringify({ phone, text: `Tu agenda de hoy (${todayISO}):\n${summary}` }),
+          }).then(() => {
+            s.addNotification({
+              type: 'success',
+              category: 'general',
+              message: `Agenda del día enviada por WhatsApp (${todayItems.length} evento${todayItems.length > 1 ? 's' : ''})`,
+              link: '/calendar',
+            })
+          }).catch(() => {
+            const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(`Tu agenda de hoy (${todayISO}):\n${summary}`)}`
+            s.addNotification({
+              type: 'info',
+              category: 'general',
+              message: `Tienes ${todayItems.length} evento${todayItems.length > 1 ? 's' : ''} hoy — enviar agenda manualmente`,
+              link: waLink,
+            })
+          })
+        } else {
+          s.addNotification({
+            type: 'info',
+            category: 'general',
+            message: `Tienes ${todayItems.length} evento${todayItems.length > 1 ? 's' : ''} agendado${todayItems.length > 1 ? 's' : ''} hoy`,
+            link: '/calendar',
+          })
+        }
       }
       localStorage.setItem('erp_last_agenda_date', todayISO)
     }
