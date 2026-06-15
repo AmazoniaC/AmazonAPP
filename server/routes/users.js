@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken'
 import { pool }   from '../db.js'
 import { log, getUser } from '../audit.js'
 import { JWT_SECRET } from '../middleware/auth.js'
+import { validate } from '../middleware/validate.js'
+import { loginSchema, createUserSchema, updateUserSchema } from '../schemas/users.js'
 
 const SALT_ROUNDS = 10
 const router = Router()
@@ -29,7 +31,7 @@ async function hashExistingPasswords() {
 setTimeout(hashExistingPasswords, 3000)
 
 // ── POST /api/users/login ─────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body
   try {
     const { rows } = await pool.query(
@@ -79,11 +81,8 @@ router.get('/', async (req, res) => {
 })
 
 // ── POST /api/users ───────────────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', validate(createUserSchema), async (req, res) => {
   const { id, name, email, password, role, isActive } = req.body
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Nombre, email y contraseña son requeridos' })
-  }
   try {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
     const { rows } = await pool.query(
@@ -104,7 +103,7 @@ router.post('/', async (req, res) => {
 })
 
 // ── PUT /api/users/:id ────────────────────────────────────────────────────────
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateUserSchema), async (req, res) => {
   const { name, email, password, role, isActive } = req.body
   try {
     let rows

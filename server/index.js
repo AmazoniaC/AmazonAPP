@@ -352,6 +352,12 @@ app.use('/api/whatsapp',           whatsappRouter)
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 
+app.use((err, req, res, _next) => {
+  console.error(`[${req.method} ${req.path}]`, err.message)
+  const status = err.status || err.statusCode || 500
+  res.status(status).json({ error: status === 500 ? 'Error interno del servidor' : err.message })
+})
+
 app.listen(PORT, () => {
   console.log(`✅ Servidor ERP corriendo en http://localhost:${PORT}`)
   // Start background services after the HTTP server is up

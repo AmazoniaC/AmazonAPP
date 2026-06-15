@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createProductSchema, updateProductSchema } from '../schemas/products.js'
 
 const router = Router()
 
@@ -20,7 +22,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createProductSchema), async (req, res) => {
   const { id, sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, variants } = req.body
   try {
     const { rows } = await pool.query(
@@ -36,7 +38,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateProductSchema), async (req, res) => {
   const { sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, variants } = req.body
   try {
     const { rows } = await pool.query(

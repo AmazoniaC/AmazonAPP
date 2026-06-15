@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createCustomerSchema, updateCustomerSchema } from '../schemas/customers.js'
 
 const router = Router()
 
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createCustomerSchema), async (req, res) => {
   const { id, code, name, company, email, phone, city, segment,
           totalPurchases, lastPurchase, isActive, notes, priceListId, defaultDiscount } = req.body
   try {
@@ -47,7 +49,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateCustomerSchema), async (req, res) => {
   const { code, name, company, email, phone, city, segment,
           totalPurchases, lastPurchase, isActive, notes, priceListId, defaultDiscount } = req.body
   try {

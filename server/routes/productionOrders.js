@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createProductionOrderSchema, updateProductionOrderStatusSchema } from '../schemas/productionOrders.js'
 
 const router = Router()
 
@@ -18,7 +20,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createProductionOrderSchema), async (req, res) => {
   const { id, productId, productName, quantity, unit, status, startDate, endDate, notes } = req.body
   try {
     const { rows } = await pool.query(
@@ -34,7 +36,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', validate(updateProductionOrderStatusSchema), async (req, res) => {
   const { status } = req.body
   try {
     const { rows } = await pool.query(
