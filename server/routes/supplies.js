@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createSupplySchema, updateSupplySchema } from '../schemas/supplies.js'
 
 const router = Router()
 
@@ -15,7 +17,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createSupplySchema), async (req, res) => {
   const { id, sku, name, category, stock, minStock, unit, cost, supplier, lastUpdate } = req.body
   try {
     const { rows } = await pool.query(
@@ -31,7 +33,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateSupplySchema), async (req, res) => {
   const { sku, name, category, stock, minStock, unit, cost, supplier, lastUpdate } = req.body
   try {
     const { rows } = await pool.query(

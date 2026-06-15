@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createInventoryMovementSchema } from '../schemas/inventoryMovements.js'
 
 const router = Router()
 
@@ -44,7 +46,7 @@ router.get('/', async (req, res) => {
 })
 
 // POST create movement
-router.post('/', async (req, res) => {
+router.post('/', validate(createInventoryMovementSchema), async (req, res) => {
   try {
     const { id, itemId, itemName, itemType, movementType, quantity, previousStock, newStock, unit, reference, notes } = req.body
     const user = getUser(req)

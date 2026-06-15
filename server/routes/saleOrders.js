@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createSaleOrderSchema, updateSaleOrderSchema } from '../schemas/saleOrders.js'
 
 const router = Router()
 
@@ -32,9 +34,8 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createSaleOrderSchema), async (req, res) => {
   const { id, orderNumber, customerId, customer, date, status, paymentStatus, paymentMethod, subtotal, discount, tax, total, notes, items, priceListId } = req.body
-  if (!customer) return res.status(400).json({ error: 'customer es requerido' })
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -64,7 +65,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateSaleOrderSchema), async (req, res) => {
   const { status, paymentMethod, paymentStatus } = req.body
   try {
     const { rows } = await pool.query(
