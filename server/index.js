@@ -302,23 +302,37 @@ app.use(cors())
 app.use(express.json({ limit: '50mb' })) // limit amplio para logos y PDF base64
 
 // ── Rate limiting ───────────────────────────────────────────────────────────
-const generalLimiter = rateLimit({
+// Reads (GET) use a generous limit because the SPA polls multiple endpoints
+// (WhatsApp status every few seconds, dashboard auto-refresh, etc).
+// Writes are more conservative to prevent abuse.
+const readLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 3000,                // ~3.3 req/sec sustained; well above SPA polling needs
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes, intente de nuevo más tarde' },
+  message: { error: 'Demasiadas solicitudes de lectura, intente de nuevo más tarde' },
+  skip: (req) => req.method !== 'GET',
+})
+
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500,                 // generous for normal CRUD use
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes de escritura, intente de nuevo más tarde' },
+  skip: (req) => req.method === 'GET',
 })
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: 10,                  // 10 login attempts per 15min (was 5; gave room for typos)
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos de inicio de sesión, intente de nuevo más tarde' },
 })
 
-app.use('/api/', generalLimiter)
+app.use('/api/', readLimiter)
+app.use('/api/', writeLimiter)
 app.use('/api/users/login', loginLimiter)
 
 // ── Authentication middleware ───────────────────────────────────────────────
@@ -363,4 +377,16 @@ app.listen(PORT, () => {
   // Start background services after the HTTP server is up
   startWhatsApp().catch((e) => console.warn('WhatsApp init failed:', e.message))
   startScheduler()
+})
+
+// ── Prevent process crash from unhandled errors ────────────────────────────
+// Without these handlers, a single unhandled promise rejection (e.g. from
+// Baileys, the DB pool, or the scheduler) kills the entire Node process,
+// forcing a manual server restart.
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  uncaughtException (proceso NO terminado):', err.message)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  unhandledRejection (proceso NO terminado):', reason)
 })

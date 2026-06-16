@@ -18,6 +18,8 @@ let currentQRDataUrl = null  // data URL ready to render in <img>
 let status = 'disconnected'  // 'disconnected' | 'connecting' | 'qr' | 'connected'
 let lastError = null
 let baileysAvailable = true
+let reconnectAttempts = 0
+const MAX_RECONNECT_DELAY = 5 * 60 * 1000 // cap at 5 minutes
 
 async function loadBaileys() {
   try {
@@ -82,6 +84,7 @@ export async function startWhatsApp() {
       currentQR = null
       currentQRDataUrl = null
       lastError = null
+      reconnectAttempts = 0
       console.log('✅ WhatsApp conectado')
     }
     if (connection === 'close') {
@@ -90,12 +93,18 @@ export async function startWhatsApp() {
       status = 'disconnected'
       sock = null
       lastError = lastDisconnect?.error?.message || null
-      console.log('🔌 WhatsApp desconectado', loggedOut ? '(logged out)' : '— reintentando…')
+      console.log('🔌 WhatsApp desconectado', loggedOut ? '(logged out)' : `— reintento #${reconnectAttempts + 1}`)
       if (loggedOut) {
-        // wipe credentials so a new QR is generated next time
         try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }) } catch {}
+        reconnectAttempts = 0
+        setTimeout(() => startWhatsApp().catch(() => {}), 1000)
+      } else {
+        // Exponential backoff: 3s, 6s, 12s, 24s, ... capped at 5 minutes
+        const delay = Math.min(3000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY)
+        reconnectAttempts++
+        console.log(`   ↳ Reintentando en ${Math.round(delay / 1000)}s`)
+        setTimeout(() => startWhatsApp().catch(() => {}), delay)
       }
-      setTimeout(() => startWhatsApp().catch(() => {}), loggedOut ? 1000 : 3000)
     }
   })
 }
