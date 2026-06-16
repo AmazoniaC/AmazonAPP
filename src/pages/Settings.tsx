@@ -1300,7 +1300,7 @@ function WhatsAppConnectionPanel() {
 
   useEffect(() => {
     fetchStatus()
-    const id = window.setInterval(fetchStatus, 4000)
+    const id = window.setInterval(fetchStatus, 10000)
     return () => window.clearInterval(id)
   }, [])
 

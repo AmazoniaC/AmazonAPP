@@ -241,12 +241,48 @@ function getUserHeader(): Record<string, string> {
 }
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...getUserHeader() },
-    ...options,
-  })
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`)
-  return res.json()
+  const MAX_RETRIES = 2
+  const RETRY_DELAYS = [1000, 3000]
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...getUserHeader() },
+        ...options,
+      })
+    } catch (networkErr) {
+      // Network error (server down, no internet, DNS failure)
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
+        continue
+      }
+      throw new Error('No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.')
+    }
+
+    if (res.status === 429) {
+      // Rate limited — wait and retry
+      if (attempt < MAX_RETRIES) {
+        const retryAfter = parseInt(res.headers.get('retry-after') || '5', 10)
+        await new Promise((r) => setTimeout(r, retryAfter * 1000))
+        continue
+      }
+      throw new Error('Demasiadas solicitudes. Espera un momento e intenta de nuevo.')
+    }
+
+    if (res.status === 401) {
+      throw new Error('Sesión expirada. Inicia sesión de nuevo.')
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(text || `Error del servidor (${res.status})`)
+    }
+
+    return res.json()
+  }
+
+  throw new Error('No se pudo completar la solicitud después de varios intentos.')
 }
 
 // ── Initial state ────────────────────────────────────────────────────────────
