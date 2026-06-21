@@ -107,7 +107,7 @@ export default function Settings() {
   const loadAudit = async () => {
     setAuditLoading(true)
     try {
-      const data = await fetch('/api/audit?limit=200').then((r) => r.json())
+      const data = await fetch('/api/audit?limit=200', { headers: getAuthHeader() }).then((r) => r.json())
       setAuditLog(Array.isArray(data) ? data : [])
     } catch { /* ignore */ } finally {
       setAuditLoading(false)
@@ -117,7 +117,7 @@ export default function Settings() {
   const loadUsers = async () => {
     setUsersLoading(true)
     try {
-      const data = await fetch('/api/users').then((r) => r.json())
+      const data = await fetch('/api/users', { headers: getAuthHeader() }).then((r) => r.json())
       setUsers(Array.isArray(data) ? data : [])
     } catch { /* ignore */ } finally {
       setUsersLoading(false)

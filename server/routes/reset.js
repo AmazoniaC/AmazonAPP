@@ -12,6 +12,21 @@ router.delete('/', async (req, res) => {
   try {
     await pool.query(`
       TRUNCATE TABLE
+        sale_order_items,
+        recipe_ingredients,
+        inventory_movements,
+        customer_activities,
+        quotations,
+        purchase_orders,
+        dispatches,
+        expenses,
+        opportunities,
+        price_lists,
+        payments,
+        suppliers,
+        returns,
+        calendar_items,
+        audit_log,
         supplies,
         products,
         production_orders,

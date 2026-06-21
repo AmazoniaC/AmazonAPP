@@ -100,7 +100,7 @@ function buildInvoiceHtml({ order, customer, settings }) {
   const logoHtml = settings.logo
     ? `<img src="${settings.logo}" alt="Logo" style="height:110px;width:auto;object-fit:contain;">`
     : `<div style="text-align:right;">
-         <div style="font-size:28px;font-weight:900;color:${green};letter-spacing:2px;">${settings.companyName.toUpperCase()}</div>
+         <div style="font-size:28px;font-weight:900;color:${green};letter-spacing:2px;">${(settings.companyName || 'Amazonia Concrete').toUpperCase()}</div>
          <div style="font-size:10px;letter-spacing:4px;color:#444;border-top:1px solid #666;padding-top:3px;margin-top:2px;">CONCRETE</div>
        </div>`
 

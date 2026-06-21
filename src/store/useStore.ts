@@ -568,39 +568,12 @@ export const useStore = create<AppState>((set, get) => ({
       const label = it.kind === 'meeting' ? 'Reunión' : 'Recordatorio'
       const when = it.time ? ` a las ${it.time}` : ''
 
-      // Auto-send WhatsApp message via backend (Baileys) if configured
-      if (it.notifyWhatsapp && it.whatsappPhone) {
-        const phone = it.whatsappPhone.replace(/\D/g, '')
-        const msgLines = [`${it.kind === 'meeting' ? '📅' : '🔔'} ${label}: ${it.title}${when} (${it.date})`]
-        if (it.description) msgLines.push(it.description)
-        apiFetch('/api/whatsapp/send', {
-          method: 'POST',
-          body: JSON.stringify({ phone, text: msgLines.join('\n') }),
-        }).then(() => {
-          s.addNotification({
-            type: 'success',
-            category: 'general',
-            message: `WhatsApp enviado: ${it.title}${when}`,
-            link: '/calendar',
-          })
-        }).catch(() => {
-          // If backend send fails, show notification with manual wa.me fallback
-          const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(msgLines.join('\n'))}`
-          s.addNotification({
-            type: 'warning',
-            category: 'general',
-            message: `${label}: ${it.title}${when} — WhatsApp no conectado, enviar manualmente`,
-            link: waLink,
-          })
-        })
-      } else {
-        s.addNotification({
-          type: 'info',
-          category: 'general',
-          message: `${label}: ${it.title}${when}`,
-          link: '/calendar',
-        })
-      }
+      s.addNotification({
+        type: 'info',
+        category: 'general',
+        message: `${label}: ${it.title}${when}`,
+        link: '/calendar',
+      })
       deliveredSet.add(it.id)
     }
     localStorage.setItem(deliveredKey, JSON.stringify([...deliveredSet]))
@@ -881,7 +854,7 @@ export const useStore = create<AppState>((set, get) => ({
       return newSup
     })
 
-    set(() => ({ purchaseOrders: s.purchaseOrders.map((x) => x.id === id ? updated : x), supplies: updatedSupplies }))
+    set((curr) => ({ purchaseOrders: curr.purchaseOrders.map((x) => x.id === id ? updated : x), supplies: updatedSupplies }))
     // Re-run alerts: stock levels changed after receiving
     setTimeout(() => get().checkAlerts(), 0)
   },
@@ -935,18 +908,20 @@ export const useStore = create<AppState>((set, get) => ({
   // ── Payments ─────────────────────────────────────────────────────────────
   addPayment: async (payment) => {
     await apiFetch('/api/payments', { method: 'POST', body: JSON.stringify(payment) })
-    set((s) => ({ payments: [payment, ...s.payments] }))
-    // Update the sale order payment status locally
-    if (payment.saleOrderId) {
-      const s = get()
-      const orderPayments = [...s.payments.filter(p => p.saleOrderId === payment.saleOrderId), payment]
-      const totalPaid = orderPayments.reduce((sum, p) => sum + p.amount, 0)
-      const order = s.saleOrders.find(o => o.id === payment.saleOrderId)
-      if (order) {
-        const newStatus = totalPaid >= order.total ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
-        set((s2) => ({ saleOrders: s2.saleOrders.map(o => o.id === payment.saleOrderId ? { ...o, paymentStatus: newStatus } : o) }))
+    set((s) => {
+      const updatedPayments = [payment, ...s.payments]
+      const state: Partial<ReturnType<typeof get>> = { payments: updatedPayments }
+      if (payment.saleOrderId) {
+        const orderPayments = updatedPayments.filter(p => p.saleOrderId === payment.saleOrderId)
+        const totalPaid = orderPayments.reduce((sum, p) => sum + p.amount, 0)
+        const order = s.saleOrders.find(o => o.id === payment.saleOrderId)
+        if (order) {
+          const newStatus = totalPaid >= order.total ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+          state.saleOrders = s.saleOrders.map(o => o.id === payment.saleOrderId ? { ...o, paymentStatus: newStatus } : o)
+        }
       }
-    }
+      return state
+    })
     toast.success('Pago registrado correctamente')
   },
   deletePayment: async (id) => {

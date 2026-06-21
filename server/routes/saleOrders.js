@@ -89,6 +89,7 @@ router.put('/:id', validate(updateSaleOrderSchema), async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    await pool.query('DELETE FROM sale_order_items WHERE sale_order_id=$1', [req.params.id])
     const { rows } = await pool.query('DELETE FROM sale_orders WHERE id=$1 RETURNING customer_name AS "customer"', [req.params.id])
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
     const u = getUser(req)
