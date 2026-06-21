@@ -39,6 +39,7 @@ export interface AuthUser {
   name: string
   email: string
   role: string
+  token?: string
 }
 
 export interface CompanySettings {
@@ -68,6 +69,7 @@ export interface CompanySettings {
   smtpFrom: string
   resendApiKey: string
   invoicePrefix: string
+  monthlyGoal: number
 }
 
 interface AppState {
@@ -236,7 +238,12 @@ if (getDarkMode()) document.documentElement.classList.add('dark')
 function getUserHeader(): Record<string, string> {
   try {
     const raw = localStorage.getItem('erp_auth')
-    return raw ? { 'x-user': raw } : {}
+    if (!raw) return {}
+    const user = JSON.parse(raw)
+    if (user.token) {
+      return { 'Authorization': `Bearer ${user.token}` }
+    }
+    return {}
   } catch { return {} }
 }
 
@@ -317,6 +324,7 @@ const defaultCompanySettings: CompanySettings = {
   smtpFrom: '',
   resendApiKey: '',
   invoicePrefix: 'VTA',
+  monthlyGoal: 0,
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -402,6 +410,7 @@ export const useStore = create<AppState>((set, get) => ({
         smtpFrom:           settings.smtpFrom           ?? defaultCompanySettings.smtpFrom,
         resendApiKey:       settings.resendApiKey       ?? defaultCompanySettings.resendApiKey,
         invoicePrefix:      settings.invoicePrefix      ?? defaultCompanySettings.invoicePrefix,
+        monthlyGoal:        settings.monthlyGoal        ?? defaultCompanySettings.monthlyGoal,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })

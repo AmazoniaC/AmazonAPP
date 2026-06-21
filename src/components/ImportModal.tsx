@@ -76,7 +76,9 @@ const KNOWN_ALIASES: Record<string, string> = {
 function getUserHeader(): Record<string, string> {
   try {
     const raw = localStorage.getItem('erp_auth')
-    return raw ? { 'x-user': raw } : {}
+    if (!raw) return {}
+    const user = JSON.parse(raw)
+    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
   } catch { return {} }
 }
 

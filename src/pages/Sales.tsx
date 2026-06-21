@@ -428,7 +428,7 @@ function InvoiceModal({ order, onClose }: { order: SaleOrder; onClose: () => voi
     setEmailResult(null)
     try {
       const pdfBase64 = await generatePdfBase64()
-      const userHeader: Record<string, string> = (() => { try { const r = localStorage.getItem('erp_auth'); return r ? ({ 'x-user': r } as Record<string, string>) : {} } catch { return {} } })()
+      const userHeader: Record<string, string> = (() => { try { const r = localStorage.getItem('erp_auth'); if (!r) return {}; const u = JSON.parse(r); return u.token ? { 'Authorization': `Bearer ${u.token}` } as Record<string, string> : {} } catch { return {} } })()
       const res = await fetch('/api/email/invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...userHeader },

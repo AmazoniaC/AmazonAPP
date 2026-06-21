@@ -70,6 +70,7 @@ async function migrate() {
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_from          TEXT DEFAULT '';
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS resend_api_key     TEXT DEFAULT '';
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS invoice_prefix     TEXT DEFAULT 'VTA';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS monthly_goal       NUMERIC(14,2) DEFAULT 0;
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS sku TEXT DEFAULT '';

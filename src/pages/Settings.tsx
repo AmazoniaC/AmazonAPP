@@ -58,6 +58,15 @@ const ROLE_COLOR: Record<string, string> = {
 
 const EMPTY_FORM = { name: '', email: '', password: '', role: 'Ventas', isActive: true }
 
+function getAuthHeader(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('erp_auth')
+    if (!raw) return {}
+    const user = JSON.parse(raw)
+    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+  } catch { return {} }
+}
+
 export default function Settings() {
   const [activeTab, setActiveTab]       = useState('empresa')
   const [saved, setSaved]               = useState(false)
@@ -133,12 +142,7 @@ export default function Settings() {
 
   const closeUserModal = () => { setUserModal(null); setEditingUser(null) }
 
-  const getUserHeader = (): Record<string, string> => {
-    try {
-      const raw = localStorage.getItem('erp_auth')
-      return raw ? { 'x-user': raw } : {}
-    } catch { return {} }
-  }
+  const getUserHeader = getAuthHeader
 
   const handleSaveUser = async () => {
     if (!userForm.name.trim() || !userForm.email.trim()) {
@@ -313,6 +317,7 @@ export default function Settings() {
         smtpFrom:           company.smtpFrom,
         resendApiKey:       company.resendApiKey,
         invoicePrefix:      company.invoicePrefix,
+        monthlyGoal:        companySettings.monthlyGoal ?? 0,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -581,7 +586,7 @@ export default function Settings() {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
-                            'x-user': localStorage.getItem('erp_auth') || '',
+                            ...getUserHeader(),
                           },
                           body: JSON.stringify({
                             smtpHost: company.smtpHost,
@@ -1292,7 +1297,7 @@ function WhatsAppConnectionPanel() {
   const fetchStatus = async () => {
     try {
       const res = await fetch('/api/whatsapp/status', {
-        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+        headers: { ...getAuthHeader() },
       })
       if (res.ok) setInfo(await res.json())
     } catch { /* offline */ }
@@ -1309,7 +1314,7 @@ function WhatsAppConnectionPanel() {
     try {
       await fetch('/api/whatsapp/connect', {
         method: 'POST',
-        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+        headers: { ...getAuthHeader() },
       })
       await fetchStatus()
     } finally { setBusy(false) }
@@ -1321,7 +1326,7 @@ function WhatsAppConnectionPanel() {
     try {
       await fetch('/api/whatsapp/logout', {
         method: 'POST',
-        headers: { 'x-user': localStorage.getItem('erp_auth') || '' },
+        headers: { ...getAuthHeader() },
       })
       await fetchStatus()
     } finally { setBusy(false) }
