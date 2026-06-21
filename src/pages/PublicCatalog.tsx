@@ -327,8 +327,8 @@ export default function PublicCatalog() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} settings={co!} idx={i} />
+            {co && filtered.map((product, i) => (
+              <ProductCard key={product.id} product={product} settings={co} idx={i} />
             ))}
           </div>
         )}

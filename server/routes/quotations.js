@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
+import { validate } from '../middleware/validate.js'
+import { createQuotationSchema, updateQuotationSchema } from '../schemas/quotations.js'
 
 const router = Router()
 
@@ -19,7 +21,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createQuotationSchema), async (req, res) => {
   const { id, quoteNumber, customer, customerId, items, subtotal, tax, total,
           status, validUntil, date, deliveryEstimate, notes, internalNotes, convertedToOrderId } = req.body
   try {
@@ -41,7 +43,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateQuotationSchema), async (req, res) => {
   const { quoteNumber, customer, customerId, items, subtotal, tax, total,
           status, validUntil, date, deliveryEstimate, notes, internalNotes, convertedToOrderId } = req.body
   try {

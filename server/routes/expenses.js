@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { pool }   from '../db.js'
+import { validate } from '../middleware/validate.js'
+import { createExpenseSchema, updateExpenseSchema } from '../schemas/expenses.js'
 
 const router = Router()
 
@@ -23,7 +25,7 @@ router.get('/', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createExpenseSchema), async (req, res) => {
   const { id, date, category, description, amount, beneficiary, paymentMethod, notes, recurring, period } = req.body
   try {
     await pool.query(
@@ -37,7 +39,7 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateExpenseSchema), async (req, res) => {
   const { date, category, description, amount, beneficiary, paymentMethod, notes, recurring, period } = req.body
   try {
     await pool.query(

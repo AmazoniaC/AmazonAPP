@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { pool }   from '../db.js'
+import { validate } from '../middleware/validate.js'
+import { createOpportunitySchema, updateOpportunitySchema } from '../schemas/opportunities.js'
 
 const router = Router()
 
@@ -27,7 +29,7 @@ router.get('/', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', validate(createOpportunitySchema), async (req, res) => {
   const { id, title, customerId, customer, stage, value, probability,
           expectedClose, assignedTo, quotationId, notes, lostReason, createdAt, updatedAt } = req.body
   try {
@@ -45,7 +47,7 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(updateOpportunitySchema), async (req, res) => {
   const { title, customerId, customer, stage, value, probability,
           expectedClose, assignedTo, quotationId, notes, lostReason, updatedAt } = req.body
   try {
