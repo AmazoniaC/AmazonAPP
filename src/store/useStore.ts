@@ -209,7 +209,12 @@ const getAuth = (): { isAuthenticated: boolean; user: AuthUser | null } => {
   try {
     const raw = localStorage.getItem('erp_auth')
     if (!raw) return { isAuthenticated: false, user: null }
-    return { isAuthenticated: true, user: JSON.parse(raw) }
+    const user = JSON.parse(raw)
+    if (!user.token) {
+      localStorage.removeItem('erp_auth')
+      return { isAuthenticated: false, user: null }
+    }
+    return { isAuthenticated: true, user }
   } catch { return { isAuthenticated: false, user: null } }
 }
 
@@ -278,6 +283,8 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
     }
 
     if (res.status === 401) {
+      localStorage.removeItem('erp_auth')
+      useStore.setState({ isAuthenticated: false, user: null, dataLoaded: false, lastActivity: 0 })
       throw new Error('Sesión expirada. Inicia sesión de nuevo.')
     }
 
