@@ -36,7 +36,7 @@ export default function Login() {
         setLoading(false)
         return
       }
-      login({ name: data.name, email: data.email, role: data.role })
+      login({ name: data.name, email: data.email, role: data.role, token: data.token })
       navigate('/', { replace: true })
     } catch {
       setError('No se pudo conectar con el servidor')
