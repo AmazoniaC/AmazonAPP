@@ -543,6 +543,7 @@ export default function DispatchPage() {
             <p className="text-xs mt-1">Crea el primer despacho desde una orden de venta</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
@@ -617,6 +618,7 @@ export default function DispatchPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
         <div className="px-4 pb-2">
           <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />

@@ -53,10 +53,10 @@ export default function Layout() {
       <Sidebar />
       <div
         className="flex-1 flex flex-col min-h-screen transition-all duration-300"
-        style={{ marginLeft: sidebarOpen ? '240px' : '64px' }}
+        style={{ marginLeft: sidebarOpen ? '15rem' : '4rem' }}
       >
         <Topbar title={resolveTitle()} />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 overflow-auto">
           <Breadcrumbs />
           {!dataLoaded && pathname !== '/settings' ? (
             <PageSkeleton />

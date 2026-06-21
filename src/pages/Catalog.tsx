@@ -919,6 +919,7 @@ export default function Catalog() {
       {/* List view */}
       {view === 'list' && (
         <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
@@ -1005,6 +1006,7 @@ export default function Catalog() {
               })}
             </tbody>
           </table>
+          </div>
           {filtered.length === 0 && (
             <div className="text-center py-12 text-slate-400 dark:text-gray-600">
               <Package size={36} className="mx-auto mb-3 opacity-30" />
