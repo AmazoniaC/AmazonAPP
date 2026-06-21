@@ -326,11 +326,12 @@ export default function Inventory() {
 
       {/* Table */}
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-xs">
           <thead>
             <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
-              {['SKU','Nombre','Categoría','Stock','Mínimo','Estado','Costo/u','Valor total','Acciones'].map((h) => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-gray-400">{h}</th>
+              {['SKU','Nombre','Categoría','Stock','Mín','Estado','Costo/u','Valor','Acciones'].map((h) => (
+                <th key={h} className="text-left px-2 py-2 text-xs font-semibold text-slate-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -339,34 +340,34 @@ export default function Inventory() {
               const status = s.stock < s.minStock ? 'bajo' : s.stock < s.minStock * 1.5 ? 'alerta' : 'ok'
               return (
                 <tr key={s.id} className="table-row">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-400 dark:text-gray-500">{s.sku}</td>
-                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-gray-200">{s.name}</td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-gray-400">{s.category}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td className="px-2 py-2 font-mono text-xs text-slate-400 dark:text-gray-500">{s.sku}</td>
+                  <td className="px-2 py-2 font-medium text-slate-800 dark:text-gray-200 whitespace-nowrap">{s.name}</td>
+                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400">{s.category}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1.5">
                       <span className={`font-semibold ${status === 'bajo' ? 'text-red-600' : status === 'alerta' ? 'text-amber-600' : 'text-slate-800 dark:text-gray-200'}`}>
                         {s.stock} {s.unit}
                       </span>
                       <StockBar value={s.stock} min={s.minStock} />
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-gray-400">{s.minStock} {s.unit}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400">{s.minStock} {s.unit}</td>
+                  <td className="px-2 py-2">
                     <span className={`badge ${status === 'bajo' ? 'badge-red' : status === 'alerta' ? 'badge-yellow' : 'badge-green'}`}>
-                      {status === 'bajo' ? 'Bajo stock' : status === 'alerta' ? 'Alerta' : 'Normal'}
+                      {status === 'bajo' ? 'Bajo' : status === 'alerta' ? 'Alerta' : 'OK'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-gray-300">{formatCOP(s.cost)}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-700 dark:text-gray-200">{formatCOP(s.stock * s.cost)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td className="px-2 py-2 text-slate-600 dark:text-gray-300 whitespace-nowrap">{formatCOP(s.cost)}</td>
+                  <td className="px-2 py-2 font-semibold text-slate-700 dark:text-gray-200 whitespace-nowrap">{formatCOP(s.stock * s.cost)}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1">
                       <button className="btn btn-sm btn-secondary" onClick={() => setMovSupply(s)}>
-                        Movimiento
+                        Mov
                       </button>
                       {canEdit('supplies') && (
                         <button className="btn btn-sm btn-secondary flex items-center gap-1"
                           onClick={() => { setEditSupply(s); setShowModal(true) }}>
-                          <Pencil size={12} /> Editar
+                          <Pencil size={12} />
                         </button>
                       )}
                       {canDelete('supplies') && (
@@ -382,6 +383,7 @@ export default function Inventory() {
             })}
           </tbody>
         </table>
+        </div>
         {filtered.length === 0 && (
           <div className="text-center py-12 text-slate-400 dark:text-gray-600">
             <Package size={36} className="mx-auto mb-3 opacity-30" />

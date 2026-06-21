@@ -456,7 +456,7 @@ export default function PipelinePage() {
       {/* ── KANBAN VIEW ── */}
       {view === 'kanban' && (
         <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
+          <div className="flex gap-3" style={{ minWidth: `${STAGES.length * 220}px` }}>
             {STAGES.map((stage) => {
               const cards  = byStage(stage.key)
               const total  = cards.reduce((a, o) => a + o.value, 0)
@@ -465,7 +465,7 @@ export default function PipelinePage() {
 
               return (
                 <div key={stage.key}
-                  className={`w-72 flex flex-col rounded-2xl border-2 transition-colors ${isOver ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'border-transparent'}`}
+                  className={`flex-1 min-w-[200px] flex flex-col rounded-2xl border-2 transition-colors ${isOver ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'border-transparent'}`}
                   onDragOver={(e) => handleDragOver(e, stage.key)}
                   onDrop={() => handleDrop(stage.key)}
                   onDragLeave={() => setDragOver(null)}
@@ -522,7 +522,7 @@ export default function PipelinePage() {
 
       {/* ── LIST VIEW ── */}
       {view === 'list' && (
-        <div className="card overflow-hidden">
+        <div className="card overflow-hidden overflow-x-auto">
           {filtered.length === 0 ? (
             <div className="text-center py-16 text-slate-400 dark:text-gray-600">
               <Kanban size={40} className="mx-auto mb-3 opacity-30" />

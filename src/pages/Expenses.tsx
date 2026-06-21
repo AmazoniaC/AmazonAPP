@@ -351,6 +351,7 @@ export default function ExpensesPage() {
             <p className="text-xs mt-1">Empieza registrando el primer gasto operativo</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
@@ -424,6 +425,7 @@ export default function ExpensesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {/* Total footer */}
         {filtered.length > 0 && (
