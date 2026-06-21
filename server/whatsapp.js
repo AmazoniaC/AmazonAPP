@@ -33,8 +33,10 @@ async function loadBaileys() {
   }
 }
 
+let connecting = false
 export async function startWhatsApp() {
-  if (sock) return
+  if (sock || connecting) return
+  connecting = true
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true })
 
   const baileys = await loadBaileys()
@@ -61,6 +63,7 @@ export async function startWhatsApp() {
   }
 
   status = 'connecting'
+  connecting = false
   sock = makeWASocket({
     version,
     auth: state,

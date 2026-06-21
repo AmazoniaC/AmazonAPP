@@ -73,7 +73,19 @@ router.put('/', async (req, res) => {
          tiktok=$14, whatsapp=$15, instagram=$16, instagram_handle=$17,
          smtp_host=$18, smtp_port=$19, smtp_user=$20, smtp_pass=$21, smtp_from=$22,
          resend_api_key=$23, invoice_prefix=$24, monthly_goal=$25
-       RETURNING *`,
+       RETURNING company_name AS "companyName", slogan, email, phone, address,
+                currency, timezone, logo,
+                bank_name AS "bankName", bank_key AS "bankKey",
+                bank_account_type AS "bankAccountType",
+                bank_account_number AS "bankAccountNumber",
+                bank_message AS "bankMessage",
+                tiktok, whatsapp, instagram,
+                instagram_handle AS "instagramHandle",
+                smtp_host AS "smtpHost", smtp_port AS "smtpPort",
+                smtp_user AS "smtpUser", smtp_pass AS "smtpPass",
+                smtp_from AS "smtpFrom", resend_api_key AS "resendApiKey",
+                invoice_prefix AS "invoicePrefix",
+                monthly_goal AS "monthlyGoal"`,
       [
         companyName, slogan, email, phone, address, currency, timezone, logo ?? null,
         bankName ?? '', bankKey ?? '', bankAccountType ?? '',
@@ -85,8 +97,8 @@ router.put('/', async (req, res) => {
       ]
     )
     const result = rows[0]
-    result.smtp_pass = result.smtp_pass ? MASKED : ''
-    result.resend_api_key = result.resend_api_key ? MASKED : ''
+    result.smtpPass = result.smtpPass ? MASKED : ''
+    result.resendApiKey = result.resendApiKey ? MASKED : ''
     const u = getUser(req)
     await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Configuración', entityName: 'Datos de empresa' })
     res.json(result)
