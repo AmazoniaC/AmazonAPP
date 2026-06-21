@@ -63,7 +63,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Dashboard() {
-  const { supplies, saleOrders, productionOrders, products, expenses, purchaseOrders, customers, companySettings, dispatches, darkMode, loadAllData, user } = useStore()
+  const { supplies, saleOrders, productionOrders, products, expenses, purchaseOrders, customers, companySettings, dispatches, darkMode, loadAllData, user, saveCompanySettings } = useStore()
   const role = user?.role ?? 'Administrador'
   const isAdmin = role === 'Administrador'
   const showSales = isAdmin || role === 'Ventas' || role === 'Contabilidad'
@@ -74,9 +74,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing]   = useState(false)
 
   // ── Sales Goal ──────────────────────────────────────────────────────────
-  const [monthlyGoal, setMonthlyGoal] = useState(() => {
-    try { return parseFloat(localStorage.getItem('erp_monthly_goal') || '0') || 0 } catch { return 0 }
-  })
+  const monthlyGoal = companySettings.monthlyGoal ?? 0
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalInput, setGoalInput]     = useState('')
 
@@ -276,8 +274,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <input type="number" className="input text-xs py-1 w-40" placeholder="Meta mensual ($)"
                 value={goalInput} onChange={(e) => setGoalInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { const v = parseFloat(goalInput) || 0; setMonthlyGoal(v); localStorage.setItem('erp_monthly_goal', String(v)); setEditingGoal(false) }}} />
-              <button onClick={() => { const v = parseFloat(goalInput) || 0; setMonthlyGoal(v); localStorage.setItem('erp_monthly_goal', String(v)); setEditingGoal(false) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { const v = parseFloat(goalInput) || 0; saveCompanySettings({ ...companySettings, monthlyGoal: v }); setEditingGoal(false) }}} />
+              <button onClick={() => { const v = parseFloat(goalInput) || 0; saveCompanySettings({ ...companySettings, monthlyGoal: v }); setEditingGoal(false) }}
                 className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700"><Check size={14} /></button>
             </div>
           )}
