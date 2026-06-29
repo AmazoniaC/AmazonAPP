@@ -1,10 +1,11 @@
 import {
   Bell, Search, AlertTriangle, Info, CheckCircle, XCircle,
   Sun, Moon, Check, Trash2, LogOut, Package, Truck, ShoppingCart, Users, Factory, Navigation,
+  Home, Leaf, ChevronRight,
 } from 'lucide-react'
 import { useStore, NotifCategory } from '../../store/useStore'
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -49,7 +50,7 @@ const CATEGORY_META: Record<NotifCategory, { label: string; icon: React.ElementT
 // ── Topbar ─────────────────────────────────────────────────────────────────
 
 export default function Topbar({ title }: { title?: string }) {
-  const { notifications, markAsRead, markAllAsRead, clearNotifications, darkMode, toggleDarkMode, user, logout } = useStore()
+  const { notifications, markAsRead, markAllAsRead, clearNotifications, darkMode, toggleDarkMode, user, logout, companySettings } = useStore()
   const [showNotif, setShowNotif] = useState(false)
   const [showUser,  setShowUser]  = useState(false)
   const [activeCategory, setActiveCategory] = useState<NotifCategory | 'all'>('all')
@@ -85,14 +86,61 @@ export default function Topbar({ title }: { title?: string }) {
     navigate('/login', { replace: true })
   }
 
+  const logo = companySettings.logo
+
   return (
     <header className="h-16 glass border-b border-slate-200/40 dark:border-gray-700/40 flex items-center justify-between px-5 sticky top-0 z-30">
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        {title && <h2 className="font-bold text-slate-800 dark:text-gray-100 hidden sm:block tracking-tight text-base">{title}</h2>}
+      {/* Brand / breadcrumb */}
+      <div className="flex items-center gap-3 min-w-0">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 group flex-shrink-0"
+          title="Volver al inicio"
+        >
+          {logo ? (
+            <img src={logo} alt="" className="h-10 w-10 object-contain rounded-xl group-hover:scale-105 transition-transform" />
+          ) : (
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform"
+                 style={{
+                   background: 'linear-gradient(135deg, #527d36 0%, #2d4a1e 100%)',
+                   boxShadow: '0 4px 12px -2px rgba(82, 125, 54, 0.4)',
+                 }}>
+              <Leaf size={16} className="text-white" />
+            </div>
+          )}
+          <div className="hidden sm:block min-w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate group-hover:text-amazonia-700 dark:group-hover:text-amazonia-300 transition-colors leading-tight">
+              {companySettings.companyName || 'Amazonia Concrete'}
+            </p>
+            <p className="text-[10px] text-amazonia-700 dark:text-amazonia-400 font-medium tracking-wider uppercase leading-tight">
+              Sistema ERP
+            </p>
+          </div>
+        </Link>
+
+        {title && (
+          <>
+            <ChevronRight size={14} className="text-slate-400 dark:text-gray-500 flex-shrink-0 hidden md:block" />
+            <Link
+              to="/"
+              className="hidden md:flex items-center gap-1 text-[11px] text-slate-500 dark:text-gray-400 hover:text-amazonia-700 dark:hover:text-amazonia-400 transition-colors flex-shrink-0"
+              title="Inicio"
+            >
+              <Home size={12} /> Inicio
+            </Link>
+            <ChevronRight size={14} className="text-slate-400 dark:text-gray-500 flex-shrink-0 hidden md:block" />
+            <h2 className="font-bold text-slate-800 dark:text-gray-100 tracking-tight text-sm md:text-base truncate">
+              {title}
+            </h2>
+          </>
+        )}
+      </div>
+
+      {/* Right cluster */}
+      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-          className="hidden sm:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-white/60 dark:bg-gray-700/60 dark:text-gray-400 border border-slate-200/70 dark:border-gray-600/70 rounded-xl w-64 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-500 hover:shadow-soft transition-all duration-200 relative cursor-pointer"
+          className="hidden md:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-white/60 dark:bg-gray-700/60 dark:text-gray-400 border border-slate-200/70 dark:border-gray-600/70 rounded-xl w-52 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-500 hover:shadow-soft transition-all duration-200 relative cursor-pointer"
         >
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <span className="flex-1 text-left">Buscar...</span>

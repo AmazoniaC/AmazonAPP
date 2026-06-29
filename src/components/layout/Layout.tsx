@@ -1,8 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import GlobalSearch from './GlobalSearch'
-import Breadcrumbs from '../Breadcrumbs'
 import { PageSkeleton } from '../Skeletons'
 import { useStore } from '../../store/useStore'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
@@ -32,7 +30,7 @@ const titles: Record<string, string> = {
 }
 
 export default function Layout() {
-  const { sidebarOpen, dataLoaded, customers } = useStore()
+  const { dataLoaded, customers } = useStore()
   const { pathname } = useLocation()
   usePushNotifications()
   useSessionTimeout()
@@ -49,24 +47,17 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex">
-      <Sidebar />
-      <div
-        className="flex-1 flex flex-col min-h-screen transition-all duration-300"
-        style={{ marginLeft: sidebarOpen ? '15rem' : '4rem' }}
-      >
-        <Topbar title={resolveTitle()} />
-        <main className="flex-1 p-4 overflow-auto">
-          <Breadcrumbs />
-          {!dataLoaded && pathname !== '/settings' ? (
-            <PageSkeleton />
-          ) : (
-            <div className="animate-fadeIn">
-              <Outlet />
-            </div>
-          )}
-        </main>
-      </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
+      <Topbar title={resolveTitle()} />
+      <main className="flex-1 px-5 py-4 overflow-auto max-w-[1500px] w-full mx-auto">
+        {!dataLoaded && pathname !== '/settings' ? (
+          <PageSkeleton />
+        ) : (
+          <div className="animate-fadeIn">
+            <Outlet />
+          </div>
+        )}
+      </main>
       <GlobalSearch />
       <InstallPWA />
     </div>
