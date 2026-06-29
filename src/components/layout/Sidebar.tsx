@@ -60,21 +60,21 @@ export default function Sidebar() {
         sidebarOpen ? 'w-60' : 'w-16'
       }`}
       style={{
-        background: 'linear-gradient(180deg, #1e3315 0%, #12200d 50%, #0a1408 100%)',
+        background: 'linear-gradient(180deg, #0f1d0a 0%, #0a1408 100%)',
         transition: 'width 320ms cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: '4px 0 24px -8px rgba(0, 0, 0, 0.25)',
+        boxShadow: '4px 0 24px -8px rgba(0, 0, 0, 0.35)',
       }}
     >
-      {/* Decorative glow */}
-      <div className="absolute inset-0 opacity-60 pointer-events-none overflow-hidden">
-        <div className="absolute -top-20 -left-20 w-60 h-60 rounded-full"
-             style={{ background: 'radial-gradient(circle, rgba(82, 125, 54, 0.15) 0%, transparent 70%)' }} />
-        <div className="absolute bottom-0 -right-20 w-60 h-60 rounded-full"
-             style={{ background: 'radial-gradient(circle, rgba(151, 190, 130, 0.08) 0%, transparent 70%)' }} />
+      {/* Decorative glow — subtle, only at corners */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none overflow-hidden">
+        <div className="absolute -top-32 -left-32 w-64 h-64 rounded-full"
+             style={{ background: 'radial-gradient(circle, rgba(82, 125, 54, 0.18) 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-32 -right-32 w-64 h-64 rounded-full"
+             style={{ background: 'radial-gradient(circle, rgba(151, 190, 130, 0.10) 0%, transparent 70%)' }} />
       </div>
 
       {/* Logo */}
-      <div className="relative flex items-center justify-between px-3 h-16 border-b border-white/[0.08]">
+      <div className="relative flex items-center justify-between px-3 h-16 border-b border-white/[0.06]">
         {sidebarOpen && (
           <div className="flex items-center gap-2.5 animate-slideIn overflow-hidden">
             {logo ? (
@@ -94,7 +94,7 @@ export default function Sidebar() {
               <p className="text-white font-bold text-sm leading-tight truncate tracking-tight">
                 {companySettings.companyName || 'Amazonia ERP'}
               </p>
-              <p className="text-amazonia-300/70 text-[10px] font-medium tracking-wider uppercase">Sistema ERP</p>
+              <p className="text-amazonia-300 text-[10px] font-medium tracking-wider uppercase">Sistema ERP</p>
             </div>
           </div>
         )}
@@ -113,7 +113,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="text-amazonia-300/70 hover:text-white hover:bg-white/5 rounded-lg p-1 transition-all ml-auto"
+          className="text-slate-300 hover:text-white hover:bg-white/5 rounded-lg p-1 transition-all ml-auto"
         >
           {sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
         </button>
@@ -128,7 +128,7 @@ export default function Sidebar() {
               key={to}
               to={to}
               className={({ isActive }) =>
-                `sidebar-link ${isActive ? 'active' : 'text-amazonia-200/80 hover:text-white'}`
+                `sidebar-link ${isActive ? 'active' : 'text-slate-200 hover:text-white'}`
               }
               title={!sidebarOpen ? label : undefined}
             >
@@ -156,7 +156,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User + Logout */}
-      <div className={`relative px-3 py-3 border-t border-white/[0.08] ${sidebarOpen ? '' : 'flex flex-col items-center gap-2'}`}>
+      <div className={`relative px-3 py-3 border-t border-white/[0.06] ${sidebarOpen ? '' : 'flex flex-col items-center gap-2'}`}>
         <div className={`flex items-center gap-3 rounded-xl p-2 ${sidebarOpen ? 'bg-white/[0.04] hover:bg-white/[0.08] transition-colors' : 'justify-center'}`}>
           <div className="relative flex-shrink-0">
             <div className="w-9 h-9 rounded-full flex items-center justify-center ring-2 ring-white/10"
@@ -171,13 +171,13 @@ export default function Sidebar() {
           {sidebarOpen && (
             <div className="animate-slideIn min-w-0 flex-1">
               <p className="text-white text-[13px] font-semibold truncate leading-tight">{user?.name ?? 'Administrador'}</p>
-              <p className="text-amazonia-300/70 text-[10px] truncate">{user?.role ?? user?.email ?? ''}</p>
+              <p className="text-slate-300 text-[10px] truncate">{user?.role ?? user?.email ?? ''}</p>
             </div>
           )}
           {sidebarOpen && (
             <button
               onClick={handleLogout}
-              className="text-amazonia-300/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg p-1.5 transition-all flex-shrink-0"
+              className="text-slate-300 hover:text-red-400 hover:bg-red-500/10 rounded-lg p-1.5 transition-all flex-shrink-0"
               title="Cerrar sesión"
             >
               <LogOut size={15} />
@@ -187,7 +187,7 @@ export default function Sidebar() {
         {!sidebarOpen && (
           <button
             onClick={handleLogout}
-            className="text-amazonia-300/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg p-1.5 transition-all"
+            className="text-slate-300 hover:text-red-400 hover:bg-red-500/10 rounded-lg p-1.5 transition-all"
             title="Cerrar sesión"
           >
             <LogOut size={15} />
