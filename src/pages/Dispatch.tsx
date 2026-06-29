@@ -10,6 +10,8 @@ import { usePermissions } from '../hooks/usePermissions'
 import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -456,48 +458,28 @@ export default function DispatchPage() {
   const scheduledToday = dispatches.filter((d) => d.status === 'scheduled' && d.scheduledDate === today).length
   const deliveredToday = dispatches.filter((d) => d.status === 'delivered' && d.deliveredAt === today).length
 
-  const kpis = [
-    { label: 'Total despachos',    value: total,           icon: Truck,        color: 'blue'    },
-    { label: 'En ruta ahora',      value: inTransit,       icon: Navigation,   color: 'yellow'  },
-    { label: 'Programados hoy',    value: scheduledToday,  icon: Calendar,     color: 'indigo'  },
-    { label: 'Entregados hoy',     value: deliveredToday,  icon: CheckCircle2, color: 'emerald' },
-  ]
-
-  const colorMap: Record<string, string> = {
-    blue:    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-    yellow:  'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400',
-    indigo:  'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400',
-    emerald: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400',
-  }
-
   const allDrivers = Array.from(new Set(dispatches.map((d) => d.driver).filter(Boolean)))
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Despachos</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Logística y seguimiento de entregas</p>
-        </div>
-        <button className="btn btn-primary flex items-center gap-2" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Nuevo despacho
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Navigation}
+        title="Despachos"
+        subtitle="Logística y seguimiento de entregas"
+        accent="rgba(13, 148, 136, 0.20)"
+        actions={
+          <button className="btn btn-sm btn-primary flex items-center gap-2" onClick={() => setShowModal(true)}>
+            <Plus size={14} /> Nuevo despacho
+          </button>
+        }
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <div key={k.label} className="card p-4 flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${colorMap[k.color]}`}>
-              <k.icon size={22} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-white">{k.value}</p>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{k.label}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={Truck} label="Total despachos" value={total} accent="#0d9488" />
+        <StatCard icon={Navigation} label="En ruta ahora" value={inTransit} accent="#2563eb" />
+        <StatCard icon={Calendar} label="Programados hoy" value={scheduledToday} accent="#f59e0b" />
+        <StatCard icon={CheckCircle2} label="Entregados hoy" value={deliveredToday} accent="#10b981" />
       </div>
 
       {/* Filters */}

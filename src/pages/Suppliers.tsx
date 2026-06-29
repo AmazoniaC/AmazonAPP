@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import {
   Truck, Plus, Search, X, Trash2, Edit2, AlertCircle,
-  Phone, Mail, MapPin, CheckCircle, XCircle,
+  Phone, Mail, MapPin, CheckCircle, XCircle, Building2, Layers,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Supplier } from '../data/mockData'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['Cementos', 'Agregados', 'Pigmentos', 'Refuerzos', 'Acabados', 'Auxiliares', 'Sustratos', 'Otro']
@@ -155,22 +157,27 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader
+        icon={Building2}
+        title="Proveedores"
+        subtitle="Directorio de proveedores y aliados"
+        accent="rgba(15, 118, 110, 0.20)"
+        actions={
+          <>
+            <button className="btn btn-sm btn-secondary" onClick={exportExcel}>Excel</button>
+            <button className="btn btn-sm btn-primary flex items-center gap-1.5" onClick={() => setModal('new')}>
+              <Plus size={14} /> Nuevo Proveedor
+            </button>
+          </>
+        }
+      />
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Total proveedores', value: suppliers.length, icon: Truck, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Activos', value: totalActive, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-          { label: 'Categorías', value: categories.length, icon: Truck, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-        ].map((c, i) => (
-          <div key={i} className={`${c.bg} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <c.icon size={16} className={c.color} />
-              <span className="text-xs text-slate-500 dark:text-gray-400">{c.label}</span>
-            </div>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
+        <StatCard icon={Building2} label="Total proveedores" value={suppliers.length} accent="#0f766e" />
+        <StatCard icon={CheckCircle} label="Activos" value={totalActive} accent="#2563eb" />
+        <StatCard icon={Layers} label="Categorías" value={categories.length} accent="#8b5cf6" />
       </div>
 
       {/* Toolbar */}
@@ -189,10 +196,6 @@ export default function SuppliersPage() {
             <option value="true">Activos</option>
             <option value="false">Inactivos</option>
           </select>
-          <button className="btn btn-secondary text-xs" onClick={exportExcel}>Excel</button>
-          <button className="btn btn-primary flex items-center gap-1.5" onClick={() => setModal('new')}>
-            <Plus size={16} /> Nuevo Proveedor
-          </button>
         </div>
       </div>
 

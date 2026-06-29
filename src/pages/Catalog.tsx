@@ -9,6 +9,8 @@ import { Product, ProductVariant } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 import ImportModal from '../components/ImportModal'
@@ -753,72 +755,38 @@ export default function Catalog() {
   )
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Catálogo de Productos</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de productos, precios y rentabilidad</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <a
-            href="/catalogo"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary flex items-center gap-2"
-          >
-            <ExternalLink size={14} /> Ver catálogo
-          </a>
-          <button className="btn btn-secondary flex items-center gap-2" onClick={handleExport}>
-            <FileSpreadsheet size={14} /> Exportar
-          </button>
-          <button className="btn btn-secondary flex items-center gap-2" onClick={() => setShowImport(true)}>
-            <Upload size={14} /> Importar
-          </button>
-          {canEdit('products') && (
-            <button className="btn btn-primary" onClick={() => { setEdit(undefined); setShowModal(true) }}>
-              <Plus size={16} /> Nuevo producto
+    <div className="space-y-5">
+      <PageHeader
+        icon={BookOpen}
+        title="Catálogo"
+        subtitle="Gestión de productos, precios y rentabilidad"
+        accent="rgba(168, 112, 80, 0.20)"
+        actions={
+          <>
+            <a href="/catalogo" target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary">
+              <ExternalLink size={13} /> Ver catálogo
+            </a>
+            <button className="btn btn-sm btn-secondary" onClick={handleExport}>
+              <FileSpreadsheet size={13} /> Exportar
             </button>
-          )}
-        </div>
-      </div>
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowImport(true)}>
+              <Upload size={13} /> Importar
+            </button>
+            {canEdit('products') && (
+              <button className="btn btn-sm btn-primary" onClick={() => { setEdit(undefined); setShowModal(true) }}>
+                <Plus size={14} /> Nuevo producto
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center"><BookOpen size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Total productos</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{products.length}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">{products.filter(p=>p.isActive).length} activos</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center"><TrendingUp size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Margen promedio</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{avgMarginAll.toFixed(1)}%</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">{highestMargin ? `Mejor: ${highestMargin.name.split(' ')[0]}` : '—'}</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-violet-600 flex items-center justify-center"><DollarSign size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Revenue catálogo</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{formatCOP(totalRevenue)}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">De ventas registradas</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center"><Star size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Más vendido</p>
-            <p className="text-sm font-bold text-slate-800 dark:text-white leading-tight">{bestSeller?.name.split(' ')[0] ?? '—'}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">
-              {bestSeller ? `${productStats[bestSeller.id]?.units ?? 0} u vendidas` : 'Sin ventas'}
-            </p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={BookOpen}    label="Total productos"   value={products.length}            accent="#2563eb" hint={`${products.filter(p=>p.isActive).length} activos`} />
+        <StatCard icon={TrendingUp}  label="Margen promedio"   value={`${avgMarginAll.toFixed(1)}%`} accent="#10b981" hint={highestMargin ? `Mejor: ${highestMargin.name.split(' ')[0]}` : '—'} />
+        <StatCard icon={DollarSign}  label="Revenue catálogo"  value={formatCOP(totalRevenue)}    accent="#8b5cf6" hint="De ventas registradas" />
+        <StatCard icon={Star}        label="Más vendido"       value={bestSeller?.name.split(' ')[0] ?? '—'} accent="#f59e0b" hint={bestSeller ? `${productStats[bestSeller.id]?.units ?? 0} u vendidas` : 'Sin ventas'} />
       </div>
 
       {/* Filters bar */}

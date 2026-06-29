@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Plus, AlertTriangle, Search, Package, ArrowUpCircle, ArrowDownCircle, X, Trash2, Pencil, ShoppingCart, ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { Plus, AlertTriangle, Search, Package, ArrowUpCircle, ArrowDownCircle, X, Trash2, Pencil, ShoppingCart, ChevronDown, ChevronUp, Upload, Layers, Boxes } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Supply } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import ImportModal from '../components/ImportModal'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 
 const UNITS = ['u','kg','g','lb','oz','L','mL','m','cm','mm','m²','m³','rollo','par','caja','doc','bolsa']
@@ -213,60 +215,54 @@ export default function Inventory() {
   const totalVal  = supplies.reduce((a, s) => a + s.stock * s.cost, 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Inventario</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de insumos y materias primas</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/inventory/movements" className="btn btn-secondary flex items-center gap-2">
-            <ArrowUpCircle size={14} /> Movimientos
-          </Link>
-          <button className="btn btn-secondary flex items-center gap-2" onClick={() => setShowImport(true)}>
-            <Upload size={14} /> Importar
-          </button>
-          <button className="btn btn-primary" onClick={() => { setEditSupply(undefined); setShowModal(true) }}>
-            <Plus size={16} /> Nuevo insumo
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Package}
+        title="Inventario"
+        subtitle="Gestión de insumos y materias primas"
+        actions={
+          <>
+            <Link to="/inventory/movements" className="btn btn-sm btn-secondary">
+              <ArrowUpCircle size={13} /> Movimientos
+            </Link>
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowImport(true)}>
+              <Upload size={13} /> Importar
+            </button>
+            <button className="btn btn-sm btn-primary" onClick={() => { setEditSupply(undefined); setShowModal(true) }}>
+              <Plus size={14} /> Nuevo insumo
+            </button>
+          </>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label:'Total insumos', value: supplies.length, icon: Package, color:'bg-blue-50 dark:bg-blue-900/30 text-blue-600' },
-          { label:'Bajo stock',    value: lowStock,         icon: AlertTriangle, color:'bg-red-50 dark:bg-red-900/30 text-red-600' },
-          { label:'Categorías',    value: categories.length - 1, icon: Package, color:'bg-teal-50 dark:bg-teal-900/30 text-teal-600' },
-          { label:'Valor inventario', value: formatCOP(totalVal), icon: Package, color:'bg-violet-50 dark:bg-violet-900/30 text-violet-600' },
-        ].map((s) => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>
-              <s.icon size={18} />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{s.label}</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-white">{s.value}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={Boxes}         label="Total insumos"     value={supplies.length}        accent="#3b82f6" />
+        <StatCard icon={AlertTriangle} label="Bajo stock"        value={lowStock}               accent="#ef4444" hint={lowStock > 0 ? 'Requiere atención' : 'Todo en orden'} />
+        <StatCard icon={Layers}        label="Categorías"        value={categories.length - 1} accent="#0d9488" />
+        <StatCard icon={Package}       label="Valor inventario"  value={formatCOP(totalVal)}    accent="#8b5cf6" />
       </div>
 
       {/* Smart Reorder Suggestions */}
       {reorderSuggestions.length > 0 && (
-        <div className="card overflow-hidden border-amber-200 dark:border-amber-800">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-200/70 dark:border-amber-800/60"
+             style={{ background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.6) 0%, rgba(254, 215, 170, 0.3) 100%)' }}>
           <button onClick={() => setShowReorder(!showReorder)}
-            className="w-full flex items-center justify-between px-5 py-3 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
-            <div className="flex items-center gap-2">
-              <ShoppingCart size={16} className="text-amber-600" />
-              <span className="font-semibold text-amber-800 dark:text-amber-300 text-sm">
-                Sugerencias de reorden — {reorderSuggestions.length} insumos
-              </span>
-              <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full font-medium">
-                Costo estimado: {formatCOP(totalReorderCost)}
-              </span>
+            className="relative w-full flex items-center justify-between px-5 py-3 hover:bg-amber-100/40 dark:hover:bg-amber-900/20 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                <ShoppingCart size={16} className="text-amber-700" />
+              </div>
+              <div className="text-left">
+                <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
+                  Sugerencias de reorden
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                  {reorderSuggestions.length} insumos · estimado {formatCOP(totalReorderCost)}
+                </p>
+              </div>
             </div>
-            {showReorder ? <ChevronUp size={16} className="text-amber-500" /> : <ChevronDown size={16} className="text-amber-500" />}
+            {showReorder ? <ChevronUp size={16} className="text-amber-600" /> : <ChevronDown size={16} className="text-amber-600" />}
           </button>
           {showReorder && (
             <div className="p-4">
@@ -306,19 +302,19 @@ export default function Inventory() {
       )}
 
       {/* Filters */}
-      <div className="card p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="card p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <div className="relative flex-1 min-w-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" placeholder="Buscar insumo..." value={search}
+          <input className="input pl-9" placeholder="Buscar por nombre o SKU..." value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
           {categories.map((c) => (
             <button key={c} onClick={() => { setCatFilter(c); setPage(1) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 catFilter === c
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-600'
+                  ? 'bg-amazonia-700 text-white shadow-soft ring-1 ring-inset ring-amazonia-600/30'
+                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-amazonia-400 hover:text-amazonia-700'
               }`}>{c}</button>
           ))}
         </div>

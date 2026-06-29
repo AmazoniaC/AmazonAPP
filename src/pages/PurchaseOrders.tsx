@@ -2,13 +2,15 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, X, ShoppingCart, Clock, CheckCircle, AlertTriangle,
-  Pencil, Trash2, FileSpreadsheet, PackageCheck, ChevronDown, ChevronUp, Building2,
+  Pencil, Trash2, FileSpreadsheet, PackageCheck, ChevronDown, ChevronUp, Building2, Truck,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { PurchaseOrder, PurchaseOrderItem } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 
@@ -425,42 +427,31 @@ export default function PurchaseOrders() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Órdenes de Compra</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de compras a proveedores</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="btn btn-secondary flex items-center gap-2" onClick={handleExcel}>
-            <FileSpreadsheet size={15} /> Exportar
-          </button>
-          <button className="btn btn-primary flex items-center gap-2"
-            onClick={() => { setEditOrder(undefined); setShowModal(true) }}>
-            <Plus size={16} /> Nueva orden
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Truck}
+        title="Órdenes de Compra"
+        subtitle="Gestión de compras a proveedores"
+        accent="rgba(139, 92, 246, 0.20)"
+        actions={
+          <>
+            <button className="btn btn-sm btn-secondary flex items-center gap-2" onClick={handleExcel}>
+              <FileSpreadsheet size={14} /> Exportar
+            </button>
+            <button className="btn btn-sm btn-primary flex items-center gap-2"
+              onClick={() => { setEditOrder(undefined); setShowModal(true) }}>
+              <Plus size={14} /> Nueva orden
+            </button>
+          </>
+        }
+      />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total OC',      value: total,             icon: ShoppingCart, color: 'bg-blue-600' },
-          { label: 'Por recibir',   value: pending,           icon: Clock,        color: 'bg-amber-500' },
-          { label: 'Recibidas',     value: received,          icon: CheckCircle,  color: 'bg-emerald-600' },
-          { label: 'Costo total',   value: formatCOP(totalCost), icon: Building2, color: 'bg-violet-600' },
-        ].map((s) => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>
-              <s.icon size={18} className="text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{s.label}</p>
-              <p className="text-xl font-bold text-slate-800 dark:text-white">{s.value}</p>
-            </div>
-          </div>
-        ))}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={ShoppingCart} label="Total OC" value={total} accent="#8b5cf6" />
+        <StatCard icon={Clock} label="Por recibir" value={pending} accent="#2563eb" />
+        <StatCard icon={CheckCircle} label="Recibidas" value={received} accent="#10b981" />
+        <StatCard icon={Building2} label="Costo total" value={formatCOP(totalCost)} accent="#f59e0b" />
       </div>
 
       {/* Filters */}

@@ -7,6 +7,8 @@ import { useStore } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
 import Pagination from '../components/Pagination'
 import DateRangeFilter from '../components/DateRangeFilter'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import * as XLSX from 'xlsx'
 
 type PayFilter = '' | 'pending' | 'partial' | 'paid'
@@ -114,23 +116,20 @@ export default function CarteraPage() {
     sortKey === k ? (sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronDown size={12} className="opacity-30" />
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader
+        icon={Wallet}
+        title="Cartera"
+        subtitle="Cuentas por cobrar y antigüedad"
+        accent="rgba(37, 99, 235, 0.20)"
+      />
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Cartera total (por cobrar)', value: formatCOP(totalAR), icon: Wallet, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Pago pendiente', value: pendingCount, icon: AlertTriangle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' },
-          { label: 'Pago parcial', value: partialCount, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-          { label: 'Vencidas (+30 días)', value: overdueCount, icon: AlertCircle, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20' },
-        ].map((c, i) => (
-          <div key={i} className={`${c.bg} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <c.icon size={16} className={c.color} />
-              <span className="text-xs text-slate-500 dark:text-gray-400">{c.label}</span>
-            </div>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={Wallet}         label="Cartera total"     value={formatCOP(totalAR)} accent="#2563eb" hint="Por cobrar" />
+        <StatCard icon={AlertTriangle}  label="Pago pendiente"    value={pendingCount}       accent="#ef4444" />
+        <StatCard icon={Clock}          label="Pago parcial"      value={partialCount}       accent="#f59e0b" />
+        <StatCard icon={AlertCircle}    label="Vencidas +30 días" value={overdueCount}       accent="#f43f5e" />
       </div>
 
       {/* Aging + Top customers */}

@@ -9,6 +9,8 @@ import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import DateRangeFilter from '../components/DateRangeFilter'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import * as XLSX from 'xlsx'
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Clock }> = {
@@ -251,23 +253,28 @@ export default function ReturnsPage() {
     sortKey === k ? (sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronDown size={12} className="opacity-30" />
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader
+        icon={RotateCcw}
+        title="Devoluciones"
+        subtitle="Gestión de devoluciones y reembolsos"
+        accent="rgba(244, 63, 94, 0.20)"
+        actions={
+          <>
+            <button className="btn btn-sm btn-secondary" onClick={exportExcel}>Excel</button>
+            <button className="btn btn-sm btn-primary flex items-center gap-1.5" onClick={() => setModal('new')}>
+              <Plus size={14} /> Nueva Devolución
+            </button>
+          </>
+        }
+      />
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total devoluciones', value: totalReturns, icon: RotateCcw, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Valor total', value: formatCOP(totalValue), icon: FileText, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-          { label: 'Pendientes', value: pendingCount, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-          { label: 'Reembolsadas', value: refundedCount, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-        ].map((c, i) => (
-          <div key={i} className={`${c.bg} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <c.icon size={16} className={c.color} />
-              <span className="text-xs text-slate-500 dark:text-gray-400">{c.label}</span>
-            </div>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={RotateCcw} label="Total devoluciones" value={totalReturns} accent="#f43f5e" />
+        <StatCard icon={FileText} label="Valor total" value={formatCOP(totalValue)} accent="#f59e0b" />
+        <StatCard icon={Clock} label="Pendientes" value={pendingCount} accent="#10b981" />
+        <StatCard icon={CheckCircle} label="Reembolsadas" value={refundedCount} accent="#2563eb" />
       </div>
 
       {/* Toolbar */}
@@ -282,10 +289,6 @@ export default function ReturnsPage() {
             {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); setPage(1) }} />
-          <button className="btn btn-secondary text-xs" onClick={exportExcel}>Excel</button>
-          <button className="btn btn-primary flex items-center gap-1.5" onClick={() => setModal('new')}>
-            <Plus size={16} /> Nueva Devolución
-          </button>
         </div>
       </div>
 

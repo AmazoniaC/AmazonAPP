@@ -8,6 +8,7 @@ import {
 import { useStore } from '../store/useStore'
 import type { CalendarItem, CalendarItemKind } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
+import PageHeader from '../components/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type EventType = 'dispatch' | 'production' | 'delivery' | 'sale' | 'quotation' | 'purchase' | 'meeting' | 'reminder'
@@ -232,23 +233,18 @@ export default function CalendarPage() {
   }, [events, year, month, activeFilters])
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <CalendarDays size={24} /> Calendario
-          </h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm mt-0.5">
-            Despachos, producción, entregas, reuniones y recordatorios
-          </p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm">
-          <Plus size={16} /> Agendar
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={CalendarDays}
+        title="Calendario"
+        subtitle="Despachos, producción, entregas, reuniones y recordatorios"
+        accent="rgba(59, 130, 246, 0.20)"
+        actions={
+          <button onClick={() => setShowModal(true)} className="btn btn-sm btn-primary">
+            <Plus size={14} /> Agendar
+          </button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

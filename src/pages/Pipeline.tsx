@@ -9,6 +9,8 @@ import { Opportunity, PipelineStage } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 
 // ── Stage config ─────────────────────────────────────────────────────────────
 type StageConfig = {
@@ -389,51 +391,36 @@ export default function PipelinePage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <Kanban size={24} className="text-amazonia-600" /> Pipeline de ventas
-          </h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de oportunidades comerciales</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex bg-slate-100 dark:bg-gray-700 rounded-lg p-1">
-            <button onClick={() => setView('kanban')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'kanban' ? 'bg-white dark:bg-gray-800 shadow text-slate-800 dark:text-white' : 'text-slate-500 dark:text-gray-400'}`}>
-              <Kanban size={13} className="inline mr-1" />Kanban
+      <PageHeader
+        icon={Kanban}
+        title="Pipeline de ventas"
+        subtitle="Gestión de oportunidades comerciales"
+        accent="rgba(45, 74, 30, 0.20)"
+        actions={
+          <>
+            <div className="inline-flex bg-slate-100/80 dark:bg-gray-700/80 rounded-xl p-1">
+              <button onClick={() => setView('kanban')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${view === 'kanban' ? 'bg-white dark:bg-gray-800 shadow-soft text-amazonia-700 dark:text-amazonia-300' : 'text-slate-500 dark:text-gray-400 hover:text-slate-800'}`}>
+                <Kanban size={12} className="inline mr-1" />Kanban
+              </button>
+              <button onClick={() => setView('list')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${view === 'list' ? 'bg-white dark:bg-gray-800 shadow-soft text-amazonia-700 dark:text-amazonia-300' : 'text-slate-500 dark:text-gray-400 hover:text-slate-800'}`}>
+                <BarChart2 size={12} className="inline mr-1" />Lista
+              </button>
+            </div>
+            <button onClick={() => { setDefault('lead'); setShowModal(true) }} className="btn btn-sm btn-primary">
+              <Plus size={14} /> Nueva oportunidad
             </button>
-            <button onClick={() => setView('list')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${view === 'list' ? 'bg-white dark:bg-gray-800 shadow text-slate-800 dark:text-white' : 'text-slate-500 dark:text-gray-400'}`}>
-              <BarChart2 size={13} className="inline mr-1" />Lista
-            </button>
-          </div>
-          <button onClick={() => { setDefault('lead'); setShowModal(true) }} className="btn btn-primary flex items-center gap-2">
-            <Plus size={16} /> Nueva oportunidad
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Pipeline ponderado', value: formatCOP(pipelineVal), icon: TrendingUp,   color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',     sub: `${active.length} oportunidades activas` },
-          { label: 'Negocios ganados',   value: formatCOP(wonVal),      icon: Trophy,       color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400', sub: `${won.length} cierres` },
-          { label: 'Tasa de conversión', value: `${convRate.toFixed(1)}%`, icon: Target,    color: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400', sub: 'Ganado / Total' },
-          { label: 'Ticket promedio',    value: formatCOP(avgDeal),     icon: DollarSign,   color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',   sub: 'Por negocio ganado' },
-        ].map((k) => (
-          <div key={k.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${k.color}`}>
-              <k.icon size={20} />
-            </div>
-            <div>
-              <p className="text-xl font-bold text-slate-800 dark:text-white">{k.value}</p>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{k.label}</p>
-              <p className="text-xs text-slate-400 dark:text-gray-500">{k.sub}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={TrendingUp} label="Pipeline ponderado" value={formatCOP(pipelineVal)}     accent="#2563eb" hint={`${active.length} activas`} />
+        <StatCard icon={Trophy}     label="Negocios ganados"   value={formatCOP(wonVal)}          accent="#10b981" hint={`${won.length} cierres`} />
+        <StatCard icon={Target}     label="Tasa de conversión" value={`${convRate.toFixed(1)}%`}  accent="#8b5cf6" hint="Ganado / Total" />
+        <StatCard icon={DollarSign} label="Ticket promedio"    value={formatCOP(avgDeal)}         accent="#f59e0b" hint="Por venta ganada" />
       </div>
 
       {/* Filters */}
