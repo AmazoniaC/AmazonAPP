@@ -13,6 +13,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import { formatCOP } from '../utils/currency'
+import { nextOrderNumber } from '../utils/orderNumber'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
@@ -25,8 +26,11 @@ const STATUS_ICON: Record<string, typeof Clock> = {
   draft: Clock, sent: Send, accepted: CheckCircle, rejected: XCircle, expired: AlertCircle,
 }
 
-const daysUntil = (d: string): number =>
-  Math.ceil((new Date(d).getTime() - new Date().setHours(0,0,0,0)) / 86400000)
+const daysUntil = (d: string): number => {
+  // Parse as local noon so timezone shifts can't move it across midnight
+  const target = new Date(d + 'T12:00:00').getTime()
+  return Math.ceil((target - new Date().setHours(12, 0, 0, 0)) / 86400000)
+}
 
 const effectiveStatus = (q: Quotation): Quotation['status'] => {
   if ((q.status === 'draft' || q.status === 'sent') && daysUntil(q.validUntil) < 0) return 'expired'
@@ -37,7 +41,7 @@ const PAGE_SIZE = 15
 
 // ─── NewQuotationModal ─────────────────────────────────────────────────────────
 function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onClose: () => void }) {
-  const { customers, products, addQuotation, updateQuotation, quotations, priceLists } = useStore()
+  const { customers, products, addQuotation, updateQuotation, quotations, priceLists, companySettings } = useStore()
 
   const defaultValidUntil = new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0]
 
@@ -104,10 +108,11 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
     return item.discount > 0 ? raw * (1 - item.discount / 100) : raw
   }
 
+  const taxRate   = companySettings.taxRate ?? 0.19
   const subtotal  = items.reduce((a, x) => a + x.qty * x.price, 0)
   const totalDisc = items.reduce((a, x) => a + (x.discount > 0 ? x.qty * x.price * x.discount / 100 : 0), 0)
   const afterDisc = subtotal - totalDisc
-  const tax       = afterDisc * 0.19
+  const tax       = afterDisc * taxRate
   const total     = afterDisc + tax
 
   const handleSave = () => {
@@ -115,7 +120,7 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
     if (!customer || items.length === 0) return
     const q: Quotation = {
       id: quotation?.id ?? `q${Date.now()}`,
-      quoteNumber: quotation?.quoteNumber ?? `COT-${new Date().getFullYear()}-${String(quotations.length + 1).padStart(3,'0')}`,
+      quoteNumber: quotation?.quoteNumber ?? nextOrderNumber(quotations.map(x => x.quoteNumber), `COT-${new Date().getFullYear()}-`, 3),
       customer: customer.name, customerId,
       items: items.map(x => ({ product:x.product, productId:x.productId||undefined, variantId:x.variantId||undefined, qty:x.qty, price:x.price, discount: x.discount || undefined, subtotal: Math.round(calcItemSubtotal(x)) })),
       subtotal: Math.round(subtotal), discount: totalDisc > 0 ? Math.round(totalDisc) : undefined,
@@ -231,7 +236,7 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
               {totalDisc > 0 && (
                 <div className="flex justify-between text-sm"><span className="text-green-600 dark:text-green-400">Descuento</span><span className="text-green-600 dark:text-green-400">-{formatCOP(totalDisc)}</span></div>
               )}
-              <div className="flex justify-between text-sm"><span className="text-slate-500 dark:text-gray-400">IVA (19%)</span><span className="dark:text-white">{formatCOP(tax)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500 dark:text-gray-400">IVA ({(taxRate * 100).toFixed(0)}%)</span><span className="dark:text-white">{formatCOP(tax)}</span></div>
               <div className="flex justify-between font-bold text-slate-800 dark:text-white text-base pt-2 border-t border-slate-200 dark:border-gray-600">
                 <span>Total</span><span>{formatCOP(total)}</span>
               </div>
@@ -329,7 +334,7 @@ function QuotePrintTemplate({ quotation, printRef }: { quotation: Quotation; pri
           <div style={{ width:'260px' }}>
             {[[quotation.discount ? 'Subtotal bruto' : 'Subtotal', quotation.subtotal],
               ...(quotation.discount ? [['Descuento', -quotation.discount]] : []),
-              ['IVA (19%)', quotation.tax]].map(([l,v]) => (
+              [`IVA (${((companySettings.taxRate ?? 0.19) * 100).toFixed(0)}%)`, quotation.tax]].map(([l,v]) => (
               <div key={String(l)} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid #eee', fontSize:'12px' }}>
                 <span style={{ color:'#666' }}>{l}</span><span>{formatCOP(Number(v))}</span>
               </div>
@@ -383,8 +388,9 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
   onDownload: () => void
   converting: boolean
 }) {
-  const { updateQuotation } = useStore()
+  const { updateQuotation, companySettings } = useStore()
   const [q, setQ] = useState(quotation)
+  const detailTaxRate = companySettings.taxRate ?? 0.19
 
   const updateStatus = (status: Quotation['status']) => {
     const updated = { ...q, status }
@@ -490,7 +496,7 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
               <span className="text-slate-700 dark:text-gray-200">{formatCOP(q.subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500 dark:text-gray-400">IVA (19%)</span>
+              <span className="text-slate-500 dark:text-gray-400">IVA ({(detailTaxRate * 100).toFixed(0)}%)</span>
               <span className="text-slate-700 dark:text-gray-200">{formatCOP(q.tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-slate-800 dark:text-white text-lg pt-2 border-t border-slate-200 dark:border-gray-600">

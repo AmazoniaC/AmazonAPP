@@ -45,6 +45,35 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      boxShadow: {
+        'soft':     '0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 1px 3px -1px rgba(15, 23, 42, 0.04)',
+        'soft-lg':  '0 8px 24px -8px rgba(15, 23, 42, 0.10), 0 4px 8px -4px rgba(15, 23, 42, 0.05)',
+        'glow':     '0 0 0 1px rgba(45, 74, 30, 0.05), 0 4px 16px -4px rgba(45, 74, 30, 0.15)',
+        'glow-amazonia': '0 0 24px -4px rgba(82, 125, 54, 0.35)',
+        'inner-soft': 'inset 0 1px 2px rgba(15, 23, 42, 0.04)',
+      },
+      backdropBlur: {
+        'xs': '2px',
+      },
+      animation: {
+        'pulse-soft':  'pulseSoft 2s ease-in-out infinite',
+        'gradient':    'gradient 8s ease infinite',
+        'float':       'float 3s ease-in-out infinite',
+      },
+      keyframes: {
+        pulseSoft: {
+          '0%, 100%': { opacity: '1' },
+          '50%':       { opacity: '0.6' },
+        },
+        gradient: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%':       { backgroundPosition: '100% 50%' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%':       { transform: 'translateY(-4px)' },
+        },
+      },
     },
   },
   plugins: [],

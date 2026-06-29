@@ -10,6 +10,7 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import FacturaModal from '../components/InvoiceModal'
 import { formatCOP } from '../utils/currency'
+import { nextOrderNumber } from '../utils/orderNumber'
 import { openWhatsApp, buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
 import { PaymentModal } from './Payments'
 
@@ -91,17 +92,18 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
     return item.discount > 0 ? raw * (1 - item.discount / 100) : raw
   }
 
+  const taxRate    = companySettings.taxRate ?? 0.19
   const subtotal   = items.reduce((a, x) => a + x.qty * x.price, 0)
   const totalDisc  = items.reduce((a, x) => a + (x.discount > 0 ? x.qty * x.price * x.discount / 100 : 0), 0)
   const afterDisc  = subtotal - totalDisc
-  const tax        = afterDisc * 0.19
+  const tax        = afterDisc * taxRate
   const total      = afterDisc + tax
 
   const handleSave = () => {
     const customer = customers.find((c) => c.id === customerId)
     if (!customer || items.length === 0) return
     const order: SaleOrder = {
-      id: `so${Date.now()}`, orderNumber: `${companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-${String(saleOrders.length + 1).padStart(4, '0')}`,
+      id: `so${Date.now()}`, orderNumber: nextOrderNumber(saleOrders.map(o => o.orderNumber), `${companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-`),
       customer: customer.name, customerId,
       items: items.map((x) => ({ product:x.product, productId:x.productId||undefined, variantId:x.variantId||undefined, qty:x.qty, price:x.price, discount: x.discount || undefined, subtotal: Math.round(calcItemSubtotal(x)) })),
       subtotal: Math.round(subtotal),
@@ -229,7 +231,7 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
               {totalDisc > 0 && (
                 <div className="flex justify-between text-sm"><span className="text-green-600 dark:text-green-400">Descuento</span><span className="text-green-600 dark:text-green-400">-{formatCOP(totalDisc)}</span></div>
               )}
-              <div className="flex justify-between text-sm"><span className="text-slate-500 dark:text-gray-400">IVA (19%)</span><span className="dark:text-white">{formatCOP(tax)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500 dark:text-gray-400">IVA ({(taxRate * 100).toFixed(0)}%)</span><span className="dark:text-white">{formatCOP(tax)}</span></div>
               <div className="flex justify-between font-bold text-slate-800 dark:text-white text-base pt-2 border-t border-slate-200 dark:border-gray-600">
                 <span>Total</span><span>{formatCOP(total)}</span>
               </div>
@@ -547,7 +549,7 @@ function InvoiceModal({ order, onClose }: { order: SaleOrder; onClose: () => voi
                       placeholder="cliente@email.com"
                       value={emailTo}
                       onChange={(e) => setEmailTo(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendEmail()} />
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !emailSending) handleSendEmail() }} />
                   </div>
 
                   {emailResult && (
@@ -793,7 +795,7 @@ export default function Sales() {
     const newOrder: SaleOrder = {
       ...o,
       id: `so${Date.now()}`,
-      orderNumber: `${companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-${String(saleOrders.length + 1).padStart(4, '0')}`,
+      orderNumber: nextOrderNumber(saleOrders.map(x => x.orderNumber), `${companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-`),
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       paymentStatus: 'pending',

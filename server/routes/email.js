@@ -240,7 +240,7 @@ router.post('/invoice', async (req, res) => {
   }
 
   const html = buildInvoiceHtml({ order, customer, settings })
-  const subject = `Factura ${order.orderNumber} — ${settings.companyName}`
+  const subject = `Factura ${order.orderNumber} — ${settings.companyName || 'Amazonia Concrete'}`
 
   // ── 1) Try SMTP (nodemailer) first if configured ─────────────────────────
   if (isSmtpConfigured(settings)) {
@@ -296,7 +296,7 @@ router.post('/invoice', async (req, res) => {
       body: JSON.stringify({
         from: fromAddress,
         to: [recipientEmail],
-        subject: `Factura ${order.orderNumber} — ${settings.companyName}`,
+        subject: `Factura ${order.orderNumber} — ${settings.companyName || 'Amazonia Concrete'}`,
         html,
         ...(pdfBase64 ? {
           attachments: [{

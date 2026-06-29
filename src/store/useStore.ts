@@ -70,6 +70,7 @@ export interface CompanySettings {
   resendApiKey: string
   invoicePrefix: string
   monthlyGoal: number
+  taxRate: number  // IVA rate as decimal (0.19 = 19%)
 }
 
 interface AppState {
@@ -332,6 +333,7 @@ const defaultCompanySettings: CompanySettings = {
   resendApiKey: '',
   invoicePrefix: 'VTA',
   monthlyGoal: 0,
+  taxRate: 0.19,
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -418,6 +420,7 @@ export const useStore = create<AppState>((set, get) => ({
         resendApiKey:       settings.resendApiKey       ?? defaultCompanySettings.resendApiKey,
         invoicePrefix:      settings.invoicePrefix      ?? defaultCompanySettings.invoicePrefix,
         monthlyGoal:        settings.monthlyGoal        ?? defaultCompanySettings.monthlyGoal,
+        taxRate:            settings.taxRate            ?? defaultCompanySettings.taxRate,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })
