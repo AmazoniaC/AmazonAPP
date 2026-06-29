@@ -13,10 +13,20 @@ interface Props {
   onClose:  () => void
 }
 
+// ── Theme: based on user's PPTX template (black/beige modern) ─────────────────
+const C = {
+  ink:    '#152E2A',     // dark forest green from PPTX (border + text)
+  inkSoft:'#3A4F4B',
+  paper:  '#F5F1EA',     // warm beige paper feel
+  cream:  '#FAF7F0',
+  beige:  '#E8E0D2',
+  mute:   '#6B6760',
+}
+
 // ── QR content builder ────────────────────────────────────────────────────────
 function buildQRText(order: SaleOrder, s: CompanySettings): string {
   const lines = [
-    `PAGO — ${s.companyName}`,
+    `PAGO — ${s.companyName || 'Amazonia Concrete'}`,
     order.invoiceNumber ? `Factura: ${order.invoiceNumber}` : `Pedido: ${order.orderNumber}`,
     `Valor: ${formatCOP(order.total)}`,
     s.bankName           ? `Banco: ${s.bankName}`                 : '',
@@ -33,150 +43,314 @@ function fmt(d?: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pendiente', paid: 'Pagado', partial: 'Pago parcial', refunded: 'Reembolsado',
-}
-const STATUS_COLOR: Record<string, string> = {
-  pending: '#b45309', paid: '#15803d', partial: '#1d4ed8', refunded: '#9f1239',
-}
-
 // ── Invoice body (rendered for both view and PDF) ─────────────────────────────
 function InvoiceBody({ order, settings, qrDataUrl }: {
   order: SaleOrder; settings: CompanySettings; qrDataUrl: string
 }) {
   const logo = settings.logo
-  const hasBank = settings.bankName || settings.bankAccountNumber
+  const taxRate = settings.taxRate ?? 0.19
+  const invoiceNum = (order.invoiceNumber || order.orderNumber).replace(/^VTA-\d{4}-/, '').replace(/^FAC-\d{4}-/, '')
 
   return (
-    <div className="bg-white text-slate-800" style={{ fontFamily: 'Arial, sans-serif', width: '100%' }}>
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, borderBottom: '3px solid #166534', paddingBottom: 20 }}>
-        {/* Company */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {logo && <img src={logo} alt="" style={{ height: 64, width: 64, objectFit: 'contain', borderRadius: 8 }} />}
+    <div style={{
+      fontFamily: '"Inter", "Helvetica Neue", Arial, sans-serif',
+      width: '100%',
+      backgroundColor: '#ffffff',
+      color: C.ink,
+      position: 'relative',
+    }}>
+      {/* ────────────── TOP BANNER: concrete texture with logo ────────────── */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: 210,
+        backgroundImage: `url(/invoice/concrete-texture.jpeg)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        {logo ? (
+          <img src={logo} alt="" style={{ height: 150, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.18))' }} crossOrigin="anonymous" />
+        ) : (
+          <img src="/invoice/concrete-banner-top.png" alt="" style={{ height: 150, width: 'auto', objectFit: 'contain' }} crossOrigin="anonymous" />
+        )}
+      </div>
+
+      {/* ────────────── BODY PADDING ────────────── */}
+      <div style={{ padding: '36px 56px 32px 56px' }}>
+
+        {/* ─── FACTURA Nº header (split) ─── */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          paddingBottom: 18,
+          borderBottom: `1.5px solid ${C.ink}`,
+          marginBottom: 28,
+        }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#14532d', lineHeight: 1.2 }}>{settings.companyName}</div>
-            {settings.slogan && <div style={{ fontSize: 12, color: '#4ade80', marginTop: 2 }}>{settings.slogan}</div>}
-            {settings.address && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{settings.address}</div>}
-            {settings.phone   && <div style={{ fontSize: 11, color: '#64748b' }}>Tel: {settings.phone}</div>}
-            {settings.email   && <div style={{ fontSize: 11, color: '#64748b' }}>{settings.email}</div>}
-          </div>
-        </div>
-        {/* Invoice info */}
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 28, fontWeight: 900, color: '#14532d' }}>FACTURA</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#166534', marginTop: 4 }}>
-            {order.invoiceNumber || order.orderNumber}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
-            <div><strong>Fecha:</strong> {fmt(order.invoiceDate || order.date)}</div>
-            {order.deliveryDate && <div><strong>Entrega:</strong> {fmt(order.deliveryDate)}</div>}
             <div style={{
-              marginTop: 6, padding: '4px 10px', borderRadius: 6,
-              backgroundColor: STATUS_COLOR[order.paymentStatus] ?? '#64748b',
-              color: 'white', fontSize: 11, fontWeight: 700, display: 'inline-block',
+              fontSize: 36,
+              fontWeight: 900,
+              letterSpacing: 6,
+              color: C.ink,
+              lineHeight: 1,
             }}>
-              {STATUS_LABEL[order.paymentStatus] ?? order.paymentStatus}
+              FACTURA
+            </div>
+            <div style={{
+              fontSize: 14,
+              color: C.ink,
+              marginTop: 8,
+              letterSpacing: 1,
+              fontWeight: 600,
+            }}>
+              Nº: {invoiceNum}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: 11, color: C.inkSoft, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', color: C.ink, marginBottom: 4 }}>Fecha de emisión</div>
+            <div>{fmt(order.invoiceDate || order.date)}</div>
+            {order.deliveryDate && (
+              <>
+                <div style={{ fontSize: 10, letterSpacing: 2, fontWeight: 700, textTransform: 'uppercase', color: C.ink, marginTop: 8, marginBottom: 4 }}>Entrega</div>
+                <div>{fmt(order.deliveryDate)}</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ─── DATOS DEL CLIENTE ─── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: 3,
+            color: C.ink,
+            textTransform: 'uppercase',
+            marginBottom: 8,
+          }}>
+            Datos del cliente
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', fontSize: 12, color: C.inkSoft }}>
+            <div style={{ fontWeight: 700, color: C.ink, fontSize: 14 }}>{order.customer}</div>
+            <div style={{ textAlign: 'right' }}>
+              Método: <strong style={{ color: C.ink }}>{order.paymentMethod}</strong>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Customer ── */}
-      <div style={{ backgroundColor: '#f0fdf4', borderRadius: 8, padding: '12px 16px', marginBottom: 20, border: '1px solid #bbf7d0' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Facturado a</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#14532d' }}>{order.customer}</div>
-        <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
-          Método de pago: <strong>{order.paymentMethod}</strong>
-        </div>
-      </div>
-
-      {/* ── Items table ── */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20, fontSize: 12 }}>
-        <thead>
-          <tr style={{ backgroundColor: '#166534', color: 'white' }}>
-            <th style={{ padding: '8px 10px', textAlign: 'left',  fontWeight: 700, borderRadius: '6px 0 0 6px' }}>#</th>
-            <th style={{ padding: '8px 10px', textAlign: 'left',  fontWeight: 700 }}>Producto / Descripción</th>
-            <th style={{ padding: '8px 10px', textAlign: 'center',fontWeight: 700 }}>Cant.</th>
-            <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>Precio unit.</th>
-            {order.items.some(it => it.discount) && <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700 }}>Dto.</th>}
-            <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, borderRadius: '0 6px 6px 0' }}>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {order.items.map((item, i) => (
-            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f8fafc' : 'white', borderBottom: '1px solid #e2e8f0' }}>
-              <td style={{ padding: '8px 10px', color: '#94a3b8' }}>{i + 1}</td>
-              <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>{item.product}</td>
-              <td style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>{item.qty}</td>
-              <td style={{ padding: '8px 10px', textAlign: 'right', color: '#475569' }}>{formatCOP(item.price)}</td>
-              {order.items.some(it => it.discount) && <td style={{ padding: '8px 10px', textAlign: 'right', color: item.discount ? '#16a34a' : '#94a3b8' }}>{item.discount ? `${item.discount}%` : '—'}</td>}
-              <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, color: '#14532d' }}>{formatCOP(item.subtotal)}</td>
+        {/* ─── TABLA DE PRODUCTOS ─── */}
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: 12,
+          marginBottom: 0,
+        }}>
+          <thead>
+            <tr>
+              {['Detalle', 'Cantidad', 'Precio', 'Total'].map((h, i) => (
+                <th key={h} style={{
+                  padding: '12px 8px',
+                  textAlign: i === 0 ? 'left' : i === 1 ? 'center' : 'right',
+                  fontWeight: 800,
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  color: C.ink,
+                  borderBottom: `2px solid ${C.ink}`,
+                }}>
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* ── Totals + QR ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 20, marginBottom: 20 }}>
-        {/* QR + Bank info */}
-        <div style={{ flex: 1 }}>
-          {hasBank && (
-            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Datos de pago</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {qrDataUrl && (
-                  <img src={qrDataUrl} alt="QR pago" style={{ width: 88, height: 88, borderRadius: 6, border: '1px solid #e2e8f0' }} />
-                )}
-                <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.7 }}>
-                  {settings.bankName         && <div><strong>Banco:</strong> {settings.bankName}</div>}
-                  {settings.bankAccountType  && <div><strong>Tipo:</strong> {settings.bankAccountType}</div>}
-                  {settings.bankAccountNumber && <div><strong>No. cuenta:</strong> {settings.bankAccountNumber}</div>}
-                  {settings.bankKey          && <div><strong>Nequi/Daviplata:</strong> {settings.bankKey}</div>}
-                  {settings.bankMessage      && <div style={{ color: '#64748b', fontStyle: 'italic', marginTop: 4 }}>{settings.bankMessage}</div>}
-                </div>
-              </div>
-              {qrDataUrl && <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 6, textAlign: 'center' }}>Escanea el QR para ver los datos de pago</div>}
-            </div>
-          )}
-          {order.notes && (
-            <div style={{ marginTop: 10, fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
-              <strong>Notas:</strong> {order.notes}
-            </div>
-          )}
-        </div>
-
-        {/* Totals box */}
-        <div style={{ minWidth: 220 }}>
-          <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-            {[
-              { label: order.discount ? 'Subtotal bruto' : 'Subtotal', value: order.subtotal },
-              ...(order.discount ? [{ label: 'Descuento', value: -order.discount }] : []),
-              { label: `IVA (${(((settings.taxRate ?? 0.19)) * 100).toFixed(0)}%)`, value: order.tax },
-            ].map((r) => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 14px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: 12 }}>
-                <span style={{ color: '#64748b' }}>{r.label}</span>
-                <span style={{ fontWeight: 600 }}>{formatCOP(r.value)}</span>
-              </div>
+          </thead>
+          <tbody>
+            {order.items.map((item, i) => (
+              <tr key={i}>
+                <td style={{
+                  padding: '14px 8px',
+                  borderBottom: `1px solid ${C.beige}`,
+                  fontWeight: 500,
+                  color: C.ink,
+                }}>
+                  {item.product}
+                  {item.discount ? (
+                    <span style={{ color: C.mute, fontSize: 10, marginLeft: 8, fontStyle: 'italic' }}>
+                      (−{item.discount}%)
+                    </span>
+                  ) : null}
+                </td>
+                <td style={{
+                  padding: '14px 8px',
+                  borderBottom: `1px solid ${C.beige}`,
+                  textAlign: 'center',
+                  color: C.ink,
+                }}>
+                  {String(item.qty).padStart(2, '0')}
+                </td>
+                <td style={{
+                  padding: '14px 8px',
+                  borderBottom: `1px solid ${C.beige}`,
+                  textAlign: 'right',
+                  color: C.ink,
+                }}>
+                  {formatCOP(item.price)}
+                </td>
+                <td style={{
+                  padding: '14px 8px',
+                  borderBottom: `1px solid ${C.beige}`,
+                  textAlign: 'right',
+                  fontWeight: 700,
+                  color: C.ink,
+                }}>
+                  {formatCOP(item.subtotal)}
+                </td>
+              </tr>
             ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#166534', color: 'white' }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>TOTAL</span>
-              <span style={{ fontWeight: 900, fontSize: 16 }}>{formatCOP(order.total)}</span>
+          </tbody>
+        </table>
+
+        {/* ─── SUBTOTAL / IVA / TOTAL ─── */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+          <div style={{ minWidth: 280 }}>
+            {order.discount ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: 12, color: C.inkSoft }}>
+                  <span>Subtotal</span>
+                  <span>{formatCOP(order.subtotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: 12, color: C.inkSoft }}>
+                  <span>Descuento</span>
+                  <span>−{formatCOP(order.discount)}</span>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: 12, color: C.inkSoft }}>
+                <span>Subtotal</span>
+                <span>{formatCOP(order.subtotal)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: 12, color: C.inkSoft }}>
+              <span>IVA ({(taxRate * 100).toFixed(0)}%)</span>
+              <span>{formatCOP(order.tax)}</span>
+            </div>
+
+            {/* TOTAL bar */}
+            <div style={{
+              marginTop: 10,
+              padding: '14px 18px',
+              border: `2.5px solid ${C.ink}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{
+                fontSize: 14,
+                fontWeight: 900,
+                letterSpacing: 4,
+                color: C.ink,
+              }}>
+                TOTAL
+              </span>
+              <span style={{
+                fontSize: 20,
+                fontWeight: 900,
+                color: C.ink,
+                letterSpacing: 0.5,
+              }}>
+                {formatCOP(order.total)}
+              </span>
             </div>
           </div>
         </div>
+
+        {/* ─── THANK YOU MESSAGE ─── */}
+        <div style={{
+          marginTop: 36,
+          paddingTop: 24,
+          borderTop: `1px solid ${C.ink}`,
+          textAlign: 'center',
+          fontSize: 13,
+          color: C.ink,
+          fontWeight: 600,
+          letterSpacing: 0.3,
+          fontStyle: 'italic',
+        }}>
+          {`${order.customer.split(' ')[0]}@, Gracias por tu compra !!!`}
+        </div>
+
+        {/* ─── CONTACT + BANK + QR row ─── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 110px',
+          gap: 24,
+          marginTop: 24,
+          fontSize: 10.5,
+          color: C.ink,
+        }}>
+          {/* Contact / Social */}
+          <div style={{ lineHeight: 1.8 }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Contacto</div>
+            {settings.whatsapp && <div>📱 {settings.whatsapp}</div>}
+            {settings.email && <div>✉ {settings.email}</div>}
+            {settings.instagram && <div>📷 @{settings.instagramHandle || 'amazonia_concrete'}</div>}
+            {settings.tiktok && <div>♪ {settings.tiktok.replace(/^https?:\/\/(www\.)?tiktok\.com\//, '@')}</div>}
+            {settings.address && <div>📍 {settings.address}</div>}
+          </div>
+
+          {/* Bank details */}
+          {(settings.bankKey || settings.bankAccountNumber) && (
+            <div style={{ lineHeight: 1.8 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>Datos de pago</div>
+              {settings.bankName && <div><strong>{settings.bankName}</strong></div>}
+              {settings.bankKey && <div>Llave: {settings.bankKey}</div>}
+              {settings.bankAccountType && settings.bankAccountNumber && (
+                <div>{settings.bankAccountType}: {settings.bankAccountNumber}</div>
+              )}
+              {settings.bankMessage && (
+                <div style={{ color: C.mute, fontStyle: 'italic', marginTop: 3, fontSize: 10 }}>{settings.bankMessage}</div>
+              )}
+            </div>
+          )}
+
+          {/* QR code */}
+          {qrDataUrl && (
+            <div style={{ textAlign: 'center' }}>
+              <img src={qrDataUrl} alt="QR pago" style={{ width: 92, height: 92, display: 'block', margin: '0 auto' }} />
+              <div style={{ fontSize: 8.5, color: C.mute, marginTop: 4, letterSpacing: 0.5 }}>Escanea para pagar</div>
+            </div>
+          )}
+        </div>
+
+        {order.notes && (
+          <div style={{
+            marginTop: 18,
+            padding: '10px 14px',
+            backgroundColor: C.cream,
+            borderLeft: `3px solid ${C.ink}`,
+            fontSize: 10.5,
+            color: C.inkSoft,
+            fontStyle: 'italic',
+          }}>
+            <strong style={{ color: C.ink }}>Notas:</strong> {order.notes}
+          </div>
+        )}
       </div>
 
-      {/* ── Footer ── */}
-      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 10, color: '#94a3b8' }}>
-          {settings.whatsapp   && <span>WhatsApp: {settings.whatsapp}  </span>}
-          {settings.instagram  && <span>Instagram: @{settings.instagramHandle}  </span>}
-          {settings.tiktok     && <span>TikTok: {settings.tiktok}</span>}
-        </div>
-        <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'right' }}>
-          ¡Gracias por su compra! • {settings.companyName}
-        </div>
+      {/* ────────────── BOTTOM BANNER: concrete + "Belleza natural en concreto" ────────────── */}
+      <div style={{
+        width: '100%',
+        marginTop: 16,
+      }}>
+        <img
+          src="/invoice/concrete-banner-bottom.png"
+          alt="Belleza natural en concreto"
+          style={{ width: '100%', display: 'block' }}
+          crossOrigin="anonymous"
+        />
       </div>
     </div>
   )
@@ -188,13 +362,19 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [downloading, setDownloading] = useState(false)
 
-  // Generate QR data URL on mount
+  // Generate QR data URL on mount. Depend on specific fields (not the whole
+  // settings object) to avoid regeneration when unrelated store state changes.
   useEffect(() => {
     const text = buildQRText(order, settings)
-    QRCode.toDataURL(text, { width: 200, margin: 1, color: { dark: '#166534', light: '#ffffff' } })
+    QRCode.toDataURL(text, { width: 240, margin: 1, color: { dark: C.ink, light: '#ffffff' } })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(''))
-  }, [order, settings])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    order.id, order.total,
+    settings.companyName, settings.bankName, settings.bankAccountType,
+    settings.bankAccountNumber, settings.whatsapp,
+  ])
 
   const handlePrint = () => window.print()
 
@@ -209,7 +389,18 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
       const imgData  = canvas.toDataURL('image/png')
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, pdf.internal.pageSize.getHeight()))
+      const pageH = pdf.internal.pageSize.getHeight()
+      if (pdfHeight <= pageH) {
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+      } else {
+        // Multi-page
+        let y = 0
+        while (y < pdfHeight) {
+          pdf.addImage(imgData, 'PNG', 0, -y, pdfWidth, pdfHeight)
+          y += pageH
+          if (y < pdfHeight) pdf.addPage()
+        }
+      }
       const filename = `${order.invoiceNumber || order.orderNumber}_${order.customer.replace(/\s+/g, '_')}.pdf`
       pdf.save(filename)
     } finally {
@@ -219,11 +410,10 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
 
   const handleShare = () => {
     const text = [
-      `*${settings.companyName}*`,
+      `*${settings.companyName || 'Amazonia Concrete'}*`,
       order.invoiceNumber ? `Factura: ${order.invoiceNumber}` : `Pedido: ${order.orderNumber}`,
       `Cliente: ${order.customer}`,
       `Total: ${formatCOP(order.total)}`,
-      `Estado: ${STATUS_LABEL[order.paymentStatus] ?? order.paymentStatus}`,
       settings.bankAccountNumber ? `\nCuenta ${settings.bankName}: ${settings.bankAccountNumber}` : '',
     ].filter(Boolean).join('\n')
     const phone = settings.whatsapp?.replace(/\D/g, '') || ''
@@ -242,14 +432,14 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
         }
       `}</style>
 
-      <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl my-4">
+      <div className="fixed inset-0 modal-backdrop flex items-start justify-center z-50 p-4 overflow-y-auto">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl my-4 animate-scaleIn">
 
           {/* Modal header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-gray-700 no-print">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                <FileCheck size={18} className="text-emerald-600 dark:text-emerald-400" />
+              <div className="w-9 h-9 rounded-xl bg-amazonia-100 dark:bg-amazonia-900/40 flex items-center justify-center">
+                <FileCheck size={18} className="text-amazonia-700 dark:text-amazonia-400" />
               </div>
               <div>
                 <p className="font-semibold text-slate-800 dark:text-white text-sm">
@@ -261,16 +451,13 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleShare}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-700 dark:text-green-400 rounded-lg text-xs font-medium transition-colors">
+              <button onClick={handleShare} className="btn btn-sm btn-success">
                 <Share2 size={13} /> WhatsApp
               </button>
-              <button onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-slate-700 dark:text-gray-300 rounded-lg text-xs font-medium transition-colors">
+              <button onClick={handlePrint} className="btn btn-sm btn-secondary">
                 <Printer size={13} /> Imprimir
               </button>
-              <button onClick={handleDownload} disabled={downloading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amazonia-600 hover:bg-amazonia-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-60">
+              <button onClick={handleDownload} disabled={downloading} className="btn btn-sm btn-primary">
                 {downloading
                   ? <Loader2 size={13} className="animate-spin" />
                   : <Download size={13} />
@@ -284,8 +471,8 @@ export default function InvoiceModal({ order, settings, onClose }: Props) {
           </div>
 
           {/* Invoice preview */}
-          <div className="p-6 overflow-auto" id="invoice-print-root">
-            <div ref={printRef} className="border border-slate-200 rounded-xl p-6 bg-white">
+          <div className="p-4 overflow-auto bg-slate-100 dark:bg-gray-900" id="invoice-print-root" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+            <div ref={printRef} className="bg-white shadow-xl mx-auto" style={{ width: '100%', maxWidth: 720 }}>
               <InvoiceBody order={order} settings={settings} qrDataUrl={qrDataUrl} />
             </div>
           </div>

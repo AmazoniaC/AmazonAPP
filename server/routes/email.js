@@ -94,8 +94,8 @@ function buildInvoiceHtml({ order, customer, settings }) {
     </tr>`).join('')
 
   const concreteBg = 'linear-gradient(120deg,#888 0%,#b0aea8 20%,#ccc9c4 45%,#b5b2ad 70%,#909090 100%)'
-  const darkBg     = 'linear-gradient(120deg,#2c2c2c 0%,#454545 30%,#3a3a3a 60%,#252525 100%)'
-  const green      = '#1B4332'
+  const darkBg     = 'linear-gradient(120deg,#152E2A 0%,#1a3a35 50%,#0f221f 100%)'
+  const green      = '#152E2A'  // Matches user template (dark forest)
 
   const logoHtml = settings.logo
     ? `<img src="${settings.logo}" alt="Logo" style="height:110px;width:auto;object-fit:contain;">`
@@ -182,6 +182,11 @@ function buildInvoiceHtml({ order, customer, settings }) {
         <td style="padding:13px 24px;text-align:right;font-weight:700;font-size:15px;border-left:1px solid #ccc;">${fmt(order.total)}</td>
       </tr>
     </table>
+  </div>
+
+  <!-- THANKS -->
+  <div style="text-align:center;padding:18px 48px 4px;font-size:13px;color:${green};font-style:italic;font-weight:600;letter-spacing:.3px;">
+    ${(customer.name?.split(' ')[0] || 'Cliente')}@, Gracias por tu compra !!!
   </div>
 
   <!-- BANK INFO -->
