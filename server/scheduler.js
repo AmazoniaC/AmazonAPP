@@ -28,33 +28,41 @@ async function loadTimezone() {
 }
 
 function parseEventTime(dateStr, timeStr) {
-  if (cachedTimezone) {
-    // Build a formatter that renders in the user's timezone so we can derive
-    // the correct UTC instant for the local wall-clock time stored in the DB.
-    const dt = new Date(`${dateStr}T${timeStr}:00`)
-    // Use Intl to figure out the offset at this date in the target timezone,
-    // then build an unambiguous ISO string.
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: cachedTimezone,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false,
-    })
-    // The stored date/time IS in the user's timezone. We need the UTC ms.
-    // Strategy: create a Date that treats the string as UTC, then adjust by
-    // the difference between UTC and the target timezone at that instant.
-    const utcGuess = new Date(`${dateStr}T${timeStr}:00Z`)
-    const parts = formatter.formatToParts(utcGuess)
-    const p = (type) => (parts.find(x => x.type === type)?.value ?? '')
-    const rendered = `${p('year')}-${p('month')}-${p('day')}T${p('hour')}:${p('minute')}:${p('second')}Z`
-    const renderedMs = new Date(rendered).getTime()
-    // offsetMs = how far ahead the target TZ is from UTC at this instant
-    const offsetMs = renderedMs - utcGuess.getTime()
-    // The event is at dateStr/timeStr in the target TZ, so its UTC instant is:
-    return new Date(`${dateStr}T${timeStr}:00Z`).getTime() - offsetMs
+  // Reject empty / malformed inputs early so we never hand an Invalid Date
+  // to Intl.formatToParts (which throws "Invalid time value").
+  if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return NaN
   }
+  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
+    timeStr = '09:00'
+  }
+
+  if (cachedTimezone) {
+    try {
+      const utcGuess = new Date(`${dateStr}T${timeStr}:00Z`)
+      if (Number.isNaN(utcGuess.getTime())) return NaN
+
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: cachedTimezone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      })
+      const parts = formatter.formatToParts(utcGuess)
+      const p = (type) => (parts.find(x => x.type === type)?.value ?? '')
+      const rendered = `${p('year')}-${p('month')}-${p('day')}T${p('hour')}:${p('minute')}:${p('second')}Z`
+      const renderedMs = new Date(rendered).getTime()
+      if (Number.isNaN(renderedMs)) return NaN
+      const offsetMs = renderedMs - utcGuess.getTime()
+      return new Date(`${dateStr}T${timeStr}:00Z`).getTime() - offsetMs
+    } catch {
+      return NaN
+    }
+  }
+
   // Fallback: server-local time (original behaviour)
-  return new Date(`${dateStr}T${timeStr}:00`).getTime()
+  const ms = new Date(`${dateStr}T${timeStr}:00`).getTime()
+  return Number.isNaN(ms) ? NaN : ms
 }
 
 // Throttle "WhatsApp not connected" warnings so we don't spam logs every minute

@@ -869,9 +869,12 @@ export default function CRM() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteCustomer(deleteTarget.id)
-            setDeleting(false)
-            setDeleteTarget(null)
+            try {
+              await deleteCustomer(deleteTarget.id)
+              setDeleteTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

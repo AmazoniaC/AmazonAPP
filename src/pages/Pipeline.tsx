@@ -602,9 +602,12 @@ export default function PipelinePage() {
           onCancel={() => setDelete(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteOpportunity(deleteTarget.id)
-            setDeleting(false)
-            setDelete(null)
+            try {
+              await deleteOpportunity(deleteTarget.id)
+              setDelete(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

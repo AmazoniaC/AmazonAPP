@@ -1061,9 +1061,12 @@ export default function Sales() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteSaleOrder(deleteTarget.id)
-            setDeleting(false)
-            setDeleteTarget(null)
+            try {
+              await deleteSaleOrder(deleteTarget.id)
+              setDeleteTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

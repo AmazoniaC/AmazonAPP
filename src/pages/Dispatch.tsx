@@ -838,9 +838,12 @@ export default function DispatchPage() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteDispatch(deleteTarget.id)
-            setDeleting(false)
-            setDeleteTarget(null)
+            try {
+              await deleteDispatch(deleteTarget.id)
+              setDeleteTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

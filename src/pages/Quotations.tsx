@@ -799,9 +799,12 @@ export default function Quotations() {
           onCancel={() => setDelTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteQuotation(deleteTarget.id)
-            setDeleting(false)
-            setDelTarget(null)
+            try {
+              await deleteQuotation(deleteTarget.id)
+              setDelTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}
