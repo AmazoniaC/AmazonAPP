@@ -5,6 +5,8 @@ import { useStore } from '../store/useStore'
 import { ProductionOrder, Recipe } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -397,48 +399,43 @@ export default function Production() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Producción</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Órdenes de producción y fórmulas de mezcla</p>
-        </div>
-        <div className="flex gap-2">
-          {activeTab === 'recipes' && (
-            <button className="btn btn-secondary" onClick={() => setShowRecipeModal(true)}>
-              <BookOpen size={16} /> Nueva fórmula
+    <div className="space-y-5">
+      <PageHeader
+        icon={Factory}
+        title="Producción"
+        subtitle="Órdenes de producción y fórmulas de mezcla"
+        accent="rgba(245, 158, 11, 0.20)"
+        actions={
+          <>
+            {activeTab === 'recipes' && (
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowRecipeModal(true)}>
+                <BookOpen size={14} /> Nueva fórmula
+              </button>
+            )}
+            <button className="btn btn-sm btn-primary" onClick={() => setShowModal(true)}>
+              <Plus size={14} /> Nueva orden
             </button>
-          )}
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={16} /> Nueva orden
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label:'Pendientes', count:counts.pending, color:'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400' },
-          { label:'En producción', count:counts.in_progress, color:'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400' },
-          { label:'Finalizadas', count:counts.finished, color:'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },
-        ].map((s) => (
-          <div key={s.label} className={`card border p-4 text-center ${s.color}`}>
-            <p className="text-3xl font-bold">{s.count}</p>
-            <p className="text-sm mt-0.5">{s.label}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-3 stagger-children">
+        <StatCard icon={Clock}        label="Pendientes"     value={counts.pending}     accent="#f59e0b" />
+        <StatCard icon={Play}         label="En producción"  value={counts.in_progress} accent="#2563eb" />
+        <StatCard icon={CheckCircle}  label="Finalizadas"    value={counts.finished}    accent="#10b981" />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-gray-700 p-1 rounded-lg w-fit">
+      <div className="inline-flex gap-1 bg-slate-100/80 dark:bg-gray-700/80 p-1 rounded-xl">
         {(['orders','recipes'] as const).map((t) => (
           <button key={t} onClick={() => setActiveTab(t)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === t
-                ? 'bg-white dark:bg-gray-800 text-slate-800 dark:text-white shadow-sm'
-                : 'text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200'
+                ? 'bg-white dark:bg-gray-800 text-amazonia-700 dark:text-amazonia-300 shadow-soft'
+                : 'text-slate-500 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200'
             }`}>
-            {t === 'orders' ? '📋 Órdenes' : '🧪 Fórmulas'}
+            {t === 'orders' ? 'Órdenes' : 'Fórmulas'}
           </button>
         ))}
       </div>

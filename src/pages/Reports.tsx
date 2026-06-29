@@ -6,6 +6,7 @@ import {
 import { FileText, FileSpreadsheet, TrendingUp, BarChart3, PieChart as PieIcon, ShoppingCart, Package, Factory, Calendar, X, TrendingDown, DollarSign } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
+import PageHeader from '../components/PageHeader'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -321,21 +322,23 @@ export default function Reports() {
   const avgOrderValue = ordersCount > 0 ? totalRevenue / ordersCount : 0
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Reportes y Analítica</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Análisis completo del negocio</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={handleExportPDF} className="btn btn-secondary btn-sm">
-            <FileText size={13} /> Exportar PDF
-          </button>
-          <button onClick={handleExportExcel} className="btn btn-primary btn-sm">
-            <FileSpreadsheet size={13} /> Exportar Excel
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={BarChart3}
+        title="Reportes"
+        subtitle="Análisis completo del negocio"
+        accent="rgba(124, 58, 237, 0.20)"
+        actions={
+          <>
+            <button onClick={handleExportPDF} className="btn btn-sm btn-secondary">
+              <FileText size={13} /> Exportar PDF
+            </button>
+            <button onClick={handleExportExcel} className="btn btn-sm btn-primary">
+              <FileSpreadsheet size={13} /> Exportar Excel
+            </button>
+          </>
+        }
+      />
 
       {/* Period selector */}
       <div className="card p-4">
@@ -344,10 +347,10 @@ export default function Reports() {
           <span className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mr-1">Período:</span>
           {(['today','week','month','quarter','year','all','custom'] as Period[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                 period === p
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-600'
+                  ? 'bg-amazonia-700 text-white shadow-soft ring-1 ring-inset ring-amazonia-600/30'
+                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-amazonia-400 hover:text-amazonia-700'
               }`}>{PERIOD_LABELS[p]}</button>
           ))}
           {period === 'custom' && (

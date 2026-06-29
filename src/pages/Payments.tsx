@@ -9,6 +9,8 @@ import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import DateRangeFilter from '../components/DateRangeFilter'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import * as XLSX from 'xlsx'
 
 const METHODS = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cheque', 'Nequi', 'Daviplata', 'Otro']
@@ -225,23 +227,20 @@ export default function PaymentsPage() {
     sortKey === k ? (sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronDown size={12} className="opacity-30" />
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader
+        icon={Banknote}
+        title="Pagos"
+        subtitle="Tesorería y recaudos"
+        accent="rgba(16, 185, 129, 0.20)"
+      />
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total recibido', value: formatCOP(totalReceived), icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-          { label: 'Este mes', value: formatCOP(monthTotal), icon: Calendar, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Pendiente por cobrar', value: formatCOP(Math.max(0, totalPending)), icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-          { label: 'Pagos registrados', value: payments.length, icon: CreditCard, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-        ].map((c, i) => (
-          <div key={i} className={`${c.bg} rounded-xl p-4`}>
-            <div className="flex items-center gap-2 mb-1">
-              <c.icon size={16} className={c.color} />
-              <span className="text-xs text-slate-500 dark:text-gray-400">{c.label}</span>
-            </div>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={DollarSign} label="Total recibido"      value={formatCOP(totalReceived)}             accent="#10b981" />
+        <StatCard icon={Calendar}   label="Este mes"            value={formatCOP(monthTotal)}                accent="#2563eb" />
+        <StatCard icon={Clock}      label="Pendiente cobrar"    value={formatCOP(Math.max(0, totalPending))} accent="#f59e0b" />
+        <StatCard icon={CreditCard} label="Pagos registrados"   value={payments.length}                       accent="#8b5cf6" />
       </div>
 
       {/* Method breakdown */}

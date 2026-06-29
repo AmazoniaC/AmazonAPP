@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Receipt, Plus, Search, X, Trash2, Edit2, TrendingDown,
-  Calendar, Tag, CreditCard, RefreshCw, ChevronDown, ChevronUp,
+  Calendar, Tag, CreditCard, RefreshCw, ChevronDown, ChevronUp, CalendarDays, Repeat, PieChart,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Expense, ExpenseCategory } from '../data/mockData'
@@ -9,6 +9,8 @@ import { usePermissions } from '../hooks/usePermissions'
 import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import * as XLSX from 'xlsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -260,49 +262,36 @@ export default function ExpensesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Gastos Operativos</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Control de egresos y costos fijos</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={exportExcel} className="btn btn-secondary text-xs flex items-center gap-1.5">
-            <TrendingDown size={13} /> Exportar
-          </button>
-          <button onClick={() => setShowModal(true)} className="btn btn-primary flex items-center gap-2">
-            <Plus size={16} /> Registrar gasto
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Receipt}
+        title="Gastos Operativos"
+        subtitle="Control de egresos y costos fijos"
+        accent="rgba(245, 158, 11, 0.20)"
+        actions={
+          <>
+            <button onClick={exportExcel} className="btn btn-sm btn-secondary flex items-center gap-1.5">
+              <TrendingDown size={14} /> Exportar
+            </button>
+            <button onClick={() => setShowModal(true)} className="btn btn-sm btn-primary flex items-center gap-2">
+              <Plus size={14} /> Registrar gasto
+            </button>
+          </>
+        }
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-4">
-          <p className="text-xs text-slate-500 dark:text-gray-400 mb-1">Gastos este mes</p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatCOP(totalMonth)}</p>
-          {totalLast > 0 && (
-            <p className={`text-xs mt-1 ${momChange > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-              {momChange > 0 ? '▲' : '▼'} {Math.abs(momChange).toFixed(1)}% vs mes anterior
-            </p>
-          )}
-        </div>
-        <div className="card p-4">
-          <p className="text-xs text-slate-500 dark:text-gray-400 mb-1">Mes anterior</p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatCOP(totalLast)}</p>
-          <p className="text-xs text-slate-400 mt-1">{lastMonth}</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs text-slate-500 dark:text-gray-400 mb-1">Gastos recurrentes</p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-white">{formatCOP(recurring)}</p>
-          <p className="text-xs text-slate-400 mt-1">{expenses.filter((e) => e.recurring).length} registros activos</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-xs text-slate-500 dark:text-gray-400 mb-1">Mayor categoría (mes)</p>
-          <p className="text-lg font-bold text-slate-800 dark:text-white truncate">{topCategory}</p>
-          <p className="text-xs text-slate-400 mt-1">Total acumulado: {formatCOP(totalAll)}</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard
+          icon={Receipt}
+          label="Gastos este mes"
+          value={formatCOP(totalMonth)}
+          accent="#f59e0b"
+          hint={totalLast > 0 ? `${momChange > 0 ? '▲' : '▼'} ${Math.abs(momChange).toFixed(1)}% vs mes anterior` : undefined}
+        />
+        <StatCard icon={CalendarDays} label="Mes anterior" value={formatCOP(totalLast)} accent="#ef4444" hint={lastMonth} />
+        <StatCard icon={Repeat} label="Gastos recurrentes" value={formatCOP(recurring)} accent="#2563eb" hint={`${expenses.filter((e) => e.recurring).length} registros activos`} />
+        <StatCard icon={PieChart} label="Mayor categoría (mes)" value={topCategory} accent="#10b981" hint={`Total acumulado: ${formatCOP(totalAll)}`} />
       </div>
 
       {/* Filters */}

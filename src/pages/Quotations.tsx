@@ -14,6 +14,8 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import { formatCOP } from '../utils/currency'
 import { nextOrderNumber } from '../utils/orderNumber'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
@@ -634,56 +636,25 @@ export default function Quotations() {
   for (const q of enriched) { statusCounts[q._eff] = (statusCounts[q._eff] ?? 0) + 1 }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Cotizaciones</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Propuestas comerciales y seguimiento de clientes</p>
-        </div>
-        {canEdit('sales') && (
-          <button className="btn btn-primary" onClick={() => { setEditTarget(undefined); setShowModal(true) }}>
-            <Plus size={16} /> Nueva cotización
+    <div className="space-y-5">
+      <PageHeader
+        icon={FileText}
+        title="Cotizaciones"
+        subtitle="Propuestas comerciales y seguimiento"
+        accent="rgba(139, 92, 246, 0.20)"
+        actions={canEdit('sales') ? (
+          <button className="btn btn-sm btn-primary" onClick={() => { setEditTarget(undefined); setShowModal(true) }}>
+            <Plus size={14} /> Nueva cotización
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center"><FileText size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Total cotizaciones</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{total}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">{statusCounts['sent']??0} enviadas</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-violet-600 flex items-center justify-center"><DollarSign size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Pipeline activo</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{formatCOP(pipeline)}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">En cotizaciones abiertas</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center"><TrendingUp size={18} className="text-white" /></div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Tasa de cierre</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{acceptRate}%</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">{acceptedN} aceptadas</p>
-          </div>
-        </div>
-        <div className={`card p-4 flex items-center gap-3 ${expiringSoon > 0 ? 'border-l-4 border-l-amber-400' : ''}`}>
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${expiringSoon > 0 ? 'bg-amber-500' : 'bg-slate-400'}`}>
-            <AlertCircle size={18} className="text-white" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">Vencen pronto</p>
-            <p className="text-xl font-bold text-slate-800 dark:text-white">{expiringSoon}</p>
-            <p className="text-xs text-slate-400 dark:text-gray-500">En los próximos 7 días</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={FileText}    label="Total cotizaciones" value={total}              accent="#2563eb" hint={`${statusCounts['sent']??0} enviadas`} />
+        <StatCard icon={DollarSign}  label="Pipeline activo"    value={formatCOP(pipeline)} accent="#8b5cf6" hint="En propuestas abiertas" />
+        <StatCard icon={TrendingUp}  label="Tasa de cierre"     value={`${acceptRate}%`}    accent="#10b981" hint={`${acceptedN} aceptadas`} />
+        <StatCard icon={AlertCircle} label="Vencen pronto"      value={expiringSoon}        accent={expiringSoon > 0 ? '#f59e0b' : '#94a3b8'} hint="Próximos 7 días" />
       </div>
 
       {/* Filters */}

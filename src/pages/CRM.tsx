@@ -11,6 +11,8 @@ import { Customer, CustomerActivity, Quotation } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 import ImportModal from '../components/ImportModal'
@@ -722,43 +724,33 @@ export default function CRM() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Clientes — CRM</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Base de clientes y seguimiento</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="btn btn-secondary flex items-center gap-2" onClick={handleExportExcel}>
-            <FileSpreadsheet size={15} /> Exportar
-          </button>
-          <button className="btn btn-secondary flex items-center gap-2" onClick={() => setShowImport(true)}>
-            <Upload size={14} /> Importar
-          </button>
-          <button className="btn btn-primary" onClick={() => { setEditCustomer(undefined); setShowModal(true) }}>
-            <Plus size={16} /> Nuevo cliente
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Users}
+        title="Clientes"
+        subtitle="Base de clientes y seguimiento comercial"
+        accent="rgba(244, 63, 94, 0.20)"
+        actions={
+          <>
+            <button className="btn btn-sm btn-secondary" onClick={handleExportExcel}>
+              <FileSpreadsheet size={13} /> Exportar
+            </button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setShowImport(true)}>
+              <Upload size={13} /> Importar
+            </button>
+            <button className="btn btn-sm btn-primary" onClick={() => { setEditCustomer(undefined); setShowModal(true) }}>
+              <Plus size={14} /> Nuevo cliente
+            </button>
+          </>
+        }
+      />
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total clientes',        value: customers.length,                                                          icon: Users,     color: 'bg-blue-600' },
-          { label: 'Clientes VIP',          value: vipCount,                                                                  icon: Star,      color: 'bg-violet-600' },
-          { label: 'Seguimientos pend.',    value: totalPending,                                                              icon: Activity,  color: 'bg-amber-500' },
-          { label: 'Revenue total',         value: formatCOP(totalRevenue),                                                   icon: TrendingUp,color: 'bg-emerald-600' },
-        ].map((s) => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>
-              <s.icon size={18} className="text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{s.label}</p>
-              <p className="text-xl font-bold text-slate-800 dark:text-white">{s.value}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+        <StatCard icon={Users}      label="Total clientes"      value={customers.length}        accent="#2563eb" />
+        <StatCard icon={Star}       label="Clientes VIP"        value={vipCount}                accent="#8b5cf6" />
+        <StatCard icon={Activity}   label="Seguimientos pend."  value={totalPending}            accent="#f59e0b" />
+        <StatCard icon={TrendingUp} label="Revenue total"       value={formatCOP(totalRevenue)} accent="#10b981" />
       </div>
 
       {/* Customer Health & CLV */}

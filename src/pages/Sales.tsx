@@ -11,6 +11,8 @@ import Pagination from '../components/Pagination'
 import FacturaModal from '../components/InvoiceModal'
 import { formatCOP } from '../utils/currency'
 import { nextOrderNumber } from '../utils/orderNumber'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { openWhatsApp, buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
 import { PaymentModal } from './Payments'
 
@@ -826,34 +828,24 @@ export default function Sales() {
   const todayOrders  = saleOrders.length
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Ventas</h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm">Gestión de órdenes de venta</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Nueva venta
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        icon={ShoppingCart}
+        title="Ventas"
+        subtitle="Gestión de órdenes de venta"
+        accent="rgba(37, 99, 235, 0.20)"
+        actions={
+          <button className="btn btn-sm btn-primary" onClick={() => setShowModal(true)}>
+            <Plus size={14} /> Nueva venta
+          </button>
+        }
+      />
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label:'Ingresos totales', value: formatCOP(totalRevenue), icon:DollarSign, color:'bg-blue-600' },
-          { label:'Por cobrar',       value: formatCOP(pendingPay),   icon:Clock,      color:'bg-amber-500' },
-          { label:'Total órdenes',    value: String(todayOrders),     icon:ShoppingCart,color:'bg-teal-600'},
-        ].map((s) => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color}`}>
-              <s.icon size={18} className="text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-gray-400">{s.label}</p>
-              <p className="text-xl font-bold text-slate-800 dark:text-white">{s.value}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-3 gap-3 stagger-children">
+        <StatCard icon={DollarSign}  label="Ingresos totales" value={formatCOP(totalRevenue)} accent="#2563eb" hint={`${saleOrders.length} órdenes`} />
+        <StatCard icon={Clock}       label="Por cobrar"       value={formatCOP(pendingPay)}   accent="#f59e0b" hint={pendingPay > 0 ? 'Pagos pendientes' : 'Todo cobrado'} />
+        <StatCard icon={CheckCircle} label="Órdenes totales"  value={String(todayOrders)}     accent="#0d9488" />
       </div>
 
       {/* Filters */}
@@ -880,28 +872,28 @@ export default function Sales() {
             </button>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap items-center">
-          <span className="text-xs text-slate-400 dark:text-gray-500 mr-1">Estado:</span>
+        <div className="flex gap-1.5 flex-wrap items-center">
+          <span className="text-[10px] text-slate-500 dark:text-gray-500 font-bold uppercase tracking-wider mr-1">Estado</span>
           {[['all','Todas'],['pending','Pendiente'],['confirmed','Confirmado'],['processing','En proceso'],['delivered','Entregado']].map(([v,l]) => (
             <button key={v} onClick={() => setStatus(v)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                 statusFilter === v
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-600'
+                  ? 'bg-blue-600 text-white shadow-soft ring-1 ring-inset ring-blue-500/30'
+                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-700'
               }`}>{l}</button>
           ))}
-          <span className="text-xs text-slate-400 dark:text-gray-500 ml-3 mr-1">Pago:</span>
+          <span className="text-[10px] text-slate-500 dark:text-gray-500 font-bold uppercase tracking-wider ml-3 mr-1">Pago</span>
           {[['all','Todos'],['pending','Pendiente'],['paid','Pagado'],['partial','Parcial']].map(([v,l]) => (
             <button key={v} onClick={() => setPayFilter(v)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                 payFilter === v
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-600'
+                  ? 'bg-emerald-600 text-white shadow-soft ring-1 ring-inset ring-emerald-500/30'
+                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-emerald-400 hover:text-emerald-700'
               }`}>{l}</button>
           ))}
           {filtered.length !== saleOrders.length && (
-            <span className="ml-auto text-xs text-slate-400 dark:text-gray-500">
-              {filtered.length} de {saleOrders.length} órdenes
+            <span className="ml-auto text-[11px] text-slate-500 dark:text-gray-400 font-medium">
+              {filtered.length} de {saleOrders.length}
             </span>
           )}
         </div>
