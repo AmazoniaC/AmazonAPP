@@ -242,6 +242,7 @@ export default function Settings() {
     smtpFrom:          companySettings.smtpFrom,
     resendApiKey:      companySettings.resendApiKey,
     invoicePrefix:     companySettings.invoicePrefix,
+    taxRate:           companySettings.taxRate,
   })
   const [smtpTesting, setSmtpTesting]  = useState(false)
   const [smtpTestMsg, setSmtpTestMsg]  = useState<{ ok: boolean; text: string } | null>(null)
@@ -273,6 +274,7 @@ export default function Settings() {
       smtpFrom:          companySettings.smtpFrom,
       resendApiKey:      companySettings.resendApiKey,
       invoicePrefix:     companySettings.invoicePrefix,
+      taxRate:           companySettings.taxRate,
     })
     setLogoPreview(companySettings.logo)
   }, [companySettings])
@@ -318,6 +320,7 @@ export default function Settings() {
         resendApiKey:       company.resendApiKey,
         invoicePrefix:      company.invoicePrefix,
         monthlyGoal:        companySettings.monthlyGoal ?? 0,
+        taxRate:            company.taxRate ?? 0.19,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -454,6 +457,25 @@ export default function Settings() {
                     onChange={(e) => setCompany({ ...company, invoicePrefix: e.target.value.toUpperCase() })} />
                   <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
                     Prefijo del número de factura. Ej: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">FAC</code> → FAC-2026-0001
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Tasa de IVA (%)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="19"
+                    value={(company.taxRate * 100).toFixed(2).replace(/\.?0+$/, '')}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value)
+                      setCompany({ ...company, taxRate: Number.isFinite(v) ? v / 100 : 0 })
+                    }}
+                  />
+                  <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
+                    Tasa aplicada a cotizaciones y ventas. Colombia: <code className="bg-slate-100 dark:bg-gray-700 px-1 rounded">19</code>
                   </p>
                 </div>
               </div>

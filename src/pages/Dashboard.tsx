@@ -24,22 +24,33 @@ function KPICard({
   trend?: 'up' | 'down'; color: string; accent?: string
 }) {
   return (
-    <div className="kpi-card group">
-      <div className="flex items-start justify-between">
+    <div className="kpi-card group" style={accent ? { '--accent': accent } as React.CSSProperties : undefined}>
+      {/* Background accent blob */}
+      <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-[0.07] group-hover:opacity-[0.12] transition-opacity duration-500"
+           style={accent ? { background: accent } : undefined} />
+      <div className="relative flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-slate-500 dark:text-gray-400 font-medium uppercase tracking-wider">{label}</p>
-          <p className="stat-value mt-1.5 animate-countUp">{value}</p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {trend === 'up'   && <ArrowUpRight  size={14} className="text-emerald-500" />}
-            {trend === 'down' && <ArrowDownRight size={14} className="text-red-500" />}
-            <span className={`text-xs font-medium ${
+          <p className="text-[10px] text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{label}</p>
+          <p className="stat-value mt-2 animate-countUp">{value}</p>
+          <div className="flex items-center gap-1.5 mt-2">
+            {trend === 'up'   && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                <ArrowUpRight size={11} />
+              </span>
+            )}
+            {trend === 'down' && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                <ArrowDownRight size={11} />
+              </span>
+            )}
+            <span className={`text-[11px] font-medium ${
               trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : trend === 'down' ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-gray-400'
             }`}>{sub}</span>
           </div>
         </div>
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color} shadow-lg group-hover:scale-105 transition-transform duration-200`}
-          style={accent ? { boxShadow: `0 4px 14px -3px ${accent}` } : undefined}>
-          <Icon size={20} className="text-white" />
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${color} group-hover:scale-110 group-hover:-rotate-3 transition-all duration-300`}
+          style={accent ? { boxShadow: `0 8px 20px -4px ${accent}`, background: `linear-gradient(135deg, ${accent} 0%, ${accent}dd 100%)` } : undefined}>
+          <Icon size={20} className="text-white" strokeWidth={2.5} />
         </div>
       </div>
     </div>
@@ -201,39 +212,55 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500 dark:text-gray-400 font-medium">
-            {new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
-          </p>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">
-            {user?.name ? `Hola, ${user.name.split(' ')[0]}` : 'Panel de Control'} 👋
-          </h1>
-          <p className="text-sm text-slate-400 dark:text-gray-500 mt-0.5">
-            {isAdmin ? 'Vista general de tu negocio' : `Panel de ${role}`}
-          </p>
+    <div className="space-y-5">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl p-6 border border-slate-200/60 dark:border-gray-700/60"
+           style={{
+             background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.85) 100%)',
+           }}>
+        {/* Animated background gradient */}
+        <div className="absolute inset-0 opacity-50 pointer-events-none">
+          <div className="absolute -top-20 -right-10 w-80 h-80 rounded-full blur-3xl"
+               style={{ background: 'radial-gradient(circle, rgba(82, 125, 54, 0.18) 0%, transparent 70%)' }} />
+          <div className="absolute -bottom-20 left-1/4 w-72 h-72 rounded-full blur-3xl"
+               style={{ background: 'radial-gradient(circle, rgba(168, 112, 80, 0.10) 0%, transparent 70%)' }} />
         </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              {lastRefresh.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })}
-            </span>
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amazonia-600 dark:text-amazonia-400 uppercase tracking-widest mb-1">
+              <span className="relative inline-block w-2 h-2 rounded-full bg-emerald-500 dot-pulse" />
+              <span>{new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' })}</span>
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {user?.name ? <>Hola, <span className="gradient-text">{user.name.split(' ')[0]}</span></> : 'Panel de Control'}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+              {isAdmin ? 'Vista general de tu negocio en tiempo real' : `Panel de ${role}`}
+            </p>
           </div>
-          <button onClick={refresh} disabled={refreshing}
-            className="btn btn-sm btn-secondary">
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? 'Actualizando...' : 'Actualizar'}
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl glass border border-emerald-200/50 dark:border-emerald-700/40">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                {lastRefresh.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })}
+              </span>
+            </div>
+            <button onClick={refresh} disabled={refreshing}
+              className="btn btn-sm btn-secondary">
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Actualizando' : 'Actualizar'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Low stock alert */}
       {lowStock.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 flex items-center gap-3">
-          <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
+        <div className="relative overflow-hidden rounded-2xl px-4 py-3 flex items-center gap-3 border border-amber-200/70 dark:border-amber-800/60"
+             style={{ background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.6) 0%, rgba(254, 215, 170, 0.4) 100%)' }}>
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={18} className="text-amber-600" />
+          </div>
           <p className="text-sm text-amber-800 dark:text-amber-300">
             <strong>{lowStock.length} insumos</strong> están por debajo del stock mínimo:{' '}
             {lowStock.map((s) => s.name).join(', ')}.

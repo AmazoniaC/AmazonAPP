@@ -47,35 +47,50 @@ export default function Login() {
   const logo = companySettings.logo
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex mesh-amazonia">
 
       {/* ── Left: form panel ──────────────────────────── */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-stone-50 px-8 py-12 min-w-0">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 min-w-0 relative">
+        {/* Floating decorative orbs */}
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-3xl opacity-40 pointer-events-none animate-float"
+             style={{ background: 'radial-gradient(circle, rgba(151, 190, 130, 0.4) 0%, transparent 70%)' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full blur-3xl opacity-30 pointer-events-none animate-float"
+             style={{ background: 'radial-gradient(circle, rgba(168, 112, 80, 0.3) 0%, transparent 70%)', animationDelay: '1.5s' }} />
+
+        <div className="w-full max-w-sm relative z-10">
 
           {/* Logo */}
-          <div className="flex flex-col items-center mb-10">
+          <div className="flex flex-col items-center mb-8">
             {logo ? (
-              <img
-                src={logo}
-                alt={companySettings.companyName}
-                className="h-52 w-auto object-contain mb-5 drop-shadow-md"
-              />
+              <div className="relative mb-5">
+                <div className="absolute inset-0 rounded-3xl blur-2xl opacity-50"
+                     style={{ background: 'radial-gradient(circle, rgba(82, 125, 54, 0.4) 0%, transparent 70%)' }} />
+                <img
+                  src={logo}
+                  alt={companySettings.companyName}
+                  className="relative h-48 w-auto object-contain drop-shadow-xl"
+                />
+              </div>
             ) : (
-              <div className="w-20 h-20 rounded-2xl bg-amazonia-700 flex items-center justify-center mb-5 shadow-lg">
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5"
+                   style={{
+                     background: 'linear-gradient(135deg, #527d36 0%, #2d4a1e 100%)',
+                     boxShadow: '0 16px 40px -8px rgba(45, 74, 30, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                   }}>
                 <Leaf size={36} className="text-white" />
               </div>
             )}
-            <h1 className="text-2xl font-bold text-amazonia-900 tracking-tight">
+            <h1 className="text-2xl font-bold gradient-text tracking-tight">
               {companySettings.companyName || 'Amazonia ERP'}
             </h1>
             {companySettings.slogan && (
-              <p className="text-sm text-amazonia-600 mt-1 font-medium">{companySettings.slogan}</p>
+              <p className="text-sm text-amazonia-700/70 mt-1 font-medium">{companySettings.slogan}</p>
             )}
           </div>
 
           {/* Form */}
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8">
+          <div className="glass-strong rounded-3xl p-8 border border-white/60"
+               style={{ boxShadow: '0 24px 48px -12px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.05)' }}>
             <h2 className="text-lg font-bold text-slate-800 mb-1">Iniciar sesión</h2>
             <p className="text-sm text-slate-500 mb-6">Accede con tus credenciales corporativas</p>
 
@@ -115,7 +130,8 @@ export default function Login() {
               </div>
 
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2.5 rounded-lg">
+                <p className="text-sm text-red-700 bg-red-50/80 border border-red-200/70 px-3 py-2.5 rounded-xl flex items-center gap-2 animate-scaleIn">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                   {error}
                 </p>
               )}
@@ -142,10 +158,17 @@ export default function Login() {
       </div>
 
       {/* ── Right: brand panel ───────────────────────── */}
-      <div className="hidden lg:flex w-[480px] flex-col justify-between bg-amazonia-900 px-12 py-14 relative overflow-hidden">
+      <div className="hidden lg:flex w-[480px] flex-col justify-between px-12 py-14 relative overflow-hidden"
+           style={{
+             background: 'linear-gradient(135deg, #1e3315 0%, #12200d 50%, #0a1408 100%)',
+           }}>
         {/* Decorative circles */}
-        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-amazonia-700/30 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 w-60 h-60 rounded-full bg-earth-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full blur-3xl pointer-events-none animate-float"
+             style={{ background: 'radial-gradient(circle, rgba(82, 125, 54, 0.35) 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-16 -left-16 w-72 h-72 rounded-full blur-3xl pointer-events-none animate-float"
+             style={{ background: 'radial-gradient(circle, rgba(168, 112, 80, 0.25) 0%, transparent 70%)', animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-50"
+             style={{ background: 'radial-gradient(circle, rgba(151, 190, 130, 0.10) 0%, transparent 70%)' }} />
 
         <div className="relative z-10">
           <span className="inline-block text-amazonia-400 text-xs font-semibold tracking-widest uppercase mb-2">

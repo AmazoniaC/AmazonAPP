@@ -152,7 +152,7 @@ function InvoiceBody({ order, settings, qrDataUrl }: {
             {[
               { label: order.discount ? 'Subtotal bruto' : 'Subtotal', value: order.subtotal },
               ...(order.discount ? [{ label: 'Descuento', value: -order.discount }] : []),
-              { label: 'IVA (19%)', value: order.tax },
+              { label: `IVA (${(((settings.taxRate ?? 0.19)) * 100).toFixed(0)}%)`, value: order.tax },
             ].map((r) => (
               <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 14px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc', fontSize: 12 }}>
                 <span style={{ color: '#64748b' }}>{r.label}</span>
