@@ -108,6 +108,13 @@ export interface Expense {
   period?:       'once' | 'weekly' | 'monthly' | 'annual'
 }
 
+export interface DeliveryAttempt {
+  date:    string   // ISO datetime when the failed attempt was logged
+  reason:  string   // Short reason code/label (e.g. "Cliente ausente")
+  notes?:  string   // Extra detail (e.g. "Llamar antes de ir")
+  driver?: string   // Who tried
+}
+
 export interface Dispatch {
   id:              string
   dispatchNumber:  string   // DSP-2025-0001
@@ -123,6 +130,7 @@ export interface Dispatch {
   status:          'scheduled' | 'in_transit' | 'delivered' | 'failed' | 'cancelled'
   deliveredAt?:    string   // ISO date
   deliveryNotes?:  string
+  deliveryAttempts?: DeliveryAttempt[]   // History of failed delivery attempts
   items:           { product: string; qty: number }[]
   total:           number
   date:            string   // creation date

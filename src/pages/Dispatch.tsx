@@ -2,10 +2,10 @@ import { useState } from 'react'
 import {
   Truck, Plus, Search, X, CheckCircle2, Clock, AlertCircle, Package2,
   MapPin, User, Calendar, Trash2, ChevronDown, ChevronUp, Send, Ban,
-  Navigation, ReceiptText, MessageCircle,
+  Navigation, ReceiptText, MessageCircle, RotateCcw, History,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import { Dispatch } from '../data/mockData'
+import { Dispatch, DeliveryAttempt } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import { formatCOP } from '../utils/currency'
 import ConfirmDelete from '../components/ConfirmDelete'
@@ -101,8 +101,13 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
         scheduledTime:   form.scheduledTime   ?? '',
         driver:          form.driver!,
         vehiclePlate:    form.vehiclePlate    ?? '',
-        status:          form.status as Dispatch['status'] ?? 'scheduled',
+        // If we're editing a failed dispatch, reset to 'scheduled' so the
+        // operator can run the delivery flow again from the start.
+        status:          (initial?.status === 'failed'
+                          ? 'scheduled'
+                          : (form.status as Dispatch['status'] ?? 'scheduled')),
         deliveryNotes:   form.deliveryNotes   ?? '',
+        deliveryAttempts: initial?.deliveryAttempts ?? [],
         items:           form.items           ?? [],
         total:           form.total           ?? 0,
         date:            form.date            ?? today,
@@ -129,11 +134,48 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800">
           <h2 className="font-semibold text-slate-800 dark:text-white">
-            {initial ? 'Editar despacho' : 'Nuevo despacho'}
+            {initial ? (initial.status === 'failed' ? 'Reagendar despacho' : 'Editar despacho') : 'Nuevo despacho'}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-4">
+          {/* Failed attempts banner (visible when rescheduling) */}
+          {initial?.deliveryAttempts && initial.deliveryAttempts.length > 0 && (
+            <div className="rounded-2xl border border-amber-200/70 dark:border-amber-800/60 overflow-hidden"
+                 style={{ background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.5) 0%, rgba(254, 215, 170, 0.25) 100%)' }}>
+              <div className="px-4 py-2.5 border-b border-amber-200/60 dark:border-amber-800/40 flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <History size={13} className="text-amber-700" />
+                </div>
+                <div>
+                  <p className="font-bold text-amber-900 dark:text-amber-300 text-xs">
+                    {initial.deliveryAttempts.length} {initial.deliveryAttempts.length === 1 ? 'intento previo' : 'intentos previos'} fallido(s)
+                  </p>
+                  <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                    Ten en cuenta estas indicaciones para la nueva entrega
+                  </p>
+                </div>
+              </div>
+              <div className="px-4 py-3 space-y-2 max-h-44 overflow-y-auto">
+                {initial.deliveryAttempts.map((a, i) => (
+                  <div key={i} className="bg-white/70 dark:bg-gray-800/60 rounded-xl p-2.5 border border-amber-100 dark:border-amber-900/40">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="badge badge-red text-[10px]">{a.reason}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                        {new Date(a.date).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {a.notes && (
+                      <p className="text-xs text-slate-700 dark:text-gray-200 leading-snug mt-1.5">
+                        <span className="font-semibold">📝 </span>{a.notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Order selector */}
           <div>
             <label className="label">Orden de venta</label>
@@ -232,6 +274,107 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
   )
 }
 
+// ── Failed-delivery reason picker ────────────────────────────────────────────
+const FAIL_REASONS = [
+  'Cliente ausente',
+  'Dirección incorrecta',
+  'Cliente rechazó la entrega',
+  'No contestó el teléfono',
+  'Producto dañado',
+  'Cliente reprogramó',
+  'Vehículo / problema en ruta',
+  'Otro',
+] as const
+
+function FailReasonModal({
+  onConfirm, onCancel, currentDriver,
+}: {
+  onConfirm: (a: DeliveryAttempt) => void
+  onCancel:  () => void
+  currentDriver: string
+}) {
+  const [reason, setReason] = useState<string>('')
+  const [notes, setNotes]   = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!reason) return
+    setSaving(true)
+    onConfirm({
+      date:   new Date().toISOString(),
+      reason,
+      notes:  notes.trim() || undefined,
+      driver: currentDriver || undefined,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+              <AlertCircle size={18} className="text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 dark:text-white text-sm">Entrega no realizada</p>
+              <p className="text-xs text-slate-400">¿Por qué no se pudo entregar?</p>
+            </div>
+          </div>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="label">Motivo *</label>
+            <div className="flex flex-wrap gap-1.5">
+              {FAIL_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setReason(r)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                    reason === r
+                      ? 'bg-red-600 text-white border-red-600 shadow-soft'
+                      : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:border-red-400 hover:text-red-700'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Indicaciones para próximo intento</label>
+            <textarea
+              className="input resize-none"
+              rows={3}
+              placeholder="Ej: llamar 15 min antes, casa esquinera, portero negro..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">
+              Estas indicaciones quedarán visibles al reagendar la entrega.
+            </p>
+          </div>
+        </div>
+
+        <div className="px-6 pb-5 flex gap-3">
+          <button className="btn btn-secondary flex-1" onClick={onCancel}>Cancelar</button>
+          <button
+            className="btn btn-danger flex-1"
+            onClick={handleSave}
+            disabled={!reason || saving}
+          >
+            {saving ? 'Guardando...' : 'Marcar no entregado'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dispatch Detail Drawer ────────────────────────────────────────────────────
 function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => void; onEdit: () => void }) {
   const { updateDispatch, customers, companySettings } = useStore()
@@ -239,8 +382,10 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
   const [expanded, setExpanded] = useState(true)
   const [delivering, setDelivering] = useState(false)
   const [notes, setNotes] = useState(d.deliveryNotes ?? '')
+  const [showFailModal, setShowFailModal] = useState(false)
 
   const StatusIcon = STATUS_ICON[d.status] ?? Truck
+  const attempts = d.deliveryAttempts ?? []
 
   const changeStatus = async (status: Dispatch['status']) => {
     setDelivering(true)
@@ -249,6 +394,20 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
       status,
       deliveredAt:   status === 'delivered' ? new Date().toISOString().split('T')[0] : d.deliveredAt,
       deliveryNotes: notes,
+    }
+    await updateDispatch(updated)
+    setDelivering(false)
+    onClose()
+  }
+
+  const handleFailConfirm = async (attempt: DeliveryAttempt) => {
+    setShowFailModal(false)
+    setDelivering(true)
+    const updated: Dispatch = {
+      ...d,
+      status: 'failed',
+      deliveryNotes: notes,
+      deliveryAttempts: [...attempts, attempt],
     }
     await updateDispatch(updated)
     setDelivering(false)
@@ -335,6 +494,48 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
             </div>
           )}
 
+          {/* Failed delivery attempts history */}
+          {attempts.length > 0 && (
+            <div className="rounded-2xl border border-amber-200/70 dark:border-amber-800/60 overflow-hidden"
+                 style={{ background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.5) 0%, rgba(254, 215, 170, 0.25) 100%)' }}>
+              <div className="px-4 py-2.5 border-b border-amber-200/60 dark:border-amber-800/40 flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <History size={13} className="text-amber-700" />
+                </div>
+                <div>
+                  <p className="font-bold text-amber-900 dark:text-amber-300 text-xs">
+                    {attempts.length} {attempts.length === 1 ? 'intento fallido' : 'intentos fallidos'}
+                  </p>
+                  <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                    Considera estas indicaciones al reagendar
+                  </p>
+                </div>
+              </div>
+              <div className="px-4 py-3 space-y-2.5 max-h-60 overflow-y-auto">
+                {attempts.map((a, i) => (
+                  <div key={i} className="bg-white/70 dark:bg-gray-800/60 rounded-xl p-2.5 border border-amber-100 dark:border-amber-900/40">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="badge badge-red text-[10px]">{a.reason}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                        {new Date(a.date).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {a.notes && (
+                      <p className="text-xs text-slate-700 dark:text-gray-200 leading-snug mt-1">
+                        <span className="font-semibold">📝 </span>{a.notes}
+                      </p>
+                    )}
+                    {a.driver && (
+                      <p className="text-[10px] text-slate-500 dark:text-gray-400 mt-1">
+                        Conductor: <span className="font-medium">{a.driver}</span>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Delivery notes */}
           <div>
             <label className="label">Notas de entrega</label>
@@ -367,7 +568,7 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
                   className="w-full btn flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                   <CheckCircle2 size={14} /> Confirmar entrega
                 </button>
-                <button onClick={() => changeStatus('failed')} disabled={delivering}
+                <button onClick={() => setShowFailModal(true)} disabled={delivering}
                   className="w-full btn flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
                   <AlertCircle size={14} /> No se pudo entregar
                 </button>
@@ -375,9 +576,13 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
             )}
             {d.status === 'failed' && (
               <>
-                <button onClick={() => changeStatus('in_transit')} disabled={delivering}
+                <button onClick={onEdit} disabled={delivering}
                   className="w-full btn btn-primary flex items-center justify-center gap-2">
-                  <Send size={14} /> Reintentar entrega
+                  <RotateCcw size={14} /> Reagendar entrega
+                </button>
+                <button onClick={() => changeStatus('in_transit')} disabled={delivering}
+                  className="w-full btn btn-secondary flex items-center justify-center gap-2">
+                  <Send size={14} /> Reintentar hoy mismo
                 </button>
                 <button onClick={() => changeStatus('cancelled')} disabled={delivering}
                   className="w-full btn flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-slate-600 dark:text-gray-300">
@@ -416,6 +621,15 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
           </div>
         )}
       </div>
+
+      {/* Fail-reason modal */}
+      {showFailModal && (
+        <FailReasonModal
+          currentDriver={d.driver}
+          onCancel={() => setShowFailModal(false)}
+          onConfirm={handleFailConfirm}
+        />
+      )}
     </div>
   )
 }
