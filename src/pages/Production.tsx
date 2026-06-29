@@ -528,9 +528,12 @@ export default function Production() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteProductionOrder(deleteTarget.id)
-            setDeleting(false)
-            setDeleteTarget(null)
+            try {
+              await deleteProductionOrder(deleteTarget.id)
+              setDeleteTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}
@@ -541,9 +544,12 @@ export default function Production() {
           onCancel={() => setDeleteRecipeTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteRecipe(deleteRecipeTarget.id)
-            setDeleting(false)
-            setDeleteRecipeTarget(null)
+            try {
+              await deleteRecipe(deleteRecipeTarget.id)
+              setDeleteRecipeTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

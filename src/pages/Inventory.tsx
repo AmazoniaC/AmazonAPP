@@ -407,9 +407,12 @@ export default function Inventory() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteSupply(deleteTarget.id)
-            setDeleting(false)
-            setDeleteTarget(null)
+            try {
+              await deleteSupply(deleteTarget.id)
+              setDeleteTarget(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

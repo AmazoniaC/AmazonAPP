@@ -1007,9 +1007,12 @@ export default function Catalog() {
           onCancel={() => setDel(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteProduct(deleteTarget.id)
-            setDeleting(false)
-            setDel(null)
+            try {
+              await deleteProduct(deleteTarget.id)
+              setDel(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}

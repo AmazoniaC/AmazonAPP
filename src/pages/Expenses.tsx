@@ -440,9 +440,12 @@ export default function ExpensesPage() {
           onCancel={() => setDelete(null)}
           onConfirm={async () => {
             setDeleting(true)
-            await deleteExpense(deleteTarget.id)
-            setDeleting(false)
-            setDelete(null)
+            try {
+              await deleteExpense(deleteTarget.id)
+              setDelete(null)
+            } finally {
+              setDeleting(false)
+            }
           }}
         />
       )}
