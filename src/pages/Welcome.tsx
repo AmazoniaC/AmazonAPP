@@ -156,37 +156,34 @@ function BubbleField() {
   )
 }
 
-// ── Module grid with custom transparent-green scrollbar ──────────────────────
+// ── Module grid: 3 fixed rows, horizontal scroll with custom green bar ───────
 function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const innerRef  = useRef<HTMLDivElement>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
-  // Default to "visible" so the bar appears immediately on first paint while
-  // sizes are still being measured.
-  const [thumb, setThumb] = useState({ top: 0, height: 80, visible: true })
-  const drag = useRef<{ startY: number; startScroll: number } | null>(null)
+  const trackRef  = useRef<HTMLDivElement>(null)
+  // Default to visible so the bar paints immediately on first frame
+  const [thumb, setThumb] = useState({ left: 0, width: 80, visible: true })
+  const drag = useRef<{ startX: number; startScroll: number } | null>(null)
 
-  // Compute thumb size & position from scroll state
+  // Compute thumb size & position from horizontal scroll state
   const recompute = () => {
     const el = scrollRef.current
     const track = trackRef.current
     if (!el || !track) return
-    const sh = el.scrollHeight
-    const ch = el.clientHeight
-    const ratio = ch / sh
-    if (ratio >= 1 || sh === 0) {
-      setThumb((p) => p.visible ? { top: 0, height: 0, visible: false } : p)
+    const sw = el.scrollWidth
+    const cw = el.clientWidth
+    const ratio = cw / sw
+    if (ratio >= 1 || sw === 0) {
+      setThumb((p) => p.visible ? { left: 0, width: 0, visible: false } : p)
       return
     }
-    const trackH = track.clientHeight
-    const h = Math.max(50, trackH * ratio)
-    const t = (el.scrollTop / (sh - ch)) * (trackH - h)
-    setThumb({ top: t, height: h, visible: true })
+    const trackW = track.clientWidth
+    const w = Math.max(60, trackW * ratio)
+    const l = (el.scrollLeft / (sw - cw)) * (trackW - w)
+    setThumb({ left: l, width: w, visible: true })
   }
 
   useEffect(() => {
-    // Recompute now and a few times shortly after — the grid's
-    // `aspect-ratio: 1` tiles may need a layout pass before scrollHeight is final.
     recompute()
     const ids = [
       window.setTimeout(recompute, 50),
@@ -198,6 +195,14 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
     if (!el || !inner) return () => ids.forEach(clearTimeout)
     const onScroll = () => recompute()
     el.addEventListener('scroll', onScroll, { passive: true })
+    // Allow vertical wheel to scroll horizontally
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        el.scrollLeft += e.deltaY
+        e.preventDefault()
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
     const ro = new ResizeObserver(() => recompute())
     ro.observe(el)
     ro.observe(inner)
@@ -205,6 +210,7 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
     return () => {
       ids.forEach(clearTimeout)
       el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('wheel', onWheel)
       ro.disconnect()
       window.removeEventListener('resize', recompute)
     }
@@ -215,13 +221,14 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
     const onMove = (e: MouseEvent) => {
       if (!drag.current || !scrollRef.current || !trackRef.current) return
       const el = scrollRef.current
-      const trackH = trackRef.current.clientHeight
-      const dy = e.clientY - drag.current.startY
-      const ratio = el.clientHeight / el.scrollHeight
-      const h = Math.max(40, trackH * ratio)
-      const scrollable = el.scrollHeight - el.clientHeight
-      const moveable  = trackH - h
-      el.scrollTop = drag.current.startScroll + (dy / moveable) * scrollable
+      const trackW = trackRef.current.clientWidth
+      const dx = e.clientX - drag.current.startX
+      const ratio = el.clientWidth / el.scrollWidth
+      const w = Math.max(60, trackW * ratio)
+      const scrollable = el.scrollWidth - el.clientWidth
+      const moveable   = trackW - w
+      if (moveable <= 0) return
+      el.scrollLeft = drag.current.startScroll + (dx / moveable) * scrollable
     }
     const onUp = () => { drag.current = null; document.body.style.userSelect = '' }
     window.addEventListener('mousemove', onMove)
@@ -234,33 +241,35 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
 
   const onThumbDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return
-    drag.current = { startY: e.clientY, startScroll: scrollRef.current.scrollTop }
+    drag.current = { startX: e.clientX, startScroll: scrollRef.current.scrollLeft }
     document.body.style.userSelect = 'none'
     e.preventDefault()
   }
 
   const onTrackDown = (e: React.MouseEvent) => {
     if (!scrollRef.current || !trackRef.current || e.target !== trackRef.current) return
-    const trackRect = trackRef.current.getBoundingClientRect()
-    const clickY = e.clientY - trackRect.top
-    const target = (clickY / trackRect.height) * (scrollRef.current.scrollHeight - scrollRef.current.clientHeight)
-    scrollRef.current.scrollTo({ top: target, behavior: 'smooth' })
+    const rect = trackRef.current.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const target = (clickX / rect.width) * (scrollRef.current.scrollWidth - scrollRef.current.clientWidth)
+    scrollRef.current.scrollTo({ left: target, behavior: 'smooth' })
   }
 
   return (
-    <div className="relative" style={{ paddingRight: 26 }}>
-      {/* Tile grid (scrollable container, native scrollbar hidden) */}
+    <div className="relative" style={{ paddingBottom: 26 }}>
+      {/* Tile grid — 3 fixed rows, columns fill horizontally */}
       <div
         ref={scrollRef}
         className="welcome-scroll-hide"
         style={{
-          maxHeight: 'min(64vh, 660px)',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          paddingRight: 6,
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          paddingBottom: 6,
         }}
       >
-        <div ref={innerRef} className="grid grid-cols-5 gap-4 pb-1">
+        <div
+          ref={innerRef}
+          className="welcome-hgrid"
+        >
           {modules.map((m, idx) => (
             <Link
               key={m.to}
@@ -276,17 +285,17 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
         </div>
       </div>
 
-      {/* Custom transparent-green scrollbar */}
+      {/* Custom horizontal transparent-green scrollbar */}
       {thumb.visible && (
         <div
           ref={trackRef}
           onMouseDown={onTrackDown}
           className="absolute"
           style={{
-            top: 6,
-            right: 2,
-            bottom: 6,
-            width: 14,
+            left: 4,
+            right: 4,
+            bottom: 2,
+            height: 14,
             borderRadius: 999,
             background: 'rgba(82, 125, 54, 0.18)',
             border: '1.5px solid rgba(82, 125, 54, 0.35)',
@@ -301,10 +310,10 @@ function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
             className="welcome-scrollthumb"
             style={{
               position: 'absolute',
-              top: thumb.top,
-              left: 1,
-              right: 1,
-              height: thumb.height,
+              left: thumb.left,
+              top: 1,
+              bottom: 1,
+              width: thumb.width,
               borderRadius: 999,
               background: 'linear-gradient(180deg, rgba(110, 160, 80, 0.9) 0%, rgba(45, 74, 30, 0.95) 100%)',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20), 0 2px 8px rgba(45, 74, 30, 0.30)',
@@ -374,7 +383,7 @@ export default function Welcome() {
       </div>
 
       {/* Main content grid */}
-      <div className="relative z-10 max-w-[1500px] mx-auto px-12 py-14 grid grid-cols-[minmax(0,460px),1fr] gap-12 items-start min-h-screen">
+      <div className="relative z-10 max-w-[1500px] mx-auto px-12 py-14 grid grid-cols-[minmax(0,460px),minmax(0,1fr)] gap-12 items-start min-h-screen">
 
         {/* ─── LEFT: Brand panel ─── */}
         <div className="flex flex-col h-full justify-between pt-6">
@@ -435,7 +444,7 @@ export default function Welcome() {
         </div>
 
         {/* ─── RIGHT: Welcome + Module grid ─── */}
-        <div className="flex flex-col">
+        <div className="flex flex-col min-w-0">
           {/* Welcome text */}
           <div className="mb-8 animate-fadeIn">
             <p className="text-2xl text-amazonia-900/85 font-light tracking-tight">Bienvenido a</p>
@@ -479,6 +488,24 @@ export default function Welcome() {
           background: linear-gradient(180deg, rgba(130, 175, 95, 1) 0%, rgba(56, 89, 38, 1) 100%) !important;
         }
         .welcome-scrollthumb:active { cursor: grabbing !important; }
+
+        /* Horizontal grid: exactly 3 rows, columns fill left-to-right.
+           Each tile is a fixed-width square so the whole grid grows as wide
+           as it needs and overflows horizontally. */
+        .welcome-hgrid {
+          display: grid;
+          grid-template-rows: repeat(3, var(--tile-size, 168px));
+          grid-auto-flow: column;
+          grid-auto-columns: var(--tile-size, 168px);
+          gap: 16px;
+          align-content: start;
+        }
+        @media (min-width: 1280px) {
+          .welcome-hgrid { --tile-size: 180px; }
+        }
+        @media (min-width: 1500px) {
+          .welcome-hgrid { --tile-size: 188px; }
+        }
 
         .welcome-tile {
           aspect-ratio: 1 / 1;
