@@ -392,7 +392,7 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
   onDownload: () => void
   converting: boolean
 }) {
-  const { updateQuotation, companySettings, customers, addActivity } = useStore()
+  const { updateQuotation, companySettings, customers, addActivity, opportunities, addOpportunity } = useStore()
   const [q, setQ] = useState(quotation)
   const detailTaxRate = companySettings.taxRate ?? 0.19
   const drawerCustomer = customers.find(c => c.id === q.customerId)
@@ -401,6 +401,31 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
     const updated = { ...q, status }
     setQ(updated)
     updateQuotation(updated)
+
+    // ── Cotización aceptada → auto-crear oportunidad si no existe ──
+    if (status === 'accepted') {
+      const existing = opportunities.find(op => op.quotationId === q.id)
+      if (!existing) {
+        const today = new Date().toISOString().split('T')[0]
+        const inTwoWeeks = new Date()
+        inTwoWeeks.setDate(inTwoWeeks.getDate() + 14)
+        addOpportunity({
+          id: `opp${Date.now()}`,
+          title: `${q.quoteNumber} — ${q.customer}`,
+          customerId: q.customerId,
+          customer: q.customer,
+          stage: 'negotiating',
+          value: q.total,
+          probability: 70,
+          expectedClose: inTwoWeeks.toISOString().split('T')[0],
+          quotationId: q.id,
+          notes: `Oportunidad generada automáticamente al aceptar la cotización ${q.quoteNumber}.`,
+          createdAt: today,
+          updatedAt: today,
+        })
+        toast.success('Oportunidad creada en el Pipeline')
+      }
+    }
   }
 
   const handleSendWhatsApp = () => {

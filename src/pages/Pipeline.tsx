@@ -338,7 +338,7 @@ function OppModal({ initial, onClose, defaultStage }: {
 
 // ── Main Pipeline Page ────────────────────────────────────────────────────────
 export default function PipelinePage() {
-  const { opportunities, updateOpportunity, deleteOpportunity } = useStore()
+  const { opportunities, updateOpportunity, deleteOpportunity, quotations, updateQuotation, convertQuotation } = useStore()
   const [showModal, setShowModal]   = useState(false)
   const [editTarget, setEdit]       = useState<Opportunity | null>(null)
   const [deleteTarget, setDelete]   = useState<Opportunity | null>(null)
@@ -376,15 +376,36 @@ export default function PipelinePage() {
     e.preventDefault()
     setDragOver(stage)
   }
+  // ── Oportunidad ganada → convertir cotización a venta (si está vinculada) ──
+  const wonSideEffects = async (opp: Opportunity) => {
+    if (!opp.quotationId) return
+    const linked = quotations.find(q => q.id === opp.quotationId)
+    if (!linked) return
+    try {
+      // Ensure the quote is marked as accepted before converting
+      if (linked.status !== 'accepted') {
+        await updateQuotation({ ...linked, status: 'accepted' })
+      }
+      // If not yet converted to a sale, do it now
+      if (!linked.convertedToOrderId) {
+        await convertQuotation(linked.id)
+      }
+    } catch { /* toast is emitted downstream */ }
+  }
+
   const handleDrop = async (stage: PipelineStage) => {
     const opp = dragItem.current
     if (!opp || opp.stage === stage) { handleDragEnd(); return }
-    await updateOpportunity({ ...opp, stage, updatedAt: today() })
+    const updated = { ...opp, stage, updatedAt: today() }
+    await updateOpportunity(updated)
+    if (stage === 'won') await wonSideEffects(updated)
     handleDragEnd()
   }
 
-  const handleStageChange = (opp: Opportunity, stage: PipelineStage) => {
-    updateOpportunity({ ...opp, stage, updatedAt: today() })
+  const handleStageChange = async (opp: Opportunity, stage: PipelineStage) => {
+    const updated = { ...opp, stage, updatedAt: today() }
+    await updateOpportunity(updated)
+    if (stage === 'won') await wonSideEffects(updated)
   }
 
   const allSellers = Array.from(new Set(opportunities.map((o) => o.assignedTo).filter(Boolean))) as string[]

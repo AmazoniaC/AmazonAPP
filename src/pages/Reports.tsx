@@ -6,6 +6,7 @@ import {
 import { FileText, FileSpreadsheet, TrendingUp, BarChart3, PieChart as PieIcon, ShoppingCart, Package, Factory, Calendar, X, TrendingDown, DollarSign } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
+import { computeProductCost } from '../utils/productCost'
 import PageHeader from '../components/PageHeader'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -46,7 +47,7 @@ function getPeriodDates(period: Period, customFrom: string, customTo: string): {
 }
 
 export default function Reports() {
-  const { saleOrders, supplies, productionOrders, products, expenses, darkMode } = useStore()
+  const { saleOrders, supplies, productionOrders, products, expenses, darkMode, recipes } = useStore()
 
   const [period, setPeriod]       = useState<Period>('month')
   const [customFrom, setCustomFrom] = useState('')
@@ -130,8 +131,10 @@ export default function Reports() {
           productStats[key] = { name: prod.name, category: prod.category, revenue: 0, cost: 0, unitsSold: 0 }
         }
         const qty = item.qty ?? item.quantity ?? 0
+        // Use live cost from recipe when available (falls back to stored cost)
+        const unitCost = computeProductCost(prod, recipes, supplies)
         productStats[key].revenue += item.subtotal ?? 0
-        productStats[key].cost += prod.cost * qty
+        productStats[key].cost += unitCost * qty
         productStats[key].unitsSold += qty
       })
     })

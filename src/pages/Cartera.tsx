@@ -32,6 +32,13 @@ function daysDiff(d: string) {
   return diff
 }
 
+/** Add N days to a YYYY-MM-DD string, return YYYY-MM-DD */
+function addDaysISO(d: string, days: number): string {
+  const dt = new Date(d + 'T12:00:00')
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().split('T')[0]
+}
+
 const PAGE_SIZE = 12
 
 export default function CarteraPage() {
@@ -45,14 +52,36 @@ export default function CarteraPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  // Build accounts receivable from sale orders that are not fully paid
+  // Build accounts receivable with due-date-based aging and net balance.
+  // - Due date = order.date + customer.paymentTerms (defaults to 0 = contado)
+  // - Aging in days = today - dueDate  (negative means not yet due)
+  // - Net balance = order.total - Σ payments for that order
   const arItems = useMemo(() => {
-    return saleOrders.map(o => ({
-      ...o,
-      aging: daysDiff(o.date),
-      agingBucket: daysDiff(o.date) <= 15 ? '0-15' : daysDiff(o.date) <= 30 ? '16-30' : daysDiff(o.date) <= 60 ? '31-60' : '60+',
-    }))
-  }, [saleOrders])
+    return saleOrders.map(o => {
+      const cust = customers.find(c => c.id === o.customerId)
+      const terms = cust?.paymentTerms ?? 0
+      const dueDate = addDaysISO(o.date, terms)
+      const daysPastDue = daysDiff(dueDate)
+      const paidAmount = payments.filter(p => p.saleOrderId === o.id).reduce((s, p) => s + p.amount, 0)
+      const remaining = Math.max(0, o.total - paidAmount)
+      // Aging bucket by due date — negatives are "al día"
+      const bucket = daysPastDue <= 0
+        ? 'al-día'
+        : daysPastDue <= 15 ? '1-15'
+        : daysPastDue <= 30 ? '16-30'
+        : daysPastDue <= 60 ? '31-60'
+        : '60+'
+      return {
+        ...o,
+        dueDate,
+        aging: daysPastDue,   // still called aging so existing sort/columns keep working
+        agingBucket: bucket,
+        paymentTerms: terms,
+        remaining,
+        paidAmount,
+      }
+    })
+  }, [saleOrders, customers, payments])
 
   const filtered = arItems
     .filter(o => {
@@ -65,39 +94,36 @@ export default function CarteraPage() {
     .sort((a, b) => {
       const mul = sortAsc ? 1 : -1
       if (sortKey === 'date') return mul * a.date.localeCompare(b.date)
-      if (sortKey === 'total') return mul * (a.total - b.total)
+      if (sortKey === 'total') return mul * (a.remaining - b.remaining)
       return mul * (a.aging - b.aging)
     })
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // KPIs
-  const totalAR = saleOrders.filter(o => o.paymentStatus !== 'paid').reduce((s, o) => s + o.total, 0)
-  const pendingCount = saleOrders.filter(o => o.paymentStatus === 'pending').length
-  const partialCount = saleOrders.filter(o => o.paymentStatus === 'partial').length
-  const overdueCount = saleOrders.filter(o => o.paymentStatus !== 'paid' && daysDiff(o.date) > 30).length
+  // KPIs — now net-of-payments and due-date-aware
+  const unpaid = arItems.filter(o => o.remaining > 0)
+  const totalAR = unpaid.reduce((s, o) => s + o.remaining, 0)
+  const pendingCount = unpaid.filter(o => o.paymentStatus === 'pending').length
+  const partialCount = unpaid.filter(o => o.paymentStatus === 'partial').length
+  const overdueCount = unpaid.filter(o => o.aging > 30).length
 
-  // Aging summary
+  // Aging summary — due-date-based, net balance
   const agingSummary = useMemo(() => {
-    const buckets: Record<string, number> = { '0-15': 0, '16-30': 0, '31-60': 0, '60+': 0 }
-    for (const o of saleOrders.filter(o => o.paymentStatus !== 'paid')) {
-      const d = daysDiff(o.date)
-      const key = d <= 15 ? '0-15' : d <= 30 ? '16-30' : d <= 60 ? '31-60' : '60+'
-      buckets[key] += o.total
-    }
+    const buckets: Record<string, number> = { 'al-día': 0, '1-15': 0, '16-30': 0, '31-60': 0, '60+': 0 }
+    for (const o of unpaid) buckets[o.agingBucket] += o.remaining
     return buckets
-  }, [saleOrders])
+  }, [unpaid])
 
-  // Customer summary
+  // Customer summary — net balance
   const customerSummary = useMemo(() => {
     const map: Record<string, { name: string; total: number; count: number }> = {}
-    for (const o of saleOrders.filter(o => o.paymentStatus !== 'paid')) {
+    for (const o of unpaid) {
       if (!map[o.customerId]) map[o.customerId] = { name: o.customer, total: 0, count: 0 }
-      map[o.customerId].total += o.total
+      map[o.customerId].total += o.remaining
       map[o.customerId].count++
     }
     return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 5)
-  }, [saleOrders])
+  }, [unpaid])
 
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc)
@@ -106,9 +132,12 @@ export default function CarteraPage() {
 
   const exportExcel = () => {
     const data = filtered.map(o => ({
-      'Orden': o.orderNumber, 'Cliente': o.customer, 'Fecha': o.date,
-      'Total': o.total, 'Estado Pago': PAY_STATUS[o.paymentStatus]?.label ?? o.paymentStatus,
-      'Días': o.aging, 'Rango': o.agingBucket,
+      'Orden': o.orderNumber, 'Cliente': o.customer,
+      'Plazo': o.paymentTerms > 0 ? `Net-${o.paymentTerms}` : 'Contado',
+      'Emisión': o.date, 'Vence': o.dueDate,
+      'Saldo': o.remaining, 'Pagado': o.paidAmount, 'Total': o.total,
+      'Estado Pago': PAY_STATUS[o.paymentStatus]?.label ?? o.paymentStatus,
+      'Mora (días)': o.aging, 'Rango': o.agingBucket,
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -140,22 +169,30 @@ export default function CarteraPage() {
       <div className="grid md:grid-cols-2 gap-4">
         {/* Aging buckets */}
         <div className="card p-5">
-          <h3 className="font-bold text-sm text-slate-700 dark:text-gray-200 mb-4">Antigüedad de cartera</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-sm text-slate-700 dark:text-gray-200">Antigüedad de cartera</h3>
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-gray-500">Por vencimiento</span>
+          </div>
           <div className="space-y-3">
             {Object.entries(agingSummary).map(([bucket, value]) => {
               const maxVal = Math.max(...Object.values(agingSummary), 1)
               const pct = (value / maxVal) * 100
-              const colorMap: Record<string, string> = {
-                '0-15': 'bg-green-500', '16-30': 'bg-amber-500', '31-60': 'bg-orange-500', '60+': 'bg-red-500',
+              const bucketMeta: Record<string, { color: string; label: string }> = {
+                'al-día': { color: 'bg-emerald-500', label: 'Al día (dentro del plazo)' },
+                '1-15':   { color: 'bg-amber-400',   label: '1–15 días vencido' },
+                '16-30':  { color: 'bg-amber-500',   label: '16–30 días vencido' },
+                '31-60':  { color: 'bg-orange-500',  label: '31–60 días vencido' },
+                '60+':    { color: 'bg-red-500',     label: '+60 días vencido' },
               }
+              const m = bucketMeta[bucket] ?? { color: 'bg-slate-400', label: bucket }
               return (
                 <div key={bucket}>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-600 dark:text-gray-300">{bucket} días</span>
-                    <span className="font-medium text-slate-700 dark:text-gray-200">{formatCOP(value)}</span>
+                    <span className="text-slate-600 dark:text-gray-300">{m.label}</span>
+                    <span className="font-medium text-slate-700 dark:text-gray-200 tabular-nums">{formatCOP(value)}</span>
                   </div>
                   <div className="h-2 bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className={`h-full ${colorMap[bucket]} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    <div className={`h-full ${m.color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               )
@@ -210,15 +247,15 @@ export default function CarteraPage() {
               <th className="pb-3 px-4">Orden</th>
               <th className="pb-3 px-4">Cliente</th>
               <th className="pb-3 px-4 cursor-pointer select-none" onClick={() => toggleSort('date')}>
-                <span className="flex items-center gap-1">Fecha <SortIcon k="date" /></span>
+                <span className="flex items-center gap-1">Emisión <SortIcon k="date" /></span>
               </th>
-              <th className="pb-3 px-4">Estado orden</th>
+              <th className="pb-3 px-4">Vence</th>
               <th className="pb-3 px-4">Estado pago</th>
               <th className="pb-3 px-4 cursor-pointer select-none" onClick={() => toggleSort('total')}>
-                <span className="flex items-center gap-1">Total <SortIcon k="total" /></span>
+                <span className="flex items-center gap-1">Saldo <SortIcon k="total" /></span>
               </th>
               <th className="pb-3 px-4 cursor-pointer select-none" onClick={() => toggleSort('aging')}>
-                <span className="flex items-center gap-1">Días <SortIcon k="aging" /></span>
+                <span className="flex items-center gap-1">Mora <SortIcon k="aging" /></span>
               </th>
               <th className="pb-3 px-4">Rango</th>
               <th className="pb-3 px-4 text-right">Acciones</th>
@@ -234,13 +271,13 @@ export default function CarteraPage() {
             {paged.map(o => {
               const ps = PAY_STATUS[o.paymentStatus] ?? PAY_STATUS.pending
               const bucketColor: Record<string, string> = {
-                '0-15': 'text-green-600 dark:text-green-400',
-                '16-30': 'text-amber-600 dark:text-amber-400',
-                '31-60': 'text-orange-600 dark:text-orange-400',
-                '60+': 'text-red-600 dark:text-red-400',
+                'al-día': 'text-emerald-600 dark:text-emerald-400',
+                '1-15':   'text-amber-600 dark:text-amber-400',
+                '16-30':  'text-amber-700 dark:text-amber-300',
+                '31-60':  'text-orange-600 dark:text-orange-400',
+                '60+':    'text-red-600 dark:text-red-400',
               }
-              const paid = payments.filter(p => p.saleOrderId === o.id).reduce((s, p) => s + p.amount, 0)
-              const remaining = o.total - paid
+              const remaining = o.remaining
               const handleCharge = () => setCodPrefill({
                 saleOrderId: o.id,
                 saleOrderNumber: o.orderNumber,
@@ -265,23 +302,46 @@ export default function CarteraPage() {
                 })
                 openWhatsApp(cust.phone, msg)
               }
+              // Aging label: negative → "en X días", zero → "hoy", positive → "N d"
+              const moraLabel = o.aging < 0
+                ? `en ${Math.abs(o.aging)}d`
+                : o.aging === 0
+                  ? 'hoy'
+                  : `${o.aging}d`
+              const bucketLabel: Record<string, string> = {
+                'al-día': 'Al día',
+                '1-15':   '1–15',
+                '16-30':  '16–30',
+                '31-60':  '31–60',
+                '60+':    '60+',
+              }
               return (
                 <tr key={o.id} className="border-b border-slate-50 dark:border-gray-700/50 hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors">
                   <td className="py-3 px-4 font-medium text-slate-700 dark:text-gray-200">{o.orderNumber}</td>
-                  <td className="py-3 px-4 text-slate-700 dark:text-gray-200">{o.customer}</td>
+                  <td className="py-3 px-4 text-slate-700 dark:text-gray-200">
+                    <div>{o.customer}</div>
+                    {o.paymentTerms > 0 && (
+                      <div className="text-[10px] text-slate-400 dark:text-gray-500 mt-0.5">Net-{o.paymentTerms}</div>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-slate-500 dark:text-gray-400">{fmt(o.date)}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300">{o.status}</span>
+                  <td className={`py-3 px-4 tabular-nums ${o.aging > 0 ? 'font-medium text-slate-700 dark:text-gray-200' : 'text-slate-500 dark:text-gray-400'}`}>
+                    {fmt(o.dueDate)}
                   </td>
                   <td className="py-3 px-4">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${ps.color}`}>
                       <ps.icon size={12} /> {ps.label}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-medium text-slate-700 dark:text-gray-200">{formatCOP(o.total)}</td>
-                  <td className={`py-3 px-4 font-medium ${bucketColor[o.agingBucket] ?? ''}`}>{o.aging}d</td>
+                  <td className="py-3 px-4 tabular-nums">
+                    <div className="font-semibold text-slate-800 dark:text-white">{formatCOP(remaining)}</div>
+                    {o.paidAmount > 0 && (
+                      <div className="text-[10px] text-slate-400 dark:text-gray-500">de {formatCOP(o.total)}</div>
+                    )}
+                  </td>
+                  <td className={`py-3 px-4 font-medium tabular-nums ${bucketColor[o.agingBucket] ?? ''}`}>{moraLabel}</td>
                   <td className="py-3 px-4">
-                    <span className={`text-xs font-medium ${bucketColor[o.agingBucket] ?? ''}`}>{o.agingBucket}</span>
+                    <span className={`text-xs font-medium ${bucketColor[o.agingBucket] ?? ''}`}>{bucketLabel[o.agingBucket] ?? o.agingBucket}</span>
                   </td>
                   <td className="py-3 px-4">
                     {remaining > 0 && (

@@ -53,6 +53,8 @@ export interface Customer {
   notes?: string
   priceListId?: string   // assigned price list
   defaultDiscount?: number // default discount % for this customer (0-100)
+  paymentTerms?: number  // credit days from order.date to due date (0 = contado, 15 = Net-15, 30 = Net-30)
+  creditLimit?: number   // max outstanding balance allowed (COP)
 }
 
 export interface OrderItem {
