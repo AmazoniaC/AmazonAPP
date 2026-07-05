@@ -12,6 +12,7 @@ import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
+import { computeProductCostAudit } from '../utils/productCost'
 import * as XLSX from 'xlsx'
 import ImportModal from '../components/ImportModal'
 
@@ -39,7 +40,7 @@ const VARIANT_ACABADOS = ['Sellado mate', 'Sellado brillante', 'Sin sellar']
 const variantLabel = (v: ProductVariant) =>
   [v.attributes.color, v.attributes.acabado].filter(Boolean).join(' / ')
 
-const margin    = (p: Product) => p.price > 0 ? ((p.price - p.cost) / p.price * 100) : 0
+const margin    = (p: Pick<Product, 'price' | 'cost'>) => p.price > 0 ? ((p.price - p.cost) / p.price * 100) : 0
 const marginColor = (m: number) =>
   m > 40 ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20'
   : m > 20 ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
@@ -89,7 +90,7 @@ function ImageUpload({ value, onChange }: { value?: string; onChange: (b64: stri
 
 // ─── ProductModal ──────────────────────────────────────────────────────────
 function ProductModal({ product, onClose }: { product?: Product; onClose: () => void }) {
-  const { addProduct, updateProduct, recipes, products } = useStore()
+  const { addProduct, updateProduct, recipes, products, supplies } = useStore()
   const [form, setForm] = useState<Partial<Product>>(product ?? {
     sku: `PRD-${String(products.length + 1).padStart(4, '0')}`,
     name: '', category: '', unit: 'u',
@@ -302,6 +303,50 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
             )}
           </div>
         )}
+
+        {/* Live cost audit — only if there is a recipe linked */}
+        {modalTab === 'general' && form.recipeId && (() => {
+          const audit = computeProductCostAudit(
+            { cost: form.cost ?? 0, recipeId: form.recipeId },
+            recipes,
+            supplies,
+          )
+          if (!audit.hasRecipe) return null
+          const applyLive = () => setForm({ ...form, cost: Math.round(audit.live) })
+          return (
+            <div className={`mx-6 mb-4 rounded-xl border p-3.5 flex items-center gap-3 ${
+              audit.isOutdated
+                ? 'border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20'
+                : 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/20'
+            }`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${audit.isOutdated ? 'bg-amber-500/20' : 'bg-emerald-500/20'}`}>
+                <TrendingUp size={16} className={audit.isOutdated ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${audit.isOutdated ? 'text-amber-800 dark:text-amber-300' : 'text-emerald-800 dark:text-emerald-300'}`}>
+                  Costo desde receta
+                </p>
+                <p className={`text-sm font-semibold tabular-nums ${audit.isOutdated ? 'text-amber-900 dark:text-amber-200' : 'text-emerald-900 dark:text-emerald-200'}`}>
+                  {formatCOP(audit.live)}
+                  {audit.isOutdated && (
+                    <span className="ml-2 text-xs font-normal">
+                      · diferencia {(audit.drift * 100).toFixed(1)}% vs. costo guardado ({formatCOP(audit.stored)})
+                    </span>
+                  )}
+                </p>
+              </div>
+              {audit.isOutdated && (
+                <button
+                  type="button"
+                  onClick={applyLive}
+                  className="btn btn-sm btn-primary flex-shrink-0"
+                >
+                  Aplicar
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Margin preview (general tab only) */}
         {modalTab === 'general' && (form.price ?? 0) > 0 && (form.cost ?? 0) > 0 && (

@@ -121,6 +121,70 @@ export default function Dashboard() {
     return { pendingReceivables, pendingPayables, monthlyExpenses, recurringMonthly, netProjected }
   }, [saleOrders, purchaseOrders, expenses])
 
+  // ── 13-week cash flow projection ──────────────────────────────────────
+  const weekly13 = useMemo(() => {
+    // Anchor: current Monday
+    const now = new Date()
+    const day = now.getDay() || 7 // Sunday=0 → 7
+    const monday = new Date(now); monday.setDate(now.getDate() - (day - 1)); monday.setHours(0,0,0,0)
+
+    const weeks: {
+      idx: number
+      startISO: string
+      endISO: string
+      label: string
+      inflow: number
+      outflow: number
+      recurring: number
+      net: number
+      running: number  // cumulative from week 0
+    }[] = []
+
+    for (let i = 0; i < 13; i++) {
+      const s = new Date(monday); s.setDate(monday.getDate() + i * 7)
+      const e = new Date(s); e.setDate(s.getDate() + 6)
+      const startISO = s.toISOString().split('T')[0]
+      const endISO   = e.toISOString().split('T')[0]
+      const label    = `${s.getDate()}/${s.getMonth() + 1}`
+
+      // Inflow: pending or partial sale orders with delivery/date in this window
+      const inflow = saleOrders
+        .filter(o => o.paymentStatus !== 'paid' && o.status !== 'cancelled')
+        .filter(o => {
+          const d = o.deliveryDate || o.date
+          return d >= startISO && d <= endISO
+        })
+        .reduce((a, o) => {
+          // net-of-payments
+          const paid = payments.filter(p => p.saleOrderId === o.id).reduce((s, p) => s + p.amount, 0)
+          return a + Math.max(0, o.total - paid)
+        }, 0)
+
+      // Outflow: purchase orders due in this window
+      const outflow = purchaseOrders
+        .filter(o => o.status !== 'cancelled')
+        .filter(o => {
+          const d = o.expectedDate || o.date
+          return d >= startISO && d <= endISO
+        })
+        .reduce((a, o) => a + o.total, 0)
+
+      // Recurring monthly expenses: 1/4 of monthly per week (rough), or full amount if the
+      // start of this week is on/after a recurring's monthly anniversary and no materialized
+      // record exists in the range.
+      const recurring = expenses
+        .filter(x => x.recurring)
+        .reduce((a, x) => a + (x.period === 'weekly' ? x.amount : x.period === 'annual' ? x.amount / 52 : x.amount / 4.33), 0)
+
+      const net = inflow - outflow - recurring
+      const prev = weeks[weeks.length - 1]
+      const running = (prev?.running ?? 0) + net
+      weeks.push({ idx: i, startISO, endISO, label, inflow, outflow, recurring, net, running })
+    }
+
+    return weeks
+  }, [saleOrders, purchaseOrders, expenses, payments])
+
   const refresh = async () => {
     setRefreshing(true)
     await loadAllData(true)
@@ -728,6 +792,73 @@ export default function Dashboard() {
             <p className={`text-lg font-bold ${cashFlow.netProjected >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}`}>{formatCOP(cashFlow.netProjected)}</p>
           </div>
         </div>
+
+        {/* ── 13-week horizon ── */}
+        {(() => {
+          const maxAbs = Math.max(1, ...weekly13.flatMap(w => [Math.abs(w.inflow), Math.abs(w.outflow + w.recurring)]))
+          const criticalWeek = weekly13.find(w => w.running < 0)
+          return (
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-violet-500 dot-pulse" />
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white">Horizonte a 13 semanas</h3>
+                </div>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-gray-500">
+                  {criticalWeek
+                    ? <span className="text-red-500 dark:text-red-400 font-bold">Semana crítica: {criticalWeek.label}</span>
+                    : 'Sin semanas en rojo'}
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <div className="grid grid-cols-13 min-w-[780px] gap-1" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
+                  {weekly13.map((w) => {
+                    const inH  = (w.inflow / maxAbs) * 100
+                    const outH = ((w.outflow + w.recurring) / maxAbs) * 100
+                    const isCurrent = w.idx === 0
+                    const runningNeg = w.running < 0
+                    return (
+                      <div key={w.idx} className={`text-center relative ${isCurrent ? '' : ''}`}
+                           title={`Sem ${w.label}\nEntradas: ${formatCOP(w.inflow)}\nSalidas: ${formatCOP(w.outflow + w.recurring)}\nAcumulado: ${formatCOP(w.running)}`}>
+                        {/* Bars: inflow on top going up, outflow going down; height total 90px each side */}
+                        <div className="flex flex-col items-center h-24 justify-end">
+                          <div className="w-full flex flex-col items-center justify-end h-12">
+                            <div
+                              className="w-4/5 rounded-t-md bg-emerald-500/80"
+                              style={{ height: `${Math.min(100, inH)}%`, minHeight: w.inflow > 0 ? 2 : 0 }}
+                            />
+                          </div>
+                          <div className="w-full flex flex-col items-center justify-start h-12">
+                            <div
+                              className="w-4/5 rounded-b-md bg-red-500/80"
+                              style={{ height: `${Math.min(100, outH)}%`, minHeight: (w.outflow + w.recurring) > 0 ? 2 : 0 }}
+                            />
+                          </div>
+                        </div>
+                        <p className={`text-[9px] mt-1 tabular-nums ${runningNeg ? 'text-red-600 dark:text-red-400 font-bold' : 'text-slate-500 dark:text-gray-400'}`}>{w.label}</p>
+                        <p className={`text-[10px] tabular-nums font-semibold ${runningNeg ? 'text-red-700 dark:text-red-300' : 'text-slate-700 dark:text-gray-200'}`}>
+                          {w.running >= 1000 || w.running <= -1000
+                            ? (w.running / 1000).toFixed(0) + 'k'
+                            : Math.round(w.running)}
+                        </p>
+                        {isCurrent && (
+                          <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] font-bold uppercase tracking-widest text-amazonia-700 dark:text-amazonia-400">Hoy</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 mt-3 text-[10px] uppercase tracking-widest text-slate-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-emerald-500/80 rounded-sm" /> Entradas por semana</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-red-500/80 rounded-sm" /> Salidas + recurrentes</span>
+                <span className="ml-auto">Números bajo cada barra = saldo acumulado (miles)</span>
+              </div>
+            </div>
+          )
+        })()}
       </div>}
 
       {/* Production status — Producción / Admin */}

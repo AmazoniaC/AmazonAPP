@@ -5,6 +5,7 @@ import {
   MessageCircle, Send, Pencil, Trash2, FileSpreadsheet,
   PhoneCall, AtSign, Navigation, StickyNote, CheckCircle2, Circle,
   FileText, ShoppingBag, Activity, Info, Clock, Heart, Repeat, AlertCircle, Upload,
+  Trophy, Sparkles, XCircle, Copy, Check,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Customer, CustomerActivity, Quotation } from '../data/mockData'
@@ -17,6 +18,7 @@ import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 import ImportModal from '../components/ImportModal'
 import { openWhatsApp, buildFollowUp, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
+import { toast } from '../components/Toast'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -40,6 +42,146 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 }
 const QUOTE_STATUS_BADGE: Record<string, string> = {
   draft: 'badge-gray', sent: 'badge-blue', accepted: 'badge-green', rejected: 'badge-red', expired: 'badge-yellow',
+}
+
+// ── RFM Segments ───────────────────────────────────────────────────────────
+
+type RfmSegmentId = 'champions' | 'loyal' | 'atRisk' | 'lost' | 'nuevos' | 'regulares'
+
+const RFM_META: Record<RfmSegmentId, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
+  champions: { label: 'Champions',  icon: Trophy,      color: 'text-amber-700 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-200 dark:border-amber-800' },
+  loyal:     { label: 'Leales',     icon: Heart,       color: 'text-rose-700 dark:text-rose-400',     bg: 'bg-rose-50 dark:bg-rose-900/20',     border: 'border-rose-200 dark:border-rose-800' },
+  atRisk:    { label: 'En riesgo',  icon: AlertCircle, color: 'text-red-700 dark:text-red-400',       bg: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-800' },
+  lost:      { label: 'Perdidos',   icon: XCircle,     color: 'text-slate-700 dark:text-slate-300',   bg: 'bg-slate-100 dark:bg-slate-700/40',  border: 'border-slate-200 dark:border-slate-600' },
+  nuevos:    { label: 'Nuevos',     icon: Sparkles,    color: 'text-blue-700 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-900/20',     border: 'border-blue-200 dark:border-blue-800' },
+  regulares: { label: 'Regulares',  icon: Users,       color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-200 dark:border-violet-800' },
+}
+
+const AT_RISK_TEMPLATE = `Hola {nombre} 👋
+
+Ha pasado un tiempo desde tu último pedido con *{empresa}*. Te queremos mostrar nuestras nuevas piezas — tenemos macetas, cofres y jarrones nuevos que seguro te van a encantar.
+
+¿Te comparto el catálogo? 🌿`
+
+function fillTemplate(tpl: string, vars: Record<string, string>): string {
+  return Object.keys(vars).reduce((acc, k) => acc.split(`{${k}}`).join(vars[k]), tpl)
+}
+
+// ── ReactivationModal ──────────────────────────────────────────────────────
+
+function ReactivationModal({ customers, companyName, onClose, onSent }: {
+  customers: Customer[]
+  companyName: string
+  onClose: () => void
+  onSent: (customerId: string) => void
+}) {
+  const [template, setTemplate] = useState(AT_RISK_TEMPLATE)
+  const [selected, setSelected] = useState<Set<string>>(new Set(customers.filter(c => c.phone).map(c => c.id)))
+  const [sent, setSent] = useState<Set<string>>(new Set())
+  const [copied, setCopied] = useState(false)
+
+  const preview = customers[0]
+    ? fillTemplate(template, { nombre: customers[0].name.split(' ')[0], empresa: companyName })
+    : template
+
+  const toggle = (id: string) => {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setSelected(next)
+  }
+
+  const send = (c: Customer) => {
+    if (!c.phone) return
+    const msg = fillTemplate(template, { nombre: c.name.split(' ')[0], empresa: companyName })
+    openWhatsApp(c.phone, msg)
+    const next = new Set(sent); next.add(c.id); setSent(next)
+    onSent(c.id)
+  }
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(preview)
+      setCopied(true)
+      toast.success('Mensaje copiado al portapapeles')
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error('No se pudo copiar')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fadeIn">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <MessageCircle size={18} className="text-green-600" />
+            <h3 className="font-semibold text-slate-800 dark:text-white">Campaña de reactivación — En riesgo</h3>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+        <div className="px-6 py-4 space-y-4 overflow-y-auto">
+          <div>
+            <label className="label">Plantilla — usa {'{nombre}'} y {'{empresa}'}</label>
+            <textarea className="input resize-none font-mono text-xs" rows={6}
+              value={template} onChange={(e) => setTemplate(e.target.value)} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">Vista previa</p>
+              <button className="btn btn-sm btn-secondary flex items-center gap-1" onClick={copy}>
+                {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copiado' : 'Copiar'}
+              </button>
+            </div>
+            <pre className="text-xs bg-slate-50 dark:bg-gray-700 rounded-lg p-3 whitespace-pre-wrap text-slate-700 dark:text-gray-200 border border-slate-100 dark:border-gray-600">{preview}</pre>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+              Destinatarios ({selected.size} seleccionados)
+            </p>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+              {customers.map((c) => {
+                const hasPhone = !!c.phone
+                const isSent = sent.has(c.id)
+                const isSel = selected.has(c.id)
+                return (
+                  <div key={c.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      isSent ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                      : isSel ? 'bg-white dark:bg-gray-700 border-slate-200 dark:border-gray-600'
+                      : 'bg-slate-50 dark:bg-gray-700/40 border-slate-100 dark:border-gray-700 opacity-60'
+                    }`}>
+                    <input type="checkbox" checked={isSel} onChange={() => toggle(c.id)}
+                      disabled={!hasPhone} className="rounded" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700 dark:text-gray-200 truncate">{c.name}</p>
+                      <p className="text-xs text-slate-400 dark:text-gray-500 truncate">
+                        {hasPhone ? c.phone : 'Sin teléfono'}
+                      </p>
+                    </div>
+                    {isSent
+                      ? <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle2 size={12} /> Enviado</span>
+                      : (
+                        <button className="btn btn-sm flex items-center gap-1 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
+                          disabled={!hasPhone || !isSel} onClick={() => send(c)}>
+                          <MessageCircle size={11} /> Enviar
+                        </button>
+                      )
+                    }
+                  </div>
+                )
+              })}
+              {customers.length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-4">No hay clientes en riesgo</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-gray-700">
+          <button className="btn btn-secondary flex-1" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── CustomerModal ──────────────────────────────────────────────────────────
@@ -94,6 +236,22 @@ function CustomerModal({ customer, onClose }: { customer?: Customer; onClose: ()
               value={form.defaultDiscount ?? ''}
               onChange={(e) => setForm({ ...form, defaultDiscount: parseFloat(e.target.value) || undefined })}
               placeholder="ej. 10" />
+          </div>
+          <div>
+            <label className="label">Plazo de pago (días)</label>
+            <input className="input" type="number" min="0" max="365" step="1"
+              value={form.paymentTerms ?? ''}
+              onChange={(e) => setForm({ ...form, paymentTerms: parseInt(e.target.value) || 0 })}
+              placeholder="0 = contado" />
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">0 contado · 15 Net-15 · 30 Net-30</p>
+          </div>
+          <div>
+            <label className="label">Límite de crédito ($)</label>
+            <input className="input" type="number" min="0" step="10000"
+              value={form.creditLimit ?? ''}
+              onChange={(e) => setForm({ ...form, creditLimit: parseFloat(e.target.value) || 0 })}
+              placeholder="0 = sin límite" />
+            <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">Aviso al superar el saldo abierto</p>
           </div>
           <div className="col-span-2">
             <label className="label">Notas internas</label>
@@ -619,17 +777,19 @@ function CustomerDrawer({ customer, onClose, onEdit, onDelete, canEdit, canDelet
 // ── Main CRM ───────────────────────────────────────────────────────────────
 
 export default function CRM() {
-  const { customers, saleOrders, activities, deleteCustomer, loadAllData } = useStore()
+  const { customers, saleOrders, activities, deleteCustomer, loadAllData, addActivity, companySettings } = useStore()
   const { canEdit, canDelete } = usePermissions()
   const navigate = useNavigate()
   const [search, setSearch]       = useState('')
   const [segFilter, setSeg]       = useState('all')
+  const [rfmFilter, setRfmFilter] = useState<RfmSegmentId | 'all'>('all')
   const [showModal, setShowModal] = useState(false)
   const [editCustomer, setEditCustomer] = useState<Customer | undefined>()
   const [selected, setSelected]   = useState<Customer | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
   const [deleting, setDeleting]         = useState(false)
   const [showImport, setShowImport]     = useState(false)
+  const [showReactivation, setShowReactivation] = useState(false)
   const [page, setPage]                 = useState(1)
   const PAGE_SIZE = 12
 
@@ -660,7 +820,8 @@ export default function CRM() {
                         (c.company ?? '').toLowerCase().includes(search.toLowerCase()) ||
                         c.email.toLowerCase().includes(search.toLowerCase())
     const matchSeg = segFilter === 'all' || c.segment === segFilter
-    return matchSearch && matchSeg && c.isActive
+    const matchRfm = rfmFilter === 'all' || rfm.customerSegment[c.id] === rfmFilter
+    return matchSearch && matchSeg && matchRfm && c.isActive
   })
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -703,6 +864,69 @@ export default function CRM() {
 
     return { avgCLV, repeatRate, repeatBuyers, totalBuyers, atRisk, avgOrderValue, avgOrdersPerCustomer }
   }, [customers, saleOrders, customerStats])
+
+  // ── RFM Segmentation ──────────────────────────────────────────────────
+  const rfm = useMemo(() => {
+    const today = new Date()
+    const todayIso = today.toISOString().split('T')[0]
+    const cutoff180 = new Date(today.getTime() - 180 * 86400000).toISOString().split('T')[0]
+    const activeCustomers = customers.filter(c => c.isActive)
+
+    // Per-customer raw R/F/M
+    type Raw = { customer: Customer; recency: number; freq: number; monetary: number; totalOrders: number }
+    const raws: Raw[] = []
+    for (const c of activeCustomers) {
+      const orders = saleOrders.filter(o => o.customerId === c.id)
+      if (orders.length === 0) continue
+      const last = orders.reduce((max, o) => o.date > max ? o.date : max, orders[0].date)
+      const daysSinceLast = Math.max(0, Math.floor((Date.parse(todayIso) - Date.parse(last)) / 86400000))
+      const recency = Math.min(daysSinceLast, 365)
+      const recent = orders.filter(o => o.date >= cutoff180)
+      const freq = recent.length
+      const monetary = recent.reduce((s, o) => s + o.total, 0)
+      raws.push({ customer: c, recency, freq, monetary, totalOrders: orders.length })
+    }
+
+    // Quintile scoring helper (1..5). For recency: lower is better; for freq/monetary: higher is better.
+    const quintileScore = (values: number[], value: number, higherIsBetter: boolean): number => {
+      const sorted = [...values].sort((a, b) => a - b)
+      if (sorted.length === 0) return 3
+      const rank = sorted.findIndex(v => v >= value)
+      const pct = rank === -1 ? 1 : rank / sorted.length
+      // pct in [0,1]; if higherIsBetter, top pct → 5
+      const bucket = Math.min(4, Math.floor(pct * 5))
+      return higherIsBetter ? bucket + 1 : 5 - bucket
+    }
+
+    const recencies = raws.map(r => r.recency)
+    const freqs = raws.map(r => r.freq)
+    const monetaries = raws.map(r => r.monetary)
+
+    const bySegment: Record<RfmSegmentId, Customer[]> = {
+      champions: [], loyal: [], atRisk: [], lost: [], nuevos: [], regulares: [],
+    }
+    const customerSegment: Record<string, RfmSegmentId> = {}
+
+    for (const r of raws) {
+      const R = quintileScore(recencies, r.recency, false)
+      const F = quintileScore(freqs, r.freq, true)
+      const M = quintileScore(monetaries, r.monetary, true)
+
+      let seg: RfmSegmentId
+      if (R >= 4 && F >= 4 && M >= 4) seg = 'champions'
+      else if (F >= 3 && (R + M) / 2 >= 3) seg = 'loyal'
+      else if (R <= 2 && F >= 3) seg = 'atRisk'
+      else if (R === 1 && F === 1) seg = 'lost'
+      else if (r.totalOrders === 1 && R === 5) seg = 'nuevos'
+      else seg = 'regulares'
+
+      bySegment[seg].push(r.customer)
+      customerSegment[r.customer.id] = seg
+    }
+
+    const total = raws.length
+    return { bySegment, customerSegment, total }
+  }, [customers, saleOrders])
 
   const handleExportExcel = () => {
     const data = filtered.map((c) => ({
@@ -809,6 +1033,62 @@ export default function CRM() {
         )}
       </div>
 
+      {/* RFM Segmentation */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Trophy size={16} className="text-amber-500" />
+            <h2 className="font-semibold text-slate-800 dark:text-white text-sm">Segmentación RFM</h2>
+            <span className="text-xs text-slate-400 dark:text-gray-500">({rfm.total} clientes con ventas)</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="btn btn-sm flex items-center gap-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+              onClick={() => { setRfmFilter('champions'); setPage(1) }}>
+              <Trophy size={12} /> Ver campeones ({rfm.bySegment.champions.length})
+            </button>
+            <button
+              className="btn btn-sm flex items-center gap-1 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
+              disabled={rfm.bySegment.atRisk.length === 0}
+              onClick={() => setShowReactivation(true)}>
+              <MessageCircle size={12} /> WhatsApp a en riesgo ({rfm.bySegment.atRisk.length})
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          {(Object.keys(RFM_META) as RfmSegmentId[]).map((id) => {
+            const meta = RFM_META[id]
+            const Icon = meta.icon
+            const count = rfm.bySegment[id].length
+            const pct = rfm.total > 0 ? (count / rfm.total) * 100 : 0
+            const isActive = rfmFilter === id
+            return (
+              <button key={id}
+                onClick={() => { setRfmFilter(isActive ? 'all' : id); setPage(1) }}
+                className={`flex flex-col items-start gap-1 p-3 rounded-xl border-2 text-left transition-all ${
+                  isActive
+                    ? `${meta.bg} ${meta.border} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-800 ring-current ${meta.color}`
+                    : `${meta.bg} ${meta.border} hover:brightness-95`
+                }`}>
+                <div className={`flex items-center gap-1.5 text-xs font-semibold ${meta.color}`}>
+                  <Icon size={13} /> {meta.label}
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`text-xl font-bold ${meta.color}`}>{count}</span>
+                  <span className="text-xs text-slate-500 dark:text-gray-400">{pct.toFixed(0)}%</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {rfmFilter !== 'all' && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400">
+            <span>Filtrando por: <span className={`font-semibold ${RFM_META[rfmFilter].color}`}>{RFM_META[rfmFilter].label}</span></span>
+            <button onClick={() => setRfmFilter('all')} className="text-blue-600 hover:underline">Quitar filtro</button>
+          </div>
+        )}
+      </div>
+
       {/* Filters */}
       <div className="card p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -883,6 +1163,26 @@ export default function CRM() {
           entity="customers"
           onClose={() => setShowImport(false)}
           onSuccess={() => loadAllData(true)}
+        />
+      )}
+      {showReactivation && (
+        <ReactivationModal
+          customers={rfm.bySegment.atRisk}
+          companyName={companySettings.companyName}
+          onClose={() => setShowReactivation(false)}
+          onSent={(customerId) => {
+            const today = new Date().toISOString().split('T')[0]
+            addActivity({
+              id: `a${Date.now()}-${customerId}`,
+              customerId,
+              type: 'whatsapp',
+              date: today,
+              subject: 'Campaña reactivación',
+              notes: 'Enviado desde segmentación RFM (En riesgo)',
+              done: true,
+              createdAt: new Date().toISOString(),
+            })
+          }}
         />
       )}
     </div>

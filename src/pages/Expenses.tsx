@@ -11,6 +11,7 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import { toast } from '../components/Toast'
 import * as XLSX from 'xlsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -193,7 +194,20 @@ function ExpenseModal({ initial, onClose }: { initial?: Expense; onClose: () => 
 const PAGE_SIZE = 20
 
 export default function ExpensesPage() {
-  const { expenses, deleteExpense } = useStore()
+  const { expenses, deleteExpense, materializeRecurringExpenses } = useStore()
+  const [materializing, setMaterializing] = useState(false)
+
+  const handleMaterialize = async () => {
+    if (materializing) return
+    setMaterializing(true)
+    try {
+      const { created } = await materializeRecurringExpenses()
+      if (created > 0) toast.success(`Se generaron ${created} gasto${created === 1 ? '' : 's'} recurrente${created === 1 ? '' : 's'}`)
+      else             toast.info('No hay gastos recurrentes pendientes')
+    } finally {
+      setMaterializing(false)
+    }
+  }
   const { canDelete } = usePermissions()
   const today = new Date().toISOString().split('T')[0]
   const thisMonth = today.slice(0, 7)
@@ -270,6 +284,14 @@ export default function ExpensesPage() {
         accent="rgba(245, 158, 11, 0.20)"
         actions={
           <>
+            <button
+              onClick={handleMaterialize}
+              disabled={materializing}
+              className="btn btn-sm btn-secondary flex items-center gap-1.5"
+              title="Generar la próxima ocurrencia de los gastos marcados como recurrentes"
+            >
+              <Repeat size={14} /> {materializing ? 'Generando...' : 'Generar recurrentes'}
+            </button>
             <button onClick={exportExcel} className="btn btn-sm btn-secondary flex items-center gap-1.5">
               <TrendingDown size={14} /> Exportar
             </button>

@@ -15,6 +15,8 @@ export const createCustomerSchema = z.object({
   notes: z.string().max(2000).nullish(),
   priceListId: z.string().nullish(),
   defaultDiscount: z.number().min(0).max(100).default(0),
+  paymentTerms: z.number().int().min(0).max(365).default(0),
+  creditLimit: z.number().min(0).default(0),
 })
 
 export const updateCustomerSchema = createCustomerSchema.omit({ id: true })

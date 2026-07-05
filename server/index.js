@@ -215,6 +215,8 @@ async function migrate() {
       );
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS price_list_id    TEXT;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS default_discount NUMERIC DEFAULT 0;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS payment_terms    INTEGER DEFAULT 0;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_limit     NUMERIC(14,2) DEFAULT 0;
       ALTER TABLE sale_order_items ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
       ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS discount       NUMERIC DEFAULT 0;
       ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS price_list_id  TEXT;

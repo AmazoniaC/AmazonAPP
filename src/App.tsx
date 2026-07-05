@@ -68,10 +68,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 }
 
 export default function App() {
-  const { isAuthenticated, loadAllData, checkCalendarReminders } = useStore()
+  const { isAuthenticated, loadAllData, checkCalendarReminders, materializeRecurringExpenses } = useStore()
 
   useEffect(() => {
-    if (isAuthenticated) loadAllData()
+    if (isAuthenticated) {
+      loadAllData().then(() => materializeRecurringExpenses().catch(() => {}))
+    }
   }, [isAuthenticated])
 
   useEffect(() => {
