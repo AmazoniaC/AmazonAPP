@@ -9,6 +9,7 @@ import { InventoryMovement } from '../data/mockData'
 import { formatCOP } from '../utils/currency'
 import Pagination from '../components/Pagination'
 import DateRangeFilter from '../components/DateRangeFilter'
+import { toast } from '../components/Toast'
 import * as XLSX from 'xlsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export default function InventoryMovements() {
   const [itemTypeFilter, setItemTypeFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [showCycleCount, setShowCycleCount] = useState(false)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 20
 
@@ -142,8 +144,64 @@ export default function InventoryMovements() {
     XLSX.writeFile(wb, `movimientos_inventario_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
+  // ── Merma valorizada (valued shrinkage) from adjustment movements ──
+  const shrinkage = useMemo(() => {
+    const now = Date.now()
+    const win = 30 * 86400000
+    const items: Record<string, { name: string; qty: number; cost: number; value: number }> = {}
+    let totalValue = 0
+    inventoryMovements
+      .filter(m => m.movementType === 'adjustment' && m.createdAt && (now - new Date(m.createdAt).getTime() <= win))
+      .forEach(m => {
+        // Adjustment where newStock < previousStock is a loss
+        const loss = m.previousStock - m.newStock
+        if (loss <= 0) return
+        const supply = supplies.find(s => s.id === m.itemId)
+        const unitCost = supply?.cost ?? 0
+        const value = loss * unitCost
+        totalValue += value
+        if (!items[m.itemId]) {
+          items[m.itemId] = { name: m.itemName, qty: 0, cost: unitCost, value: 0 }
+        }
+        items[m.itemId].qty += loss
+        items[m.itemId].value += value
+      })
+    return {
+      total: totalValue,
+      top: Object.values(items).sort((a, b) => b.value - a.value).slice(0, 5),
+    }
+  }, [inventoryMovements, supplies])
+
   return (
     <div className="space-y-6">
+      {/* Cycle-count launcher + shrinkage headline */}
+      <div className="rounded-2xl border border-slate-200/70 dark:border-gray-700/60 p-4 flex items-center justify-between gap-4"
+           style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(248,250,252,0.6) 100%)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+               style={{ background: 'linear-gradient(135deg, #6b21a8 0%, #3b0764 100%)', boxShadow: '0 4px 12px -2px rgba(107, 33, 168, 0.35)' }}>
+            <PackageCheck size={18} className="text-white" strokeWidth={2.3} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-widest">Conteo cíclico</p>
+            <p className="text-xs text-slate-500 dark:text-gray-400">
+              Ingresa el conteo físico y el sistema genera los ajustes automáticamente.
+              {shrinkage.total > 0 && (
+                <>
+                  {' · '}
+                  <span className="font-semibold text-red-600 dark:text-red-400">
+                    Merma últimos 30 días: {formatCOP(shrinkage.total)}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+        <button onClick={() => setShowCycleCount(true)} className="btn btn-sm btn-primary flex-shrink-0">
+          <PackageCheck size={13} /> Iniciar conteo
+        </button>
+      </div>
+
       {/* ── KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
@@ -368,6 +426,210 @@ export default function InventoryMovements() {
               pageSize={PAGE_SIZE} onPage={setPage} />
           </>
         )}
+      </div>
+
+      {showCycleCount && (
+        <CycleCountModal onClose={() => setShowCycleCount(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── Cycle-count modal — guided physical count with variance & merma ──────
+function CycleCountModal({ onClose }: { onClose: () => void }) {
+  const { supplies, addInventoryMovement, updateSupply, user } = useStore()
+  const [catFilter, setCatFilter] = useState<string>('__all__')
+  const [counts, setCounts] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+
+  const categories = useMemo(() => {
+    const set = new Set(supplies.map(s => s.category).filter(Boolean))
+    return ['__all__', ...Array.from(set)]
+  }, [supplies])
+
+  const visible = supplies.filter(s => catFilter === '__all__' || s.category === catFilter)
+
+  const results = visible.map(s => {
+    const raw = counts[s.id]
+    const physical = raw !== undefined && raw !== '' ? parseFloat(raw) : NaN
+    const hasCount = !isNaN(physical)
+    const variance = hasCount ? physical - s.stock : 0
+    const variancePct = hasCount && s.stock > 0 ? (variance / s.stock) * 100 : 0
+    const valueImpact = hasCount ? variance * s.cost : 0
+    return { supply: s, physical, hasCount, variance, variancePct, valueImpact }
+  })
+
+  const totalPositive = results.filter(r => r.hasCount && r.variance > 0).reduce((a, r) => a + r.valueImpact, 0)
+  const totalNegative = results.filter(r => r.hasCount && r.variance < 0).reduce((a, r) => a + r.valueImpact, 0)
+  const counted = results.filter(r => r.hasCount).length
+  const withVariance = results.filter(r => r.hasCount && r.variance !== 0)
+
+  const handleSave = async () => {
+    if (withVariance.length === 0) {
+      toast.info('No hay ajustes que registrar')
+      onClose()
+      return
+    }
+    setSaving(true)
+    try {
+      const now = new Date().toISOString()
+      for (const r of withVariance) {
+        const s = r.supply
+        // Update stock first
+        await updateSupply({ ...s, stock: r.physical })
+        // Log adjustment movement
+        await addInventoryMovement({
+          id: `im${Date.now()}_${s.id}`,
+          itemId: s.id,
+          itemName: s.name,
+          itemType: 'supply',
+          movementType: 'adjustment',
+          quantity: Math.abs(r.variance),
+          previousStock: s.stock,
+          newStock: r.physical,
+          unit: s.unit,
+          reference: 'Conteo cíclico',
+          notes: notes[s.id] ||
+                 (r.variance > 0 ? 'Sobrante detectado en conteo físico' : 'Faltante / merma detectado en conteo físico'),
+          createdBy: user?.name || 'Sistema',
+          createdAt: now,
+        })
+      }
+      toast.success(`Conteo registrado — ${withVariance.length} ajustes creados`)
+      onClose()
+    } catch (e: any) {
+      toast.error(e?.message || 'Error al guardar el conteo')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col animate-fadeIn" onClick={e => e.stopPropagation()}>
+        <div className="border-b border-slate-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">Conteo cíclico</p>
+            <h3 className="font-bold text-slate-800 dark:text-white text-lg">Conteo físico de insumos</h3>
+            <p className="text-xs text-slate-500 dark:text-gray-400">
+              Cuenta cuántas unidades hay realmente en bodega. Solo se crean ajustes cuando hay diferencia.
+            </p>
+          </div>
+          <button onClick={onClose}><TrendingUp size={0} /></button>
+        </div>
+
+        {/* Category filter + counter */}
+        <div className="border-b border-slate-100 dark:border-gray-700 px-6 py-3 flex items-center gap-3 flex-wrap">
+          <Filter size={14} className="text-slate-400 dark:text-gray-500" />
+          <div className="flex gap-1.5 flex-wrap">
+            {categories.map(c => (
+              <button key={c} onClick={() => setCatFilter(c)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  catFilter === c
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-600'
+                }`}>
+                {c === '__all__' ? `Todos (${supplies.length})` : c}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto text-xs text-slate-500 dark:text-gray-400">
+            <strong>{counted}</strong> / {visible.length} contados
+          </div>
+        </div>
+
+        {/* Rows */}
+        <div className="flex-1 overflow-y-auto px-6 py-3">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
+              <tr className="border-b border-slate-200 dark:border-gray-700">
+                {['Insumo', 'Sistema', 'Conteo físico', 'Varianza', 'Impacto ($)'].map(h => (
+                  <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {results.map(r => (
+                <tr key={r.supply.id} className="border-b border-slate-100 dark:border-gray-700/60">
+                  <td className="px-3 py-2">
+                    <p className="font-medium text-slate-800 dark:text-gray-200">{r.supply.name}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-gray-500 font-mono">{r.supply.sku} · {r.supply.category}</p>
+                  </td>
+                  <td className="px-3 py-2 tabular-nums text-slate-600 dark:text-gray-300">{r.supply.stock} {r.supply.unit}</td>
+                  <td className="px-3 py-2">
+                    <input className="input py-1 w-28 tabular-nums" type="number" min="0" step="0.01"
+                      placeholder="—"
+                      value={counts[r.supply.id] ?? ''}
+                      onChange={(e) => setCounts(c => ({ ...c, [r.supply.id]: e.target.value }))} />
+                  </td>
+                  <td className={`px-3 py-2 tabular-nums font-semibold ${
+                    !r.hasCount
+                      ? 'text-slate-400'
+                      : r.variance === 0
+                        ? 'text-emerald-600'
+                        : r.variance > 0
+                          ? 'text-blue-600'
+                          : 'text-red-600'
+                  }`}>
+                    {r.hasCount
+                      ? (r.variance === 0 ? '✓ Coincide' : `${r.variance > 0 ? '+' : ''}${r.variance.toFixed(2)} (${r.variancePct >= 0 ? '+' : ''}${r.variancePct.toFixed(1)}%)`)
+                      : '—'}
+                  </td>
+                  <td className={`px-3 py-2 tabular-nums font-semibold ${
+                    !r.hasCount || r.variance === 0
+                      ? 'text-slate-400'
+                      : r.valueImpact > 0
+                        ? 'text-blue-600'
+                        : 'text-red-600'
+                  }`}>
+                    {r.hasCount && r.variance !== 0 ? `${r.valueImpact > 0 ? '+' : ''}${formatCOP(r.valueImpact)}` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer summary + save */}
+        <div className="border-t border-slate-100 dark:border-gray-700 px-6 py-4 space-y-3">
+          {(totalPositive !== 0 || totalNegative !== 0) && (
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-2.5">
+                <p className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Sobrantes</p>
+                <p className="text-base font-bold text-blue-800 dark:text-blue-200 tabular-nums">{formatCOP(totalPositive)}</p>
+              </div>
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-2.5">
+                <p className="text-[10px] font-bold text-red-700 dark:text-red-300 uppercase tracking-wider">Merma</p>
+                <p className="text-base font-bold text-red-800 dark:text-red-200 tabular-nums">{formatCOP(Math.abs(totalNegative))}</p>
+              </div>
+              <div className={`rounded-lg p-2.5 ${
+                totalPositive + totalNegative >= 0
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'bg-amber-50 dark:bg-amber-900/20'
+              }`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${
+                  totalPositive + totalNegative >= 0
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-amber-700 dark:text-amber-300'
+                }`}>Impacto neto</p>
+                <p className={`text-base font-bold tabular-nums ${
+                  totalPositive + totalNegative >= 0
+                    ? 'text-emerald-800 dark:text-emerald-200'
+                    : 'text-amber-800 dark:text-amber-200'
+                }`}>
+                  {totalPositive + totalNegative >= 0 ? '+' : ''}{formatCOP(totalPositive + totalNegative)}
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button className="btn btn-secondary flex-1" onClick={onClose} disabled={saving}>Cancelar</button>
+            <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving || withVariance.length === 0}>
+              {saving ? 'Registrando...' : `Registrar ${withVariance.length} ajuste${withVariance.length === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

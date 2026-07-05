@@ -160,7 +160,7 @@ function SupplyModal({ supply, onClose }: { supply?: Supply; onClose: () => void
 }
 
 export default function Inventory() {
-  const { supplies, deleteSupply, loadAllData } = useStore()
+  const { supplies, deleteSupply, loadAllData, inventoryMovements, suppliers } = useStore()
   const { canEdit, canDelete } = usePermissions()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch]           = useState('')
@@ -175,18 +175,64 @@ export default function Inventory() {
   const [showImport, setShowImport]     = useState(false)
   const PAGE_SIZE = 20
 
-  // Smart reorder suggestions: items below min stock, suggest ordering to 2x min
+  // Smart reorder suggestions using consumption velocity + supplier lead time.
+  //
+  // For each supply:
+  //   avgDailyUse  = Σ (exit movements last 30d).quantity / 30
+  //   coverageDays = stock / avgDailyUse
+  //   leadTime     = matching supplier's leadTimeDays (0 if unknown)
+  //   safety       = minStock (used as safety stock)
+  //   reorderPoint = avgDailyUse × leadTime + safety
+  //   isCritical   = stock <= reorderPoint OR stock < minStock
+  //
+  // Falls back gracefully when we have no movement history: uses minStock rule.
   const reorderSuggestions = useMemo(() => {
+    const now = Date.now()
+    const win = 30 * 86400000 // 30-day window
     return supplies
-      .filter(s => s.stock < s.minStock)
-      .map(s => ({
-        ...s,
-        deficit: s.minStock - s.stock,
-        suggestedQty: Math.ceil((s.minStock * 2) - s.stock),
-        estimatedCost: Math.ceil((s.minStock * 2) - s.stock) * s.cost,
-      }))
-      .sort((a, b) => (a.stock / a.minStock) - (b.stock / b.minStock))
-  }, [supplies])
+      .map(s => {
+        // Consumption in last 30 days from movements (exit-type or production)
+        const exits = inventoryMovements.filter(m =>
+          m.itemId === s.id &&
+          (m.movementType === 'exit' || m.movementType === 'production') &&
+          m.createdAt &&
+          now - new Date(m.createdAt).getTime() <= win
+        )
+        const consumed = exits.reduce((sum, m) => sum + m.quantity, 0)
+        const avgDailyUse = consumed / 30
+        const coverageDays = avgDailyUse > 0 ? s.stock / avgDailyUse : Infinity
+
+        // Find the supplier record by name match (loose)
+        const supplierRecord = suppliers.find(x =>
+          x.name.toLowerCase() === (s.supplier || '').toLowerCase()
+        )
+        const leadTime = supplierRecord?.leadTimeDays ?? 0
+        const safety = s.minStock
+        const reorderPoint = avgDailyUse * leadTime + safety
+
+        // Target: cover leadTime + safetyDays worth of consumption, or 2× minStock
+        // when we don't have velocity data
+        const targetStock = avgDailyUse > 0
+          ? avgDailyUse * (leadTime + 30) + safety   // ~30 days of buffer
+          : s.minStock * 2
+
+        const isCritical = s.stock <= reorderPoint || s.stock < s.minStock
+        return {
+          ...s,
+          avgDailyUse,
+          coverageDays,
+          leadTime,
+          reorderPoint,
+          isCritical,
+          deficit: Math.max(0, s.minStock - s.stock),
+          suggestedQty: Math.max(1, Math.ceil(targetStock - s.stock)),
+          estimatedCost: Math.max(1, Math.ceil(targetStock - s.stock)) * s.cost,
+          supplierRecord,
+        }
+      })
+      .filter(s => s.isCritical)
+      .sort((a, b) => a.coverageDays - b.coverageDays) // most urgent first
+  }, [supplies, inventoryMovements, suppliers])
 
   const totalReorderCost = reorderSuggestions.reduce((a, s) => a + s.estimatedCost, 0)
 
@@ -269,28 +315,55 @@ export default function Inventory() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-gray-700">
-                    {['Insumo','Proveedor','Stock actual','Mínimo','Déficit','Cant. sugerida','Costo estimado'].map(h => (
+                    {['Insumo','Proveedor','Stock','Cobertura','Lead time','Punto reorden','Cant. sugerida','Costo est.'].map(h => (
                       <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-slate-500 dark:text-gray-400">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {reorderSuggestions.map(s => (
-                    <tr key={s.id} className="border-b border-slate-50 dark:border-gray-700 hover:bg-amber-50/50 dark:hover:bg-amber-900/10">
-                      <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-gray-200">{s.name}</td>
-                      <td className="px-3 py-2.5 text-slate-500 dark:text-gray-400 text-xs">{s.supplier || '—'}</td>
-                      <td className="px-3 py-2.5 text-red-600 dark:text-red-400 font-bold">{s.stock} {s.unit}</td>
-                      <td className="px-3 py-2.5 text-slate-500 dark:text-gray-400">{s.minStock} {s.unit}</td>
-                      <td className="px-3 py-2.5 text-red-600 dark:text-red-400 font-semibold">-{s.deficit.toFixed(1)} {s.unit}</td>
-                      <td className="px-3 py-2.5 font-bold text-blue-600 dark:text-blue-400">{s.suggestedQty} {s.unit}</td>
-                      <td className="px-3 py-2.5 font-semibold text-slate-700 dark:text-gray-200">{formatCOP(s.estimatedCost)}</td>
-                    </tr>
-                  ))}
+                  {reorderSuggestions.map(s => {
+                    const covLabel = s.coverageDays === Infinity
+                      ? 'sin consumo'
+                      : `${s.coverageDays.toFixed(1)}d`
+                    const covColor = s.coverageDays === Infinity
+                      ? 'text-slate-400 dark:text-gray-500'
+                      : s.coverageDays < 3
+                        ? 'text-red-600 dark:text-red-400 font-bold'
+                        : s.coverageDays < 7
+                          ? 'text-amber-600 dark:text-amber-400 font-semibold'
+                          : 'text-slate-700 dark:text-gray-300'
+                    return (
+                      <tr key={s.id} className="border-b border-slate-50 dark:border-gray-700 hover:bg-amber-50/50 dark:hover:bg-amber-900/10">
+                        <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-gray-200">
+                          {s.name}
+                          {s.stock < s.minStock && <span className="ml-1.5 text-[10px] font-bold text-red-600 uppercase">bajo min</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500 dark:text-gray-400 text-xs">
+                          {s.supplier || '—'}
+                          {s.supplierRecord?.leadTimeDays === undefined && s.supplier && (
+                            <span className="ml-1 text-[9px] text-amber-600" title="Sin lead time configurado">⚠</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 tabular-nums">
+                          <span className="font-bold text-slate-800 dark:text-gray-200">{s.stock}</span> <span className="text-xs text-slate-400">{s.unit}</span>
+                        </td>
+                        <td className={`px-3 py-2.5 tabular-nums ${covColor}`}>{covLabel}</td>
+                        <td className="px-3 py-2.5 text-slate-500 dark:text-gray-400 tabular-nums text-xs">
+                          {s.leadTime > 0 ? `${s.leadTime}d` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-600 dark:text-gray-300 tabular-nums text-xs">
+                          {s.avgDailyUse > 0 ? Math.ceil(s.reorderPoint) : Math.ceil(s.minStock)} {s.unit}
+                        </td>
+                        <td className="px-3 py-2.5 font-bold text-blue-600 dark:text-blue-400 tabular-nums">{s.suggestedQty} {s.unit}</td>
+                        <td className="px-3 py-2.5 font-semibold text-slate-700 dark:text-gray-200 tabular-nums">{formatCOP(s.estimatedCost)}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-gray-700">
                 <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Cantidad sugerida: reponer al doble del stock mínimo
+                  Basado en consumo de los últimos 30 días × lead time del proveedor + stock de seguridad.
                 </p>
                 <Link to="/purchases" className="btn btn-sm btn-primary flex items-center gap-1">
                   <ShoppingCart size={13} /> Ir a Órdenes de Compra

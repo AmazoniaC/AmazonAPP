@@ -132,6 +132,13 @@ interface AppState {
   checkCalendarReminders: () => void
   // Actions – business data
   updateProductionOrderStatus: (id: string, status: ProductionOrder['status']) => void
+  finalizeProductionOrder: (id: string, actuals: {
+    actualQty: number
+    rejectedQty: number
+    actualCost: number
+    actualIngredients: { supplyId: string; supplyName: string; qty: number; unit: string }[]
+    notes?: string
+  }) => Promise<void>
   addSupply:    (s: Supply)    => Promise<void>
   updateSupply: (s: Supply)    => Promise<void>
   deleteSupply: (id: string)   => Promise<void>
@@ -677,6 +684,63 @@ export const useStore = create<AppState>((set, get) => ({
 
       return { productionOrders: updatedOrders }
     })
+  },
+
+  finalizeProductionOrder: async (id, actuals) => {
+    // Call new backend endpoint
+    await apiFetch(`/api/production-orders/${id}/finish`, {
+      method: 'PUT',
+      body: JSON.stringify(actuals),
+    })
+
+    const s = get()
+    const order = s.productionOrders.find((o) => o.id === id)
+    if (!order) return
+    const finishedAt = new Date().toISOString()
+
+    // Update the order with actuals
+    const updatedOrders = s.productionOrders.map((o) =>
+      o.id === id
+        ? { ...o, status: 'finished' as const, ...actuals, finishedAt }
+        : o
+    )
+
+    // Consume actual ingredients from supplies
+    const updatedSupplies = s.supplies.map((sup) => {
+      const used = actuals.actualIngredients.find((i) => i.supplyId === sup.id)
+      if (!used) return sup
+      const newStock = Math.max(0, parseFloat((sup.stock - used.qty).toFixed(4)))
+      return { ...sup, stock: newStock }
+    })
+
+    // Persist supply changes + log movements
+    updatedSupplies.forEach((sup, i) => {
+      const original = s.supplies[i]
+      if (sup.stock !== original?.stock) {
+        apiFetch(`/api/supplies/${sup.id}`, { method: 'PUT', body: JSON.stringify(sup) })
+        const consumed = original.stock - sup.stock
+        // Log a production-type movement (fire-and-forget)
+        get().addInventoryMovement({
+          id: `im${Date.now()}_${sup.id}`,
+          itemId: sup.id,
+          itemName: sup.name,
+          itemType: 'supply',
+          movementType: 'production',
+          quantity: consumed,
+          previousStock: original.stock,
+          newStock: sup.stock,
+          unit: sup.unit,
+          reference: order.orderNumber,
+          notes: `Consumo real orden ${order.orderNumber}`,
+          createdBy: s.user?.name || 'Sistema',
+          createdAt: finishedAt,
+        }).catch(() => {})
+      }
+    })
+
+    set({ productionOrders: updatedOrders, supplies: updatedSupplies })
+    setTimeout(() => get().checkAlerts(), 0)
+    toast.success(`Orden finalizada — ${actuals.actualQty} unidades producidas`)
   },
 
   addSupply: async (supply) => {

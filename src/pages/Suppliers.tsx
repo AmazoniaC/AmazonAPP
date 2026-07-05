@@ -9,6 +9,7 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['Cementos', 'Agregados', 'Pigmentos', 'Refuerzos', 'Acabados', 'Auxiliares', 'Sustratos', 'Otro']
@@ -42,6 +43,9 @@ function SupplierModal({ initial, onClose }: { initial?: Supplier; onClose: () =
         category:    form.category ?? '',
         notes:       form.notes ?? '',
         isActive:    form.isActive ?? true,
+        leadTimeDays:  form.leadTimeDays ?? 0,
+        paymentTerms:  form.paymentTerms ?? 0,
+        minOrderValue: form.minOrderValue ?? 0,
       }
       if (initial) await updateSupplier(supplier)
       else await addSupplier(supplier)
@@ -94,6 +98,35 @@ function SupplierModal({ initial, onClose }: { initial?: Supplier; onClose: () =
               <input className="input" value={form.city ?? ''} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
             </div>
           </div>
+          {/* ── Términos comerciales ── */}
+          <div className="pt-4 border-t border-slate-100 dark:border-gray-700">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-gray-400 mb-3">Términos comerciales</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="label">Lead time (días)</label>
+                <input className="input" type="number" min="0" max="180"
+                  value={form.leadTimeDays ?? ''}
+                  onChange={e => setForm(f => ({ ...f, leadTimeDays: parseInt(e.target.value) || 0 }))}
+                  placeholder="0" />
+                <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">Días típicos de entrega</p>
+              </div>
+              <div>
+                <label className="label">Plazo pago (días)</label>
+                <input className="input" type="number" min="0" max="365"
+                  value={form.paymentTerms ?? ''}
+                  onChange={e => setForm(f => ({ ...f, paymentTerms: parseInt(e.target.value) || 0 }))}
+                  placeholder="0 = contado" />
+              </div>
+              <div>
+                <label className="label">Compra mínima ($)</label>
+                <input className="input" type="number" min="0" step="10000"
+                  value={form.minOrderValue ?? ''}
+                  onChange={e => setForm(f => ({ ...f, minOrderValue: parseFloat(e.target.value) || 0 }))}
+                  placeholder="0 = sin mínimo" />
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="label">Notas</label>
             <textarea className="input" rows={2} value={form.notes ?? ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
@@ -118,12 +151,13 @@ function SupplierModal({ initial, onClose }: { initial?: Supplier; onClose: () =
 const PAGE_SIZE = 10
 
 export default function SuppliersPage() {
-  const { suppliers, deleteSupplier } = useStore()
+  const { suppliers, deleteSupplier, purchaseOrders } = useStore()
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'' | 'true' | 'false'>('')
   const [modal, setModal] = useState<Supplier | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Supplier | null>(null)
+  const [detail, setDetail] = useState<Supplier | null>(null)
   const [page, setPage] = useState(1)
 
   const filtered = suppliers.filter(s => {
@@ -228,13 +262,38 @@ export default function SuppliersPage() {
                 {s.city && <div className="flex items-center gap-1.5"><MapPin size={12} /> {s.city}{s.address ? ` — ${s.address}` : ''}</div>}
               </div>
               {s.notes && <p className="mt-2 text-xs text-slate-400 dark:text-gray-500 line-clamp-2">{s.notes}</p>}
-              <div className="flex items-center justify-end gap-1 mt-4 pt-3 border-t border-slate-100 dark:border-gray-700">
-                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600 transition-colors" onClick={() => setModal(s)} title="Editar">
-                  <Edit2 size={14} className="text-slate-500 dark:text-gray-400" />
+              {/* Commercial terms chips */}
+              {(s.leadTimeDays || s.paymentTerms || s.minOrderValue) ? (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {s.leadTimeDays ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                      Lead {s.leadTimeDays}d
+                    </span>
+                  ) : null}
+                  {s.paymentTerms ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                      Net-{s.paymentTerms}
+                    </span>
+                  ) : null}
+                  {s.minOrderValue ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                      Mín ${(s.minOrderValue / 1000).toFixed(0)}k
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between gap-1 mt-4 pt-3 border-t border-slate-100 dark:border-gray-700">
+                <button className="text-xs text-amazonia-700 dark:text-amazonia-400 hover:underline font-semibold" onClick={() => setDetail(s)}>
+                  Ver historial →
                 </button>
-                <button className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors" onClick={() => setDeleting(s)} title="Eliminar">
-                  <Trash2 size={14} className="text-red-400" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600 transition-colors" onClick={() => setModal(s)} title="Editar">
+                    <Edit2 size={14} className="text-slate-500 dark:text-gray-400" />
+                  </button>
+                  <button className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors" onClick={() => setDeleting(s)} title="Eliminar">
+                    <Trash2 size={14} className="text-red-400" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -246,6 +305,202 @@ export default function SuppliersPage() {
       {/* Modals */}
       {modal && <SupplierModal initial={modal === 'new' ? undefined : modal} onClose={() => setModal(null)} />}
       {deleting && <ConfirmDelete name={deleting.name} onConfirm={handleDelete} onCancel={() => setDeleting(null)} />}
+      {detail && <SupplierDetailModal supplier={detail} purchaseOrders={purchaseOrders} onClose={() => setDetail(null)} onEdit={() => { setModal(detail); setDetail(null) }} />}
+    </div>
+  )
+}
+
+// ── Supplier detail modal — history, spend, lead-time performance ──────────
+function SupplierDetailModal({ supplier, purchaseOrders, onClose, onEdit }: {
+  supplier: Supplier
+  purchaseOrders: any[]
+  onClose: () => void
+  onEdit: () => void
+}) {
+  // POs by this supplier (matched by name — loose)
+  const supplierPOs = purchaseOrders.filter(
+    (po: any) => (po.supplier || '').toLowerCase() === supplier.name.toLowerCase()
+  )
+  const activePOs   = supplierPOs.filter((po: any) => po.status !== 'cancelled')
+  const receivedPOs = supplierPOs.filter((po: any) => po.status === 'received')
+
+  const totalSpend = activePOs.reduce((sum: number, po: any) => sum + (po.total || 0), 0)
+  const orderCount = supplierPOs.length
+  const avgOrderValue = orderCount > 0 ? totalSpend / activePOs.length : 0
+
+  // Actual lead-time performance (only for received orders where we know both dates)
+  const leadTimes = receivedPOs
+    .filter((po: any) => po.date && po.receivedDate)
+    .map((po: any) => {
+      const start = new Date(po.date + 'T12:00:00').getTime()
+      const end   = new Date(po.receivedDate + 'T12:00:00').getTime()
+      return Math.round((end - start) / 86400000)
+    })
+    .filter((n: number) => !isNaN(n) && n >= 0)
+  const avgActualLead = leadTimes.length > 0
+    ? Math.round(leadTimes.reduce((a: number, b: number) => a + b, 0) / leadTimes.length)
+    : null
+
+  // On-time %: received on or before expectedDate
+  const onTimeStats = receivedPOs
+    .filter((po: any) => po.expectedDate && po.receivedDate)
+    .map((po: any) => po.receivedDate <= po.expectedDate)
+  const onTimePct = onTimeStats.length > 0
+    ? (onTimeStats.filter(Boolean).length / onTimeStats.length) * 100
+    : null
+
+  // Items supplied — flatten from PO line items, dedupe by supply name
+  const items: Record<string, { qty: number; lastPrice: number; count: number; lastDate: string }> = {}
+  activePOs.forEach((po: any) => {
+    (po.items || []).forEach((it: any) => {
+      const key = it.supplyName || it.productName || 'Sin nombre'
+      if (!items[key]) items[key] = { qty: 0, lastPrice: it.unitCost || 0, count: 0, lastDate: po.date }
+      items[key].qty += it.qty || it.quantity || 0
+      items[key].count += 1
+      if (po.date > items[key].lastDate) {
+        items[key].lastDate = po.date
+        items[key].lastPrice = it.unitCost || items[key].lastPrice
+      }
+    })
+  })
+  const topItems = Object.entries(items)
+    .sort(([, a], [, b]) => b.count - a.count)
+    .slice(0, 8)
+
+  // Recent POs — last 6
+  const recentPOs = [...supplierPOs]
+    .sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 6)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-slate-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center"
+                 style={{ background: 'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)', boxShadow: '0 4px 12px -2px rgba(15, 118, 110, 0.4)' }}>
+              <Building2 size={18} className="text-white" strokeWidth={2.3} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white">{supplier.name}</h3>
+              <p className="text-xs text-slate-500 dark:text-gray-400">
+                {supplier.contactName || '—'} · {supplier.city || 'Sin ciudad'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-sm btn-secondary" onClick={onEdit}>
+              <Edit2 size={12} /> Editar
+            </button>
+            <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* KPI row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Órdenes</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-white tabular-nums mt-0.5">{orderCount}</p>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500">{receivedPOs.length} recibidas</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Gasto acumulado</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-white tabular-nums mt-0.5">{formatCOP(totalSpend)}</p>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500">promedio {formatCOP(avgOrderValue)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Lead time real</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-white tabular-nums mt-0.5">
+                {avgActualLead !== null ? `${avgActualLead}d` : '—'}
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500">
+                {supplier.leadTimeDays ? `esperado ${supplier.leadTimeDays}d` : 'sin esperado'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Cumplimiento</p>
+              <p className={`text-lg font-bold tabular-nums mt-0.5 ${
+                onTimePct === null ? 'text-slate-400' : onTimePct >= 80 ? 'text-emerald-600' : onTimePct >= 60 ? 'text-amber-600' : 'text-red-600'
+              }`}>
+                {onTimePct !== null ? `${onTimePct.toFixed(0)}%` : '—'}
+              </p>
+              <p className="text-[10px] text-slate-400 dark:text-gray-500">
+                {onTimeStats.length > 0 ? `${onTimeStats.length} muestras` : 'sin datos'}
+              </p>
+            </div>
+          </div>
+
+          {/* Items supplied */}
+          {topItems.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-gray-400 mb-2">Insumos que provee</p>
+              <div className="rounded-xl border border-slate-200 dark:border-gray-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-gray-700/50">
+                    <tr>
+                      {['Insumo', 'Compras', 'Última compra', 'Último precio', 'Cant. acum.'].map(h => (
+                        <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topItems.map(([name, d]) => (
+                      <tr key={name} className="border-t border-slate-100 dark:border-gray-700/60">
+                        <td className="px-3 py-2 font-medium text-slate-700 dark:text-gray-200">{name}</td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-gray-400 tabular-nums text-xs">{d.count}×</td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-gray-400 text-xs">{d.lastDate}</td>
+                        <td className="px-3 py-2 tabular-nums font-semibold text-slate-800 dark:text-white">{formatCOP(d.lastPrice)}</td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-gray-400 tabular-nums text-xs">{d.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Recent POs */}
+          {recentPOs.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-gray-400 mb-2">Órdenes recientes</p>
+              <div className="space-y-2">
+                {recentPOs.map((po: any) => {
+                  const statusColor: Record<string, string> = {
+                    draft: 'bg-slate-100 text-slate-600', sent: 'bg-blue-100 text-blue-700',
+                    partial: 'bg-amber-100 text-amber-700', received: 'bg-emerald-100 text-emerald-700',
+                    cancelled: 'bg-red-100 text-red-700',
+                  }
+                  return (
+                    <div key={po.id} className="rounded-xl border border-slate-200 dark:border-gray-700 p-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-mono text-xs text-slate-500 dark:text-gray-400">{po.orderNumber || po.id}</p>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${statusColor[po.status] || 'bg-slate-100 text-slate-600'}`}>
+                            {po.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                          {po.date} {po.expectedDate ? `· esperado ${po.expectedDate}` : ''} {po.receivedDate ? `· recibido ${po.receivedDate}` : ''}
+                        </p>
+                      </div>
+                      <p className="font-bold text-slate-800 dark:text-white tabular-nums">{formatCOP(po.total || 0)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {recentPOs.length === 0 && (
+            <div className="text-center py-10 text-slate-400 dark:text-gray-500 text-sm">
+              <AlertCircle size={28} className="mx-auto mb-2 opacity-40" />
+              Este proveedor aún no tiene órdenes de compra registradas.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
