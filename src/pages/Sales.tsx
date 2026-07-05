@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck, Banknote } from 'lucide-react'
+import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck, Banknote, AlertCircle } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { SaleOrder } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
@@ -11,6 +11,7 @@ import Pagination from '../components/Pagination'
 import FacturaModal from '../components/InvoiceModal'
 import { formatCOP } from '../utils/currency'
 import { nextOrderNumber } from '../utils/orderNumber'
+import { toast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { openWhatsApp, buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
@@ -101,9 +102,26 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
   const tax        = afterDisc * taxRate
   const total      = afterDisc + tax
 
+  // ── Detect over-sold lines (qty > available stock) ──────────────────────
+  const overSold = items.map((it, idx) => {
+    const p = products.find((x) => x.id === it.productId)
+    if (!p) return null
+    const v = p.variants?.find((x) => x.id === it.variantId)
+    const activeVars = p.variants?.filter(x => x.isActive) ?? []
+    if (activeVars.length > 0 && !it.variantId) return null // still choosing variant
+    const stock = v ? v.stock : p.stock
+    return it.qty > stock ? { idx, product: p.name, qty: it.qty, stock } : null
+  }).filter(Boolean) as { idx: number; product: string; qty: number; stock: number }[]
+  const hasOverSold = overSold.length > 0
+
   const handleSave = () => {
     const customer = customers.find((c) => c.id === customerId)
     if (!customer || items.length === 0) return
+    if (hasOverSold) {
+      const line = overSold[0]
+      toast.error(`Stock insuficiente para ${line.product} (disponibles: ${line.stock})`)
+      return
+    }
     const order: SaleOrder = {
       id: `so${Date.now()}`, orderNumber: nextOrderNumber(saleOrders.map(o => o.orderNumber), `${companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-`),
       customer: customer.name, customerId,
@@ -169,7 +187,17 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
                 Agrega productos a la venta
               </div>
             )}
-            {items.map((item, i) => (
+            {items.map((item, i) => {
+              // ── Live stock for this line ──────────────────────────────
+              const line_p = products.find((x) => x.id === item.productId)
+              const line_var = line_p?.variants?.find((v) => v.id === item.variantId)
+              const line_stock = line_var ? line_var.stock : (line_p?.stock ?? 0)
+              const line_hasProduct = Boolean(line_p)
+              const line_needsVariant = (line_p?.variants?.filter(v => v.isActive)?.length ?? 0) > 0 && !item.variantId
+              const line_shortfall = line_hasProduct && !line_needsVariant && item.qty > line_stock
+              const line_lowWarn   = line_hasProduct && !line_needsVariant && !line_shortfall && item.qty > line_stock * 0.75 && line_stock > 0
+
+              return (
               <div key={i} className="grid grid-cols-12 gap-2 mb-2 items-end">
                 <div className="col-span-4">
                   {i === 0 && <label className="label">Producto</label>}
@@ -188,15 +216,30 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
                         <option value="">— Color / Acabado —</option>
                         {activeVars.map(v => {
                           const lbl = [v.attributes.color, v.attributes.acabado].filter(Boolean).join(' / ')
-                          return <option key={v.id} value={v.id}>{lbl}{v.priceOverride ? ` · ${v.priceOverride.toLocaleString('es-CO')}` : ''}</option>
+                          return <option key={v.id} value={v.id}>{lbl} · {v.stock} disp.{v.priceOverride ? ` · $${v.priceOverride.toLocaleString('es-CO')}` : ''}</option>
                         })}
                       </select>
                     )
                   })()}
+                  {line_hasProduct && !line_needsVariant && (
+                    <p className={`text-[11px] mt-1 font-medium tabular-nums ${
+                      line_shortfall
+                        ? 'text-red-600 dark:text-red-400'
+                        : line_lowWarn
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {line_shortfall
+                        ? `⚠ Solo hay ${line_stock} disponibles`
+                        : line_lowWarn
+                          ? `${line_stock} disponibles — stock justo`
+                          : `${line_stock} disponibles`}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-1">
                   {i === 0 && <label className="label">Cant.</label>}
-                  <input className="input" type="number" min="1" value={item.qty}
+                  <input className={`input ${line_shortfall ? 'ring-2 ring-red-400/60 border-red-400' : ''}`} type="number" min="1" value={item.qty}
                     onChange={(e) => updateItem(i, 'qty', parseFloat(e.target.value) || 1)} />
                 </div>
                 <div className="col-span-2">
@@ -223,7 +266,8 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Totals */}
@@ -239,10 +283,26 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           )}
+
+          {hasOverSold && (
+            <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50/70 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-300 flex items-start gap-2 animate-scaleIn">
+              <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">Stock insuficiente</p>
+                <ul className="text-xs mt-1 space-y-0.5">
+                  {overSold.map((o) => (
+                    <li key={o.idx}>· {o.product}: piden <b>{o.qty}</b>, disponibles <b>{o.stock}</b></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex gap-3 px-6 pb-5 sticky bottom-0 bg-white dark:bg-gray-800 border-t border-slate-100 dark:border-gray-700 pt-4">
           <button className="btn btn-secondary flex-1" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary flex-1" onClick={handleSave}>Confirmar venta</button>
+          <button className="btn btn-primary flex-1" onClick={handleSave} disabled={hasOverSold}>
+            {hasOverSold ? 'Ajusta cantidades' : 'Confirmar venta'}
+          </button>
         </div>
       </div>
     </div>

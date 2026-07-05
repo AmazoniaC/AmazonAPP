@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Plus, X, Search, FileText, CheckCircle, XCircle, Send,
   Clock, Eye, Pencil, Trash2, Download, ShoppingCart,
-  TrendingUp, DollarSign, AlertCircle, RotateCcw,
+  TrendingUp, DollarSign, AlertCircle, RotateCcw, MessageCircle,
 } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -16,6 +16,8 @@ import { formatCOP } from '../utils/currency'
 import { nextOrderNumber } from '../utils/orderNumber'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import { openWhatsApp, buildQuotationShare } from '../utils/whatsapp'
+import { toast } from '../components/Toast'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
@@ -390,14 +392,54 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
   onDownload: () => void
   converting: boolean
 }) {
-  const { updateQuotation, companySettings } = useStore()
+  const { updateQuotation, companySettings, customers, addActivity } = useStore()
   const [q, setQ] = useState(quotation)
   const detailTaxRate = companySettings.taxRate ?? 0.19
+  const drawerCustomer = customers.find(c => c.id === q.customerId)
 
   const updateStatus = (status: Quotation['status']) => {
     const updated = { ...q, status }
     setQ(updated)
     updateQuotation(updated)
+  }
+
+  const handleSendWhatsApp = () => {
+    if (!drawerCustomer?.phone) {
+      toast.error('El cliente no tiene teléfono registrado')
+      return
+    }
+    const itemsSummary = q.items.slice(0, 5).map(it => `• ${it.qty}× ${it.product}`).join('\n') +
+                        (q.items.length > 5 ? `\n… y ${q.items.length - 5} ítems más` : '')
+    const msg = buildQuotationShare({
+      companyName: companySettings.companyName || 'Amazonia Concrete',
+      customer: drawerCustomer.name.split(' ')[0],
+      quoteNumber: q.quoteNumber,
+      total: q.total,
+      validUntil: q.validUntil,
+      itemsSummary,
+    })
+    openWhatsApp(drawerCustomer.phone, msg)
+
+    // If still draft, promote to "sent" and log a follow-up activity
+    if (q.status === 'draft') {
+      const updated = { ...q, status: 'sent' as const }
+      setQ(updated)
+      updateQuotation(updated)
+    }
+    // Schedule follow-up activity in 3 days
+    const followUpDate = new Date()
+    followUpDate.setDate(followUpDate.getDate() + 3)
+    addActivity({
+      id: `act${Date.now()}`,
+      customerId: q.customerId,
+      type: 'whatsapp',
+      date: followUpDate.toISOString().split('T')[0],
+      subject: `Seguimiento cotización ${q.quoteNumber}`,
+      notes: `Revisar respuesta a la cotización enviada por WhatsApp.`,
+      done: false,
+      createdAt: new Date().toISOString(),
+    })
+    toast.success('Cotización enviada · seguimiento programado en 3 días')
   }
 
   const eff = effectiveStatus(q)
@@ -533,6 +575,15 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
 
           {/* Action buttons */}
           <div className="space-y-2 pt-2">
+            <button
+              className="btn w-full flex items-center gap-2 justify-center text-white"
+              style={{ background: 'linear-gradient(135deg, #25d366 0%, #128c7e 100%)' }}
+              onClick={handleSendWhatsApp}
+              disabled={!drawerCustomer?.phone}
+              title={!drawerCustomer?.phone ? 'Cliente sin teléfono' : 'Compartir por WhatsApp'}
+            >
+              <MessageCircle size={15} /> Enviar por WhatsApp
+            </button>
             <button className="btn btn-secondary w-full flex items-center gap-2 justify-center" onClick={onDownload}>
               <Download size={15} /> Descargar PDF
             </button>

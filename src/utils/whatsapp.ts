@@ -208,6 +208,47 @@ export function buildFollowUp(params: {
     .replace('{fecha}', params.date)
 }
 
+/** Build a quotation share message (for sending the quote itself) */
+export function buildQuotationShare(params: {
+  companyName: string
+  customer: string
+  quoteNumber: string
+  total: number
+  validUntil?: string
+  itemsSummary?: string
+}): string {
+  const validity = params.validUntil
+    ? `📅 *Válida hasta:* ${params.validUntil}`
+    : ''
+  const items = params.itemsSummary ? `\n\n${params.itemsSummary}` : ''
+  return `Hola ${params.customer} 👋
+
+Te comparto la cotización que preparamos en *${params.companyName}*:
+
+📄 *Cotización:* ${params.quoteNumber}
+💰 *Valor total:* ${formatCOP(params.total)}
+${validity}${items}
+
+Cualquier ajuste o pregunta, con gusto te ayudo por acá. ¡Gracias! 🌿`
+}
+
+/** Build a quotation follow-up message (nudge after N days) */
+export function buildQuotationFollowUp(params: {
+  companyName: string
+  customer: string
+  quoteNumber: string
+  daysLeft?: number
+}): string {
+  const urgency = params.daysLeft !== undefined && params.daysLeft <= 3
+    ? `\n\n⏳ Recuerda que la cotización vence en *${params.daysLeft} día${params.daysLeft === 1 ? '' : 's'}*.`
+    : ''
+  return `Hola ${params.customer} 👋
+
+Te escribo desde *${params.companyName}* para hacer seguimiento a la cotización *${params.quoteNumber}*.${urgency}
+
+¿Pudiste revisarla? Cualquier duda o ajuste, con gusto te ayudo. 🌿`
+}
+
 /** Build a bulk payment reminder */
 export function buildBulkPaymentReminder(params: {
   companyName: string

@@ -321,6 +321,8 @@ export default function Settings() {
         invoicePrefix:      company.invoicePrefix,
         monthlyGoal:        companySettings.monthlyGoal ?? 0,
         taxRate:            company.taxRate ?? 0.19,
+        paymentMethods:     companySettings.paymentMethods,
+        taxRates:           companySettings.taxRates,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -331,19 +333,48 @@ export default function Settings() {
     }
   }
 
-  const [payMethods] = useState([
-    { id:1, name:'Efectivo',        isActive:true  },
-    { id:2, name:'Tarjeta débito',  isActive:true  },
-    { id:3, name:'Tarjeta crédito', isActive:true  },
-    { id:4, name:'Transferencia',   isActive:true  },
-    { id:5, name:'Cheque',          isActive:false },
-  ])
+  // ── Payment methods & tax rates (persisted in companySettings) ────────
+  const payMethods = companySettings.paymentMethods
+  const taxes = companySettings.taxRates
 
-  const [taxes] = useState([
-    { id:1, name:'IVA 16%', rate:16, isDefault:true,  isActive:true },
-    { id:2, name:'IVA 0%',  rate:0,  isDefault:false, isActive:true },
-    { id:3, name:'Exento',  rate:0,  isDefault:false, isActive:true },
-  ])
+  const togglePayMethod = async (id: string) => {
+    const updated = payMethods.map(m => m.id === id ? { ...m, isActive: !m.isActive } : m)
+    await saveCompanySettings({ ...companySettings, paymentMethods: updated })
+  }
+  const addPayMethod = async () => {
+    const name = window.prompt('Nombre del método de pago:')
+    if (!name?.trim()) return
+    const id = `pm_${Date.now()}`
+    const updated = [...payMethods, { id, name: name.trim(), isActive: true }]
+    await saveCompanySettings({ ...companySettings, paymentMethods: updated })
+  }
+  const removePayMethod = async (id: string) => {
+    const updated = payMethods.filter(m => m.id !== id)
+    await saveCompanySettings({ ...companySettings, paymentMethods: updated })
+  }
+
+  const toggleTax = async (id: string) => {
+    const updated = taxes.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t)
+    await saveCompanySettings({ ...companySettings, taxRates: updated })
+  }
+  const setDefaultTax = async (id: string) => {
+    const updated = taxes.map(t => ({ ...t, isDefault: t.id === id }))
+    await saveCompanySettings({ ...companySettings, taxRates: updated })
+  }
+  const removeTax = async (id: string) => {
+    const updated = taxes.filter(t => t.id !== id)
+    await saveCompanySettings({ ...companySettings, taxRates: updated })
+  }
+  const addTax = async () => {
+    const name = window.prompt('Nombre del impuesto (ej: IVA 5%):')
+    if (!name?.trim()) return
+    const rateStr = window.prompt('Tasa en % (ej: 5 para 5%):')
+    const rate = parseFloat(rateStr || '0') / 100
+    if (!Number.isFinite(rate) || rate < 0) return
+    const id = `tx_${Date.now()}`
+    const updated = [...taxes, { id, name: name.trim(), rate, isDefault: false, isActive: true }]
+    await saveCompanySettings({ ...companySettings, taxRates: updated })
+  }
 
   return (
     <div className="space-y-6">
@@ -896,14 +927,17 @@ export default function Settings() {
                         {m.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" defaultChecked={m.isActive} className="sr-only peer" />
-                        <div className="w-9 h-5 bg-slate-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        <input type="checkbox" checked={m.isActive} onChange={() => togglePayMethod(m.id)} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-slate-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-amazonia-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                       </label>
+                      <button onClick={() => removePayMethod(m.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-              <button className="btn btn-secondary"><span>+ Agregar método</span></button>
+              <button onClick={addPayMethod} className="btn btn-secondary">+ Agregar método</button>
             </div>
           )}
 
@@ -1015,30 +1049,52 @@ export default function Settings() {
 
           {activeTab === 'impuestos' && (
             <div className="space-y-5">
-              <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Percent size={18} /> Tasas de impuesto</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
-                    {['Nombre','Tasa','Por defecto','Estado'].map((h) => (
-                      <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-gray-400">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {taxes.map((t) => (
-                    <tr key={t.id} className="table-row">
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-gray-200">{t.name}</td>
-                      <td className="px-4 py-3 font-bold text-slate-700 dark:text-gray-200">{t.rate}%</td>
-                      <td className="px-4 py-3">{t.isDefault && <span className="badge badge-blue">Por defecto</span>}</td>
-                      <td className="px-4 py-3">
-                        <span className={`badge ${t.isActive ? 'badge-green' : 'badge-gray'}`}>
-                          {t.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Percent size={18} /> Tasas de impuesto</h2>
+                <button onClick={addTax} className="btn btn-sm btn-secondary">+ Nuevo impuesto</button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-gray-400">La tasa marcada como <b>Por defecto</b> se aplica automáticamente al crear ventas y cotizaciones.</p>
+              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
+                      {['Nombre','Tasa','Por defecto','Estado','Acciones'].map((h) => (
+                        <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-gray-400">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {taxes.map((t) => (
+                      <tr key={t.id} className="table-row">
+                        <td className="px-4 py-3 font-medium text-slate-800 dark:text-gray-200">{t.name}</td>
+                        <td className="px-4 py-3 font-bold text-slate-700 dark:text-gray-200 tabular-nums">{(t.rate * 100).toFixed(2).replace(/\.?0+$/, '')}%</td>
+                        <td className="px-4 py-3">
+                          {t.isDefault ? (
+                            <span className="badge badge-blue">Por defecto</span>
+                          ) : (
+                            <button onClick={() => setDefaultTax(t.id)} className="text-xs text-slate-400 hover:text-amazonia-700 underline">
+                              Marcar por defecto
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={t.isActive} onChange={() => toggleTax(t.id)} className="sr-only peer" />
+                            <div className="w-9 h-5 bg-slate-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-amazonia-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                          </label>
+                        </td>
+                        <td className="px-4 py-3">
+                          {!t.isDefault && (
+                            <button onClick={() => removeTax(t.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

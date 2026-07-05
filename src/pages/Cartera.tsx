@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   Wallet, Search, AlertCircle, Clock, CheckCircle, AlertTriangle,
-  ChevronDown, ChevronUp, DollarSign, Users,
+  ChevronDown, ChevronUp, DollarSign, Users, MessageCircle, Banknote,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { formatCOP } from '../utils/currency'
@@ -9,6 +9,9 @@ import Pagination from '../components/Pagination'
 import DateRangeFilter from '../components/DateRangeFilter'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import { toast } from '../components/Toast'
+import { openWhatsApp, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
+import { PaymentModal } from './Payments'
 import * as XLSX from 'xlsx'
 
 type PayFilter = '' | 'pending' | 'partial' | 'paid'
@@ -32,7 +35,8 @@ function daysDiff(d: string) {
 const PAGE_SIZE = 12
 
 export default function CarteraPage() {
-  const { saleOrders, customers } = useStore()
+  const { saleOrders, customers, payments, companySettings } = useStore()
+  const [codPrefill, setCodPrefill] = useState<null | { saleOrderId: string; saleOrderNumber: string; customer: string; customerId: string; remaining: number }>(null)
   const [search, setSearch] = useState('')
   const [payFilter, setPayFilter] = useState<PayFilter>('')
   const [page, setPage] = useState(1)
@@ -217,11 +221,12 @@ export default function CarteraPage() {
                 <span className="flex items-center gap-1">Días <SortIcon k="aging" /></span>
               </th>
               <th className="pb-3 px-4">Rango</th>
+              <th className="pb-3 px-4 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {paged.length === 0 && (
-              <tr><td colSpan={8} className="text-center py-12 text-slate-400 dark:text-gray-500">
+              <tr><td colSpan={9} className="text-center py-12 text-slate-400 dark:text-gray-500">
                 <AlertCircle size={32} className="mx-auto mb-2 opacity-40" />
                 No se encontraron registros
               </td></tr>
@@ -233,6 +238,32 @@ export default function CarteraPage() {
                 '16-30': 'text-amber-600 dark:text-amber-400',
                 '31-60': 'text-orange-600 dark:text-orange-400',
                 '60+': 'text-red-600 dark:text-red-400',
+              }
+              const paid = payments.filter(p => p.saleOrderId === o.id).reduce((s, p) => s + p.amount, 0)
+              const remaining = o.total - paid
+              const handleCharge = () => setCodPrefill({
+                saleOrderId: o.id,
+                saleOrderNumber: o.orderNumber,
+                customer: o.customer,
+                customerId: o.customerId,
+                remaining,
+              })
+              const handleRemind = () => {
+                const cust = customers.find(c => c.id === o.customerId)
+                if (!cust?.phone) {
+                  toast.error('El cliente no tiene teléfono registrado')
+                  return
+                }
+                const msg = buildPaymentReminder({
+                  companyName: companySettings.companyName || 'Amazonia Concrete',
+                  customer: o.customer.split(' ')[0],
+                  orderNumber: o.orderNumber,
+                  date: o.date,
+                  total: remaining,
+                  paymentStatus: o.paymentStatus,
+                  bankInfo: getBankInfo(companySettings),
+                })
+                openWhatsApp(cust.phone, msg)
               }
               return (
                 <tr key={o.id} className="border-b border-slate-50 dark:border-gray-700/50 hover:bg-slate-50 dark:hover:bg-gray-700/30 transition-colors">
@@ -252,6 +283,27 @@ export default function CarteraPage() {
                   <td className="py-3 px-4">
                     <span className={`text-xs font-medium ${bucketColor[o.agingBucket] ?? ''}`}>{o.agingBucket}</span>
                   </td>
+                  <td className="py-3 px-4">
+                    {remaining > 0 && (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700 p-1.5 border-0"
+                          onClick={handleCharge}
+                          title="Cobrar"
+                        >
+                          <Banknote size={14} />
+                        </button>
+                        <button
+                          className="btn btn-sm text-white p-1.5 border-0"
+                          style={{ background: 'linear-gradient(135deg, #25d366 0%, #128c7e 100%)' }}
+                          onClick={handleRemind}
+                          title="Recordar por WhatsApp"
+                        >
+                          <MessageCircle size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               )
             })}
@@ -261,6 +313,8 @@ export default function CarteraPage() {
           <Pagination page={page} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
         </div>
       </div>
+
+      {codPrefill && <PaymentModal prefill={codPrefill} onClose={() => setCodPrefill(null)} />}
     </div>
   )
 }

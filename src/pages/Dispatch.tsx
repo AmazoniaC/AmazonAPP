@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Truck, Plus, Search, X, CheckCircle2, Clock, AlertCircle, Package2,
   MapPin, User, Calendar, Trash2, ChevronDown, ChevronUp, Send, Ban,
-  Navigation, ReceiptText, MessageCircle, RotateCcw, History,
+  Navigation, ReceiptText, MessageCircle, RotateCcw, History, Banknote,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Dispatch, DeliveryAttempt } from '../data/mockData'
@@ -375,9 +375,12 @@ function FailReasonModal({
   )
 }
 
+// ── Import PaymentModal for cash-on-delivery collection ──────────────────────
+import { PaymentModal } from './Payments'
+
 // ── Dispatch Detail Drawer ────────────────────────────────────────────────────
 function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => void; onEdit: () => void }) {
-  const { updateDispatch, customers, companySettings } = useStore()
+  const { updateDispatch, customers, companySettings, saleOrders, payments } = useStore()
   const customer = customers.find(c => c.id === d.customerId)
   const [expanded, setExpanded] = useState(true)
   const [delivering, setDelivering] = useState(false)
@@ -386,6 +389,13 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
 
   const StatusIcon = STATUS_ICON[d.status] ?? Truck
   const attempts = d.deliveryAttempts ?? []
+  const [codPrefill, setCodPrefill] = useState<null | { saleOrderId: string; saleOrderNumber: string; customer: string; customerId: string; remaining: number }>(null)
+
+  // Remaining balance on the linked sale order (if any)
+  const linkedOrder = d.saleOrderId ? saleOrders.find(o => o.id === d.saleOrderId) : undefined
+  const orderPayments = linkedOrder ? payments.filter(p => p.saleOrderId === linkedOrder.id) : []
+  const orderPaid = orderPayments.reduce((sum, p) => sum + p.amount, 0)
+  const orderRemaining = linkedOrder ? Math.max(0, linkedOrder.total - orderPaid) : 0
 
   const changeStatus = async (status: Dispatch['status']) => {
     setDelivering(true)
@@ -397,6 +407,20 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
     }
     await updateDispatch(updated)
     setDelivering(false)
+
+    // Cash-on-delivery: if we just delivered and the linked order still owes
+    // money, open the payment modal pre-filled with the driver's name.
+    if (status === 'delivered' && linkedOrder && orderRemaining > 0) {
+      setCodPrefill({
+        saleOrderId:     linkedOrder.id,
+        saleOrderNumber: linkedOrder.orderNumber,
+        customer:        linkedOrder.customer,
+        customerId:      linkedOrder.customerId,
+        remaining:       orderRemaining,
+      })
+      return  // don't close the drawer — PaymentModal opens on top
+    }
+
     onClose()
   }
 
@@ -564,9 +588,22 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
             )}
             {d.status === 'in_transit' && (
               <>
+                {orderRemaining > 0 && (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 px-3.5 py-2.5 mb-2 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                      <Banknote size={14} className="text-amber-700 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-bold text-amber-900 dark:text-amber-300 leading-tight uppercase tracking-wide">Cobrar al entregar</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white tabular-nums">
+                        {formatCOP(orderRemaining)}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <button onClick={() => changeStatus('delivered')} disabled={delivering}
                   className="w-full btn flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <CheckCircle2 size={14} /> Confirmar entrega
+                  <CheckCircle2 size={14} /> Confirmar entrega{orderRemaining > 0 ? ' y cobrar' : ''}
                 </button>
                 <button onClick={() => setShowFailModal(true)} disabled={delivering}
                   className="w-full btn flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
@@ -628,6 +665,14 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
           currentDriver={d.driver}
           onCancel={() => setShowFailModal(false)}
           onConfirm={handleFailConfirm}
+        />
+      )}
+
+      {/* Cash-on-delivery payment modal (auto-opened on "Confirmar entrega" when balance > 0) */}
+      {codPrefill && (
+        <PaymentModal
+          prefill={codPrefill}
+          onClose={() => { setCodPrefill(null); onClose() }}
         />
       )}
     </div>
