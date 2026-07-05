@@ -5,7 +5,7 @@ import {
 import {
   TrendingUp, TrendingDown, Package, Factory,
   AlertTriangle, ShoppingCart, DollarSign, Users, Clock, RefreshCw,
-  Target, Wallet, ArrowUpRight, ArrowDownRight, Edit2, Check, MessageCircle, Send,
+  Target, Wallet, ArrowUpRight, ArrowDownRight, Edit2, Check, MessageCircle, Send, Truck,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store/useStore'
@@ -74,7 +74,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Dashboard() {
-  const { supplies, saleOrders, productionOrders, products, expenses, purchaseOrders, customers, companySettings, dispatches, darkMode, loadAllData, user, saveCompanySettings } = useStore()
+  const { supplies, saleOrders, productionOrders, products, expenses, purchaseOrders, customers, companySettings, dispatches, darkMode, loadAllData, user, saveCompanySettings, payments } = useStore()
   const role = user?.role ?? 'Administrador'
   const isAdmin = role === 'Administrador'
   const showSales = isAdmin || role === 'Ventas' || role === 'Contabilidad'
@@ -253,6 +253,120 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ─── "Desde ayer" — morning digest ─── */}
+      {(() => {
+        const todayISO = new Date().toISOString().split('T')[0]
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+        const yISO = yesterday.toISOString().split('T')[0]
+
+        // Orders created today (net new)
+        const newOrders = saleOrders.filter((o) => o.date === todayISO && o.status !== 'cancelled')
+        const newOrdersValue = newOrders.reduce((s, o) => s + o.total, 0)
+
+        // Cash collected today
+        const paidToday = payments.filter((p) => p.date === todayISO).reduce((s, p) => s + p.amount, 0)
+
+        // Orders that crossed +30 days overdue today
+        const overdueCrossedToday = saleOrders.filter((o) => {
+          if (o.paymentStatus === 'paid' || o.status === 'cancelled') return false
+          const dayDiff = Math.floor((Date.now() - new Date(o.date + 'T12:00:00').getTime()) / 86400000)
+          return dayDiff === 30 || dayDiff === 31
+        }).length
+
+        // Supplies that crossed below minimum since yesterday (approximation:
+        // items below minimum today — we don't have yesterday's stock, so this
+        // just shows all currently below-min items with a "hoy" tag)
+        const belowMin = supplies.filter((s) => s.stock < s.minStock).length
+
+        // Dispatches scheduled for today
+        const dispatchesToday = dispatches.filter((d) =>
+          d.scheduledDate === todayISO && (d.status === 'scheduled' || d.status === 'in_transit')
+        ).length
+
+        // Nothing to show? Hide the strip.
+        const nothing = newOrders.length === 0 && paidToday === 0 && overdueCrossedToday === 0 && belowMin === 0 && dispatchesToday === 0
+        if (nothing) return null
+
+        const tiles = [
+          {
+            label: 'Órdenes nuevas',
+            value: String(newOrders.length),
+            sub: newOrders.length > 0 ? formatCOP(newOrdersValue) : 'ninguna hoy',
+            icon: ShoppingCart,
+            color: '#2563eb',
+            highlight: newOrders.length > 0,
+          },
+          {
+            label: 'Plata cobrada',
+            value: formatCOP(paidToday),
+            sub: paidToday > 0 ? 'depositada hoy' : 'sin pagos',
+            icon: DollarSign,
+            color: '#10b981',
+            highlight: paidToday > 0,
+          },
+          {
+            label: 'Cruzaron +30 días',
+            value: String(overdueCrossedToday),
+            sub: overdueCrossedToday > 0 ? 'requieren gestión' : 'sin nuevos',
+            icon: Clock,
+            color: '#ef4444',
+            highlight: overdueCrossedToday > 0,
+          },
+          {
+            label: 'Despachos hoy',
+            value: String(dispatchesToday),
+            sub: dispatchesToday > 0 ? 'programados / en ruta' : 'sin salidas',
+            icon: Truck,
+            color: '#8b5cf6',
+            highlight: dispatchesToday > 0,
+          },
+          {
+            label: 'Bajo mínimo',
+            value: String(belowMin),
+            sub: belowMin > 0 ? 'insumos a reponer' : 'inventario ok',
+            icon: AlertTriangle,
+            color: '#f59e0b',
+            highlight: belowMin > 0,
+          },
+        ]
+
+        return (
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-gray-700/60"
+               style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(248,250,252,0.7) 100%)' }}>
+            <div className="absolute -top-6 -right-6 w-40 h-40 rounded-full blur-3xl pointer-events-none"
+                 style={{ background: 'radial-gradient(circle, rgba(82,125,54,0.14) 0%, transparent 70%)' }} />
+            <div className="relative px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                   style={{ background: 'linear-gradient(135deg, #527d36 0%, #2d4a1e 100%)', boxShadow: '0 4px 12px -2px rgba(82,125,54,0.35)' }}>
+                <Clock size={16} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold text-amazonia-700 dark:text-amazonia-400 uppercase tracking-widest">Desde ayer</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">Un vistazo rápido a lo que pasó y lo que hay que atender hoy.</p>
+              </div>
+            </div>
+            <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-slate-200/60 dark:bg-gray-700/50 border-t border-slate-200/60 dark:border-gray-700/60">
+              {tiles.map((t) => (
+                <div key={t.label} className="bg-white/70 dark:bg-gray-800/70 px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center"
+                         style={{ background: t.highlight ? t.color + '22' : 'rgba(148,163,184,0.15)' }}>
+                      <t.icon size={12} style={{ color: t.highlight ? t.color : '#94a3b8' }} strokeWidth={2.4} />
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 dark:text-gray-400 uppercase tracking-wide">{t.label}</p>
+                  </div>
+                  <p className={`text-lg font-bold tabular-nums leading-tight ${t.highlight ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-gray-500'}`}
+                     style={t.highlight ? { color: t.color } : undefined}>
+                    {t.value}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-gray-400 truncate mt-0.5">{t.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Low stock alert */}
       {lowStock.length > 0 && (

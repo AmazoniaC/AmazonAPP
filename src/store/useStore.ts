@@ -71,6 +71,8 @@ export interface CompanySettings {
   invoicePrefix: string
   monthlyGoal: number
   taxRate: number  // IVA rate as decimal (0.19 = 19%)
+  paymentMethods: { id: string; name: string; isActive: boolean }[]
+  taxRates: { id: string; name: string; rate: number; isDefault: boolean; isActive: boolean }[]
 }
 
 interface AppState {
@@ -334,6 +336,19 @@ const defaultCompanySettings: CompanySettings = {
   invoicePrefix: 'VTA',
   monthlyGoal: 0,
   taxRate: 0.19,
+  paymentMethods: [
+    { id: 'cash',      name: 'Efectivo',      isActive: true },
+    { id: 'transfer',  name: 'Transferencia', isActive: true },
+    { id: 'nequi',     name: 'Nequi',         isActive: true },
+    { id: 'daviplata', name: 'Daviplata',     isActive: true },
+    { id: 'card',      name: 'Tarjeta',       isActive: true },
+    { id: 'check',     name: 'Cheque',        isActive: false },
+  ],
+  taxRates: [
+    { id: 'iva19',  name: 'IVA 19%', rate: 0.19, isDefault: true,  isActive: true },
+    { id: 'iva0',   name: 'IVA 0%',  rate: 0,    isDefault: false, isActive: true },
+    { id: 'exento', name: 'Exento',  rate: 0,    isDefault: false, isActive: true },
+  ],
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -421,6 +436,8 @@ export const useStore = create<AppState>((set, get) => ({
         invoicePrefix:      settings.invoicePrefix      ?? defaultCompanySettings.invoicePrefix,
         monthlyGoal:        settings.monthlyGoal        ?? defaultCompanySettings.monthlyGoal,
         taxRate:            settings.taxRate            ?? defaultCompanySettings.taxRate,
+        paymentMethods:     settings.paymentMethods     ?? defaultCompanySettings.paymentMethods,
+        taxRates:           settings.taxRates           ?? defaultCompanySettings.taxRates,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })
