@@ -75,6 +75,14 @@ async function migrate() {
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS payment_methods    JSONB DEFAULT '[{"id":"cash","name":"Efectivo","isActive":true},{"id":"transfer","name":"Transferencia","isActive":true},{"id":"nequi","name":"Nequi","isActive":true},{"id":"daviplata","name":"Daviplata","isActive":true},{"id":"card","name":"Tarjeta","isActive":true},{"id":"check","name":"Cheque","isActive":false}]';
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS tax_rates          JSONB DEFAULT '[{"id":"iva19","name":"IVA 19%","rate":0.19,"isDefault":true,"isActive":true},{"id":"iva0","name":"IVA 0%","rate":0,"isDefault":false,"isActive":true},{"id":"exento","name":"Exento","rate":0,"isDefault":false,"isActive":true}]';
       ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_attempts JSONB DEFAULT '[]';
+      ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_proof    JSONB DEFAULT NULL;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS lead_time_days  INTEGER DEFAULT 0;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms   INTEGER DEFAULT 0;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS min_order_value NUMERIC(14,2) DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS rejected_qty       NUMERIC DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS finished_at        TIMESTAMP;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS actual_ingredients JSONB DEFAULT '[]';
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS notes              TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS sku TEXT DEFAULT '';

@@ -52,6 +52,44 @@ router.put('/:id/status', validate(updateProductionOrderStatusSchema), async (re
   }
 })
 
+// Finalize a production order with actual data — captures real qty, rejections,
+// ingredient consumption and computes the real cost.
+router.put('/:id/finish', async (req, res) => {
+  const { actualQty, rejectedQty, actualCost, actualIngredients, notes } = req.body
+  try {
+    const { rows } = await pool.query(
+      `UPDATE production_orders
+       SET status = 'finished',
+           actual_qty         = $1,
+           rejected_qty       = $2,
+           actual_cost        = $3,
+           actual_ingredients = $4,
+           notes              = $5,
+           finished_at        = NOW()
+       WHERE id = $6
+       RETURNING *`,
+      [
+        actualQty ?? 0,
+        rejectedQty ?? 0,
+        actualCost ?? 0,
+        JSON.stringify(actualIngredients ?? []),
+        notes ?? '',
+        req.params.id,
+      ]
+    )
+    if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    const u = getUser(req)
+    await log({
+      userName: u.name, userEmail: u.email, action: 'editar', entity: 'Orden de producción',
+      entityId: req.params.id, entityName: rows[0].product_name,
+      details: `finalizada · producidas ${actualQty}, rechazadas ${rejectedQty}, costo real ${actualCost}`,
+    })
+    res.json(rows[0])
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 router.delete('/:id', async (req, res) => {
   try {
     const { rows } = await pool.query('DELETE FROM production_orders WHERE id=$1 RETURNING product_name AS "productName"', [req.params.id])

@@ -22,6 +22,12 @@ const UNITS = ['u','kg','g','lb','oz','L','mL','m','cm','mm','m²','m³','rollo'
 function OrderCard({ order, onDelete, canDelete }: { order: ProductionOrder; onDelete: () => void; canDelete: boolean }) {
   const { updateProductionOrderStatus } = useStore()
   const [expanded, setExpanded] = useState(false)
+  const [showFinalize, setShowFinalize] = useState(false)
+
+  const handleAction = (status: ProductionOrder['status']) => {
+    if (status === 'finished') { setShowFinalize(true); return }
+    updateProductionOrderStatus(order.id, status)
+  }
 
   const actions: { label: string; status: ProductionOrder['status']; cls: string }[] = []
   if (order.status === 'pending')     actions.push({ label:'Iniciar', status:'in_progress', cls:'btn-primary' })
@@ -91,10 +97,39 @@ function OrderCard({ order, onDelete, canDelete }: { order: ProductionOrder; onD
           </div>
         )}
 
+        {/* Actuals summary (only when finished) */}
+        {order.status === 'finished' && order.actualQty !== undefined && (
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-gray-700 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Producidas</p>
+              <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200 tabular-nums">{order.actualQty}</p>
+            </div>
+            {(order.rejectedQty ?? 0) > 0 && (
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-2">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">Rechazadas</p>
+                <p className="text-sm font-bold text-red-900 dark:text-red-200 tabular-nums">{order.rejectedQty}</p>
+              </div>
+            )}
+            {order.actualCost && (
+              <div className={`rounded-lg p-2 ${
+                order.actualCost > order.estimatedCost * 1.05
+                  ? 'bg-amber-50 dark:bg-amber-900/20'
+                  : 'bg-slate-50 dark:bg-gray-700'
+              }`}>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-gray-400">Costo real</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-white tabular-nums">{formatCOP(order.actualCost)}</p>
+                {order.actualCost > order.estimatedCost * 1.05 && (
+                  <p className="text-[9px] text-amber-700 dark:text-amber-400">+{Math.round((order.actualCost / order.estimatedCost - 1) * 100)}%</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-gray-700">
           {actions.map((a) => (
             <button key={a.status} className={`btn btn-sm ${a.cls} flex-1`}
-              onClick={() => updateProductionOrderStatus(order.id, a.status)}>
+              onClick={() => handleAction(a.status)}>
               {a.status === 'in_progress' && <Play size={12} />}
               {a.status === 'finished'    && <CheckCircle size={12} />}
               {a.status === 'cancelled'   && <XCircle size={12} />}
@@ -107,6 +142,200 @@ function OrderCard({ order, onDelete, canDelete }: { order: ProductionOrder; onD
               <Trash2 size={12} />
             </button>
           )}
+        </div>
+      </div>
+
+      {showFinalize && (
+        <FinalizeProductionModal
+          order={order}
+          onClose={() => setShowFinalize(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Finalize with actuals modal ──────────────────────────────────────────────
+function FinalizeProductionModal({ order, onClose }: { order: ProductionOrder; onClose: () => void }) {
+  const { finalizeProductionOrder, recipes, supplies } = useStore()
+  const recipe = recipes.find((r) => r.id === order.recipeId)
+  const batchesPlanned = recipe && recipe.yieldQty > 0 ? order.plannedQty / recipe.yieldQty : 1
+
+  const [actualQty, setActualQty] = useState<number>(order.plannedQty)
+  const [rejectedQty, setRejectedQty] = useState<number>(0)
+  const [notes, setNotes] = useState('')
+  const [ingredients, setIngredients] = useState<{ supplyId: string; supplyName: string; qty: number; unit: string }[]>(() => {
+    if (!recipe) return []
+    return recipe.ingredients.map((ing) => ({
+      supplyId: ing.supplyId,
+      supplyName: ing.supplyName,
+      qty: parseFloat((ing.qty * batchesPlanned).toFixed(4)),
+      unit: ing.unit,
+    }))
+  })
+  const [saving, setSaving] = useState(false)
+
+  // Recompute actualCost from ingredients × supply.cost
+  const actualCost = ingredients.reduce((sum, ing) => {
+    const supply = supplies.find((s) => s.id === ing.supplyId)
+    return sum + ing.qty * (supply?.cost ?? 0)
+  }, 0)
+  const costPerUnit = actualQty > 0 ? actualCost / actualQty : 0
+  const costDelta = actualCost - order.estimatedCost
+  const costDeltaPct = order.estimatedCost > 0 ? (costDelta / order.estimatedCost) * 100 : 0
+
+  const yieldPct = order.plannedQty > 0 ? (actualQty / order.plannedQty) * 100 : 0
+  const rejectionPct = (actualQty + rejectedQty) > 0
+    ? (rejectedQty / (actualQty + rejectedQty)) * 100
+    : 0
+
+  const updateIngredient = (idx: number, qty: number) => {
+    setIngredients(ings => ings.map((ing, i) => i === idx ? { ...ing, qty } : ing))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await finalizeProductionOrder(order.id, {
+        actualQty,
+        rejectedQty,
+        actualCost: Math.round(actualCost),
+        actualIngredients: ingredients,
+        notes: notes.trim() || undefined,
+      })
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto animate-fadeIn" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-slate-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Finalizar producción</p>
+            <h3 className="font-bold text-slate-800 dark:text-white text-lg">{order.product}</h3>
+            <p className="text-xs text-slate-500 dark:text-gray-400">
+              Orden {order.orderNumber} · planeado {order.plannedQty} u · costo estimado {formatCOP(order.estimatedCost)}
+            </p>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Actuals: qty produced + rejected */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Producidas *</label>
+              <input className="input" type="number" min="0" step="1"
+                value={actualQty}
+                onChange={(e) => setActualQty(parseFloat(e.target.value) || 0)} />
+              <p className={`text-[10px] mt-1 font-semibold ${yieldPct >= 95 ? 'text-emerald-600' : yieldPct >= 85 ? 'text-amber-600' : 'text-red-600'}`}>
+                Rendimiento {yieldPct.toFixed(0)}% vs plan
+              </p>
+            </div>
+            <div>
+              <label className="label">Rechazadas / merma</label>
+              <input className="input" type="number" min="0" step="1"
+                value={rejectedQty}
+                onChange={(e) => setRejectedQty(parseFloat(e.target.value) || 0)} />
+              <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">
+                {rejectedQty > 0 ? `Tasa de rechazo ${rejectionPct.toFixed(1)}%` : 'Sin piezas rechazadas'}
+              </p>
+            </div>
+          </div>
+
+          {/* Actual ingredients */}
+          {recipe && ingredients.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-gray-400">Consumo real de insumos</p>
+                <p className="text-[10px] text-slate-400 dark:text-gray-500">
+                  Ajusta la cantidad realmente usada
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-gray-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-gray-700/50">
+                    <tr>
+                      {['Insumo', 'Teórico', 'Real', 'Varianza'].map(h => (
+                        <th key={h} className="text-left px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ingredients.map((ing, idx) => {
+                      const theoretical = recipe.ingredients[idx]
+                        ? recipe.ingredients[idx].qty * batchesPlanned
+                        : 0
+                      const variance = theoretical > 0 ? ((ing.qty - theoretical) / theoretical) * 100 : 0
+                      return (
+                        <tr key={ing.supplyId} className="border-t border-slate-100 dark:border-gray-700/60">
+                          <td className="px-3 py-2 font-medium text-slate-700 dark:text-gray-200">{ing.supplyName}</td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-gray-400 tabular-nums text-xs">{theoretical.toFixed(2)} {ing.unit}</td>
+                          <td className="px-3 py-2">
+                            <input className="input py-1 text-sm w-24 tabular-nums" type="number" min="0" step="0.01"
+                              value={ing.qty}
+                              onChange={(e) => updateIngredient(idx, parseFloat(e.target.value) || 0)} />
+                          </td>
+                          <td className={`px-3 py-2 tabular-nums text-xs font-semibold ${
+                            Math.abs(variance) < 5
+                              ? 'text-slate-500 dark:text-gray-400'
+                              : variance > 0
+                                ? 'text-amber-600'
+                                : 'text-emerald-600'
+                          }`}>
+                            {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Cost summary */}
+          <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-4 grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Costo real</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-white tabular-nums">{formatCOP(actualCost)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">Por unidad</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-white tabular-nums">{formatCOP(costPerUnit)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">vs. plan</p>
+              <p className={`text-lg font-bold tabular-nums ${
+                Math.abs(costDeltaPct) < 5
+                  ? 'text-slate-600 dark:text-gray-300'
+                  : costDeltaPct > 0
+                    ? 'text-amber-600'
+                    : 'text-emerald-600'
+              }`}>
+                {costDeltaPct >= 0 ? '+' : ''}{costDeltaPct.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="label">Notas (opcional)</label>
+            <textarea className="input resize-none" rows={2}
+              placeholder="Ej: color más oscuro por lote de pigmento, molde nuevo probado..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-slate-100 dark:border-gray-700 px-6 py-4 flex gap-3 rounded-b-2xl">
+          <button className="btn btn-secondary flex-1" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn btn-success flex-1" onClick={handleSave} disabled={saving || actualQty <= 0}>
+            {saving ? 'Finalizando...' : `Finalizar · ${actualQty} u`}
+          </button>
         </div>
       </div>
     </div>

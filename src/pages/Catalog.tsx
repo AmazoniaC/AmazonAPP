@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Plus, Search, X, BookOpen, Tag, TrendingUp, Trash2, Pencil,
   LayoutGrid, List, ArrowUpDown, SlidersHorizontal, FileSpreadsheet,
   ImageIcon, ChevronDown, Star, ShoppingCart, DollarSign, Package, ExternalLink, Upload,
+  Share2, Copy, QrCode, Instagram, MessageCircle, Download,
 } from 'lucide-react'
+import QRCode from 'qrcode'
 import { useStore } from '../store/useStore'
 import { Product, ProductVariant } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
@@ -13,6 +15,8 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
 import { computeProductCostAudit } from '../utils/productCost'
+import { toast } from '../components/Toast'
+import type { CompanySettings } from '../store/useStore'
 import * as XLSX from 'xlsx'
 import ImportModal from '../components/ImportModal'
 
@@ -379,10 +383,299 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
   )
 }
 
+// ─── ShareModal ─────────────────────────────────────────────────────────────
+function buildShareUrl(product: Product) {
+  return `${window.location.origin}/catalogo#product-${product.id}`
+}
+
+function buildWhatsAppMessage(product: Product) {
+  const url = buildShareUrl(product)
+  const desc = product.description?.trim() || product.category || ''
+  return `*${product.name}*\n${desc}\n\n💰 ${formatCOP(product.price)}\n\nVer más en nuestro catálogo:\n${url}`
+}
+
+function triggerDownload(dataUrl: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = dataUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+function drawLeafPlaceholder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.save()
+  ctx.fillStyle = '#D8CFC0'
+  ctx.fillRect(x, y, w, h)
+  ctx.fillStyle = '#152E2A'
+  ctx.font = `${Math.floor(h * 0.4)}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('🌿', x + w / 2, y + h / 2)
+  ctx.restore()
+}
+
+function ShareModal({ product, companySettings, onClose }: {
+  product: Product
+  companySettings: CompanySettings
+  onClose: () => void
+}) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [generatingStory, setGeneratingStory] = useState(false)
+  const shareUrl = buildShareUrl(product)
+  const waText = buildWhatsAppMessage(product)
+  const m = margin(product)
+
+  useEffect(() => {
+    QRCode.toDataURL(shareUrl, {
+      width: 320,
+      margin: 1,
+      color: { dark: '#152E2A', light: '#ffffff' },
+    })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null))
+  }, [shareUrl])
+
+  const handleCopyWaLink = async () => {
+    const waLink = `https://wa.me/?text=${encodeURIComponent(waText)}`
+    try {
+      await navigator.clipboard.writeText(waLink)
+      toast.success('Enlace de WhatsApp copiado')
+    } catch {
+      toast.error('No se pudo copiar el enlace')
+    }
+  }
+
+  const handleCopyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(waText)
+      toast.success('Mensaje copiado al portapapeles')
+    } catch {
+      toast.error('No se pudo copiar el mensaje')
+    }
+  }
+
+  const handleDownloadQR = () => {
+    if (!qrDataUrl) return
+    triggerDownload(qrDataUrl, `qr-${product.sku || product.id}.png`)
+  }
+
+  const handleDownloadStory = async () => {
+    setGeneratingStory(true)
+    try {
+      const W = 1080
+      const H = 1920
+      const canvas = document.createElement('canvas')
+      canvas.width = W
+      canvas.height = H
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('No canvas context')
+
+      // Background
+      ctx.fillStyle = '#F5F1EA'
+      ctx.fillRect(0, 0, W, H)
+
+      // Product image area (top 60%)
+      const imgAreaTop = 120
+      const imgAreaH = Math.floor(H * 0.55)
+      const imgAreaW = W - 240
+      const imgAreaX = 120
+      // Rounded rectangle backdrop
+      const r = 48
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(imgAreaX + r, imgAreaTop)
+      ctx.arcTo(imgAreaX + imgAreaW, imgAreaTop, imgAreaX + imgAreaW, imgAreaTop + imgAreaH, r)
+      ctx.arcTo(imgAreaX + imgAreaW, imgAreaTop + imgAreaH, imgAreaX, imgAreaTop + imgAreaH, r)
+      ctx.arcTo(imgAreaX, imgAreaTop + imgAreaH, imgAreaX, imgAreaTop, r)
+      ctx.arcTo(imgAreaX, imgAreaTop, imgAreaX + imgAreaW, imgAreaTop, r)
+      ctx.closePath()
+      ctx.clip()
+
+      if (product.image) {
+        try {
+          const img = await loadImage(product.image)
+          // cover fit
+          const scale = Math.max(imgAreaW / img.width, imgAreaH / img.height)
+          const drawW = img.width * scale
+          const drawH = img.height * scale
+          ctx.drawImage(
+            img,
+            imgAreaX + (imgAreaW - drawW) / 2,
+            imgAreaTop + (imgAreaH - drawH) / 2,
+            drawW,
+            drawH,
+          )
+        } catch {
+          drawLeafPlaceholder(ctx, imgAreaX, imgAreaTop, imgAreaW, imgAreaH)
+        }
+      } else {
+        drawLeafPlaceholder(ctx, imgAreaX, imgAreaTop, imgAreaW, imgAreaH)
+      }
+      ctx.restore()
+
+      // Product name
+      ctx.fillStyle = '#152E2A'
+      ctx.textAlign = 'center'
+      ctx.font = 'bold 72px sans-serif'
+      const nameY = imgAreaTop + imgAreaH + 120
+      // Wrap name if too long — simple 2-line max
+      const maxNameWidth = W - 200
+      const words = product.name.split(' ')
+      const lines: string[] = []
+      let current = ''
+      for (const w of words) {
+        const test = current ? current + ' ' + w : w
+        if (ctx.measureText(test).width > maxNameWidth && current) {
+          lines.push(current)
+          current = w
+        } else {
+          current = test
+        }
+      }
+      if (current) lines.push(current)
+      const shownLines = lines.slice(0, 2)
+      shownLines.forEach((ln, i) => {
+        ctx.fillText(ln, W / 2, nameY + i * 84)
+      })
+
+      // Price
+      ctx.font = 'bold 128px sans-serif'
+      ctx.fillStyle = '#152E2A'
+      const priceY = nameY + shownLines.length * 84 + 120
+      ctx.fillText(formatCOP(product.price), W / 2, priceY)
+
+      // Bottom-left: logo
+      const bottomY = H - 180
+      if (companySettings.logo) {
+        try {
+          const logo = await loadImage(companySettings.logo)
+          const logoH = 100
+          const logoW = (logo.width / logo.height) * logoH
+          ctx.drawImage(logo, 80, bottomY, Math.min(logoW, 320), logoH)
+        } catch {
+          // ignore
+        }
+      } else {
+        ctx.fillStyle = '#152E2A'
+        ctx.textAlign = 'left'
+        ctx.font = 'bold 48px sans-serif'
+        ctx.fillText(companySettings.companyName || '', 80, bottomY + 60)
+      }
+
+      // Bottom-right: instagram handle
+      if (companySettings.instagramHandle) {
+        ctx.fillStyle = '#152E2A'
+        ctx.textAlign = 'right'
+        ctx.font = '500 44px sans-serif'
+        const handle = companySettings.instagramHandle.startsWith('@')
+          ? companySettings.instagramHandle
+          : `@${companySettings.instagramHandle}`
+        ctx.fillText(handle, W - 80, bottomY + 60)
+      }
+
+      // Slogan bottom
+      if (companySettings.slogan) {
+        ctx.fillStyle = '#152E2A'
+        ctx.globalAlpha = 0.6
+        ctx.textAlign = 'center'
+        ctx.font = '400 32px sans-serif'
+        ctx.fillText(companySettings.slogan, W / 2, H - 60)
+        ctx.globalAlpha = 1
+      }
+
+      const dataUrl = canvas.toDataURL('image/png')
+      triggerDownload(dataUrl, `story-${product.sku || product.id}.png`)
+      toast.success('Historia de Instagram lista')
+    } catch (err) {
+      toast.error('No se pudo generar la imagen')
+    } finally {
+      setGeneratingStory(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+          <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+            <Share2 size={16} /> Compartir producto
+          </h3>
+          <button onClick={onClose}><X size={18} className="text-slate-400" /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Product summary */}
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-gray-700">
+              {product.image
+                ? <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                : <div className={`w-full h-full bg-gradient-to-br ${catGrad(product.category)} flex items-center justify-center`}>
+                    <span className="text-2xl">{catEmoji(product.category)}</span>
+                  </div>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-800 dark:text-white text-sm leading-tight truncate">{product.name}</p>
+              <p className="text-sm font-bold text-slate-700 dark:text-gray-200">{formatCOP(product.price)}</p>
+              <p className="text-xs text-slate-400 dark:text-gray-500">Margen {m.toFixed(1)}%</p>
+            </div>
+          </div>
+
+          {/* QR preview */}
+          {qrDataUrl && (
+            <div className="flex justify-center bg-slate-50 dark:bg-gray-700/50 rounded-xl p-3">
+              <img src={qrDataUrl} alt="QR" className="w-40 h-40" />
+            </div>
+          )}
+
+          {/* Action buttons — stacked */}
+          <div className="flex flex-col gap-2">
+            <button className="btn btn-primary w-full flex items-center gap-2 justify-center"
+              onClick={handleCopyWaLink}>
+              <MessageCircle size={14} /> Copiar enlace WhatsApp
+            </button>
+            <button className="btn btn-secondary w-full flex items-center gap-2 justify-center"
+              onClick={handleDownloadQR} disabled={!qrDataUrl}>
+              <QrCode size={14} /> Descargar QR
+            </button>
+            <button className="btn btn-secondary w-full flex items-center gap-2 justify-center"
+              onClick={handleDownloadStory} disabled={generatingStory}>
+              <Instagram size={14} />
+              {generatingStory ? 'Generando…' : 'Descargar imagen Instagram Story'}
+            </button>
+            <button className="btn btn-sm w-full flex items-center gap-2 justify-center text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-700"
+              onClick={handleCopyMessage}>
+              <Copy size={12} /> Copiar mensaje
+            </button>
+          </div>
+
+          {/* URL preview */}
+          <div className="text-xs text-slate-400 dark:text-gray-500 break-all bg-slate-50 dark:bg-gray-700/50 rounded-lg p-2">
+            {shareUrl}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── ProductCard (grid view) ────────────────────────────────────────────────
-function ProductCard({ product, soldUnits, revenue, onEdit, onDelete, onClick, canEdit, canDelete }: {
+function ProductCard({ product, soldUnits, revenue, onEdit, onDelete, onClick, onShare, canEdit, canDelete }: {
   product: Product; soldUnits: number; revenue: number
-  onEdit: () => void; onDelete: () => void; onClick: () => void
+  onEdit: () => void; onDelete: () => void; onClick: () => void; onShare: () => void
   canEdit: boolean; canDelete: boolean
 }) {
   const m = margin(product)
@@ -454,6 +747,9 @@ function ProductCard({ product, soldUnits, revenue, onEdit, onDelete, onClick, c
             </span>
           </div>
           <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button className="btn btn-sm btn-secondary flex items-center gap-1" onClick={onShare} title="Compartir">
+              <Share2 size={11} />
+            </button>
             {canEdit && (
               <button className="btn btn-sm btn-secondary flex items-center gap-1" onClick={onEdit}>
                 <Pencil size={11} />
@@ -686,8 +982,9 @@ type ViewMode = 'grid' | 'list'
 type StatusFilter = 'all' | 'active' | 'inactive'
 
 export default function Catalog() {
-  const { products, saleOrders, deleteProduct, loadAllData } = useStore()
+  const { products, saleOrders, deleteProduct, loadAllData, companySettings } = useStore()
   const { canEdit, canDelete } = usePermissions()
+  const [shareTarget, setShareTarget] = useState<Product | null>(null)
 
   const [search, setSearch]         = useState('')
   const [catFilter, setCat]         = useState('Todos')
@@ -916,6 +1213,7 @@ export default function Catalog() {
                 onClick={() => setSelected(p)}
                 onEdit={() => { setEdit(p); setShowModal(true) }}
                 onDelete={() => setDel(p)}
+                onShare={() => setShareTarget(p)}
               />
             ))}
             {filtered.length === 0 && (
@@ -1000,6 +1298,10 @@ export default function Catalog() {
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
+                        <button className="btn btn-sm btn-secondary flex items-center gap-1"
+                          onClick={() => setShareTarget(p)} title="Compartir">
+                          <Share2 size={11} />
+                        </button>
                         {canEdit('products') && (
                           <button className="btn btn-sm btn-secondary flex items-center gap-1"
                             onClick={() => { setEdit(p); setShowModal(true) }}>
@@ -1066,6 +1368,13 @@ export default function Catalog() {
           entity="products"
           onClose={() => setShowImport(false)}
           onSuccess={() => loadAllData(true)}
+        />
+      )}
+      {shareTarget && (
+        <ShareModal
+          product={shareTarget}
+          companySettings={companySettings}
+          onClose={() => setShareTarget(null)}
         />
       )}
     </div>

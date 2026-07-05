@@ -34,9 +34,13 @@ export interface Recipe {
 
 export interface ProductionOrder {
   id: string; orderNumber: string; recipe: string; product: string; recipeId?: string
-  plannedQty: number; actualQty?: number; status: 'pending' | 'in_progress' | 'finished' | 'cancelled'
+  plannedQty: number; actualQty?: number; rejectedQty?: number
+  status: 'pending' | 'in_progress' | 'finished' | 'cancelled'
   priority: 1|2|3|4|5; plannedStart: string; plannedEnd: string
   estimatedCost: number; actualCost?: number; assignedTo: string
+  finishedAt?: string           // ISO datetime the order was finalized
+  actualIngredients?: { supplyId: string; supplyName: string; qty: number; unit: string }[]
+  notes?: string                // free-text at finish (issues, comments)
 }
 
 export interface PriceList {
@@ -133,6 +137,12 @@ export interface Dispatch {
   deliveredAt?:    string   // ISO date
   deliveryNotes?:  string
   deliveryAttempts?: DeliveryAttempt[]   // History of failed delivery attempts
+  deliveryProof?: {
+    photo?: string    // base64 data URL, resized ≤ 800px wide
+    lat?: number
+    lng?: number
+    capturedAt: string  // ISO datetime
+  }
   items:           { product: string; qty: number }[]
   total:           number
   date:            string   // creation date
@@ -196,6 +206,9 @@ export interface Supplier {
   notes: string
   isActive: boolean
   createdAt?: string
+  leadTimeDays?: number    // typical days from order → delivery
+  paymentTerms?: number    // credit days from receipt (Net-N)
+  minOrderValue?: number   // minimum order in COP
 }
 
 export interface Payment {

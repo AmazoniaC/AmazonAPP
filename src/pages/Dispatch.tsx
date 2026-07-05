@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Truck, Plus, Search, X, CheckCircle2, Clock, AlertCircle, Package2,
   MapPin, User, Calendar, Trash2, ChevronDown, ChevronUp, Send, Ban,
   Navigation, ReceiptText, MessageCircle, RotateCcw, History, Banknote,
+  Camera,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Dispatch, DeliveryAttempt } from '../data/mockData'
@@ -378,6 +379,166 @@ function FailReasonModal({
 // ── Import PaymentModal for cash-on-delivery collection ──────────────────────
 import { PaymentModal } from './Payments'
 
+// ── Delivery Proof Modal ────────────────────────────────────────────────────
+type ProofPayload = { photo?: string; lat?: number; lng?: number }
+
+function DeliveryProofModal({
+  onConfirm, onCancel,
+}: {
+  onConfirm: (proof?: ProofPayload) => void
+  onCancel: () => void
+}) {
+  const [photo, setPhoto] = useState<string | undefined>()
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | undefined>()
+  const [geoState, setGeoState] = useState<'pending' | 'ok' | 'error'>('pending')
+  const [processing, setProcessing] = useState(false)
+  const [preview, setPreview] = useState<string | undefined>()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) { setGeoState('error'); return }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setGeoState('ok')
+      },
+      () => setGeoState('error'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    )
+  }, [])
+
+  const resizeImage = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const maxW = 800
+        const scale = img.width > maxW ? maxW / img.width : 1
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve(dataUrl); return }
+        ctx.drawImage(img, 0, 0, w, h)
+        let quality = 0.7
+        let out = canvas.toDataURL('image/jpeg', quality)
+        // Aim for < 300KB — data URL length ≈ 1.37× bytes
+        while (out.length > 300 * 1024 * 1.37 && quality > 0.3) {
+          quality -= 0.1
+          out = canvas.toDataURL('image/jpeg', quality)
+        }
+        resolve(out)
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    })
+
+  const handleFile = async (file: File) => {
+    setProcessing(true)
+    try {
+      const raw: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const resized = await resizeImage(raw)
+      setPhoto(resized)
+      setPreview(resized)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleConfirm = () => {
+    if (!photo && !coords) { onConfirm(undefined); return }
+    onConfirm({ photo, lat: coords?.lat, lng: coords?.lng })
+  }
+
+  return (
+    <div className="fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md animate-scaleIn" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+              <Camera size={18} className="text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 dark:text-white text-sm">Evidencia de entrega</p>
+              <p className="text-xs text-slate-400">Foto y ubicación (opcional)</p>
+            </div>
+          </div>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Photo capture */}
+          <div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              autoFocus
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleFile(f)
+              }}
+            />
+            {preview ? (
+              <div className="relative">
+                <img src={preview} alt="Evidencia" className="w-full h-48 object-cover rounded-xl border border-slate-200 dark:border-gray-700" />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="absolute bottom-2 right-2 btn btn-sm bg-white/90 dark:bg-gray-800/90 text-slate-700 dark:text-gray-200 flex items-center gap-1"
+                >
+                  <Camera size={12} /> Cambiar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={processing}
+                className="w-full h-40 rounded-xl border-2 border-dashed border-slate-300 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10 flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-gray-400 transition-colors"
+              >
+                <Camera size={28} />
+                <span className="text-sm font-semibold">{processing ? 'Procesando...' : 'Tomar foto'}</span>
+                <span className="text-[10px]">Cámara o galería</span>
+              </button>
+            )}
+          </div>
+
+          {/* Geolocation status */}
+          <div className="flex items-start gap-2 text-xs bg-slate-50 dark:bg-gray-700/50 rounded-xl px-3 py-2">
+            <MapPin size={14} className="mt-0.5 shrink-0 text-slate-400" />
+            {geoState === 'pending' && <span className="text-slate-500 dark:text-gray-400">Obteniendo ubicación...</span>}
+            {geoState === 'ok' && coords && (
+              <span className="text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
+                {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+              </span>
+            )}
+            {geoState === 'error' && <span className="text-slate-500 dark:text-gray-400">Ubicación no disponible</span>}
+          </div>
+        </div>
+
+        <div className="px-6 pb-5 flex gap-3">
+          <button className="btn btn-secondary flex-1" onClick={() => onConfirm(undefined)}>Omitir</button>
+          <button
+            className="btn flex-1 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+            onClick={handleConfirm}
+            disabled={processing}
+          >
+            <CheckCircle2 size={14} /> Confirmar entrega
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dispatch Detail Drawer ────────────────────────────────────────────────────
 function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => void; onEdit: () => void }) {
   const { updateDispatch, customers, companySettings, saleOrders, payments } = useStore()
@@ -386,6 +547,8 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
   const [delivering, setDelivering] = useState(false)
   const [notes, setNotes] = useState(d.deliveryNotes ?? '')
   const [showFailModal, setShowFailModal] = useState(false)
+  const [showProofModal, setShowProofModal] = useState(false)
+  const [proofLightbox, setProofLightbox] = useState<string | null>(null)
 
   const StatusIcon = STATUS_ICON[d.status] ?? Truck
   const attempts = d.deliveryAttempts ?? []
@@ -421,6 +584,35 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
       return  // don't close the drawer — PaymentModal opens on top
     }
 
+    onClose()
+  }
+
+  const handleDeliveryConfirm = async (proof?: ProofPayload) => {
+    setShowProofModal(false)
+    setDelivering(true)
+    const today = new Date().toISOString().split('T')[0]
+    const updated: Dispatch = {
+      ...d,
+      status: 'delivered',
+      deliveredAt: today,
+      deliveryNotes: notes,
+      deliveryProof: proof
+        ? { ...proof, capturedAt: new Date().toISOString() }
+        : undefined,
+    }
+    await updateDispatch(updated)
+    setDelivering(false)
+
+    if (linkedOrder && orderRemaining > 0) {
+      setCodPrefill({
+        saleOrderId:     linkedOrder.id,
+        saleOrderNumber: linkedOrder.orderNumber,
+        customer:        linkedOrder.customer,
+        customerId:      linkedOrder.customerId,
+        remaining:       orderRemaining,
+      })
+      return
+    }
     onClose()
   }
 
@@ -574,6 +766,49 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
               ✓ Entregado el {fmt(d.deliveredAt)}
             </p>
           )}
+
+          {/* Delivery proof (when delivered) */}
+          {d.status === 'delivered' && d.deliveryProof && (d.deliveryProof.photo || d.deliveryProof.lat != null) && (
+            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Camera size={13} className="text-emerald-700 dark:text-emerald-400" />
+                <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300">Evidencia de entrega</p>
+              </div>
+              <div className="flex gap-3 items-start">
+                {d.deliveryProof.photo && (
+                  <button
+                    type="button"
+                    onClick={() => setProofLightbox(d.deliveryProof!.photo!)}
+                    className="shrink-0"
+                  >
+                    <img
+                      src={d.deliveryProof.photo}
+                      alt="Evidencia"
+                      className="w-20 h-20 object-cover rounded-lg border border-emerald-200 dark:border-emerald-800 hover:opacity-90"
+                    />
+                  </button>
+                )}
+                <div className="flex-1 min-w-0 text-xs space-y-1">
+                  {d.deliveryProof.lat != null && d.deliveryProof.lng != null && (
+                    <a
+                      href={`https://www.google.com/maps?q=${d.deliveryProof.lat},${d.deliveryProof.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline tabular-nums"
+                    >
+                      <MapPin size={12} />
+                      {d.deliveryProof.lat.toFixed(5)}, {d.deliveryProof.lng.toFixed(5)}
+                    </a>
+                  )}
+                  <p className="text-slate-500 dark:text-gray-400">
+                    {new Date(d.deliveryProof.capturedAt).toLocaleString('es-CO', {
+                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -601,7 +836,7 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
                     </div>
                   </div>
                 )}
-                <button onClick={() => changeStatus('delivered')} disabled={delivering}
+                <button onClick={() => setShowProofModal(true)} disabled={delivering}
                   className="w-full btn flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                   <CheckCircle2 size={14} /> Confirmar entrega{orderRemaining > 0 ? ' y cobrar' : ''}
                 </button>
@@ -658,6 +893,27 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
           </div>
         )}
       </div>
+
+      {/* Delivery proof modal */}
+      {showProofModal && (
+        <DeliveryProofModal
+          onCancel={() => setShowProofModal(false)}
+          onConfirm={handleDeliveryConfirm}
+        />
+      )}
+
+      {/* Proof photo lightbox */}
+      {proofLightbox && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setProofLightbox(null)}>
+          <img src={proofLightbox} alt="Evidencia" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button
+            onClick={() => setProofLightbox(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Fail-reason modal */}
       {showFailModal && (
