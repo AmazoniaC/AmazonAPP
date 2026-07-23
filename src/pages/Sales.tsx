@@ -510,7 +510,15 @@ function InvoiceModal({ order, onClose }: { order: SaleOrder; onClose: () => voi
       })
       const data = await res.json()
       if (res.ok) {
-        setEmailResult({ ok: true, text: data.message ?? 'Factura enviada con éxito' })
+        // If the PDF couldn't be generated the invoice still goes out, but the
+        // recipient gets no attachment — tell the user so it isn't a silent loss.
+        const base = data.message ?? 'Factura enviada con éxito'
+        setEmailResult({
+          ok: true,
+          text: pdfBase64
+            ? base
+            : `${base} — ⚠ sin adjunto PDF (no se pudo generar). El correo se envió solo con el contenido HTML.`,
+        })
       } else {
         setEmailResult({ ok: false, text: data.error ?? 'Error al enviar' })
       }

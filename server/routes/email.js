@@ -290,6 +290,9 @@ router.post('/invoice', async (req, res) => {
   // Only allow a custom domain if the user explicitly configured one (not gmail/hotmail/yahoo/etc.)
   const displayName = settings.companyName || 'Amazonia Concrete'
   const fromAddress = buildFromAddress(displayName, settings.smtpFrom)
+  // True when we had to fall back to Resend's shared testing domain (delivery
+  // is then limited to the account owner until a domain is verified).
+  const usingSharedDomain = fromAddress.includes('onboarding@resend.dev')
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -333,7 +336,13 @@ router.post('/invoice', async (req, res) => {
       details: `Enviada a ${recipientEmail}`,
     })
 
-    res.json({ ok: true, message: `Factura enviada a ${recipientEmail}` })
+    res.json({
+      ok: true,
+      provider: 'resend',
+      message: usingSharedDomain
+        ? `Factura enviada a ${recipientEmail} (vía Resend). Nota: para garantizar la entrega a cualquier cliente, verifica tu dominio en resend.com/domains.`
+        : `Factura enviada a ${recipientEmail}`,
+    })
   } catch (e) {
     res.status(500).json({ error: 'Error al enviar el correo: ' + e.message })
   }
@@ -342,11 +351,28 @@ router.post('/invoice', async (req, res) => {
 // ── POST /api/email/test ──────────────────────────────────────────────────────
 // Accepts either SMTP credentials (preferred) or a Resend API key. Tries SMTP
 // first if provided, then falls back to Resend.
+const MASKED = '••••••••'
+
 router.post('/test', async (req, res) => {
-  const { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey, testEmail } = req.body
+  const { smtpHost, smtpPort, smtpUser, smtpFrom, testEmail } = req.body
+  let { smtpPass, resendApiKey } = req.body
 
   if (!testEmail) {
     return res.status(400).json({ error: 'Se requiere el correo de destino para la prueba' })
+  }
+
+  // The frontend receives secrets masked ("••••••••") from GET /api/settings and
+  // sends them back verbatim. Resolve those (and empty values) from the DB so the
+  // test uses the real stored credentials instead of the mask.
+  if (!smtpPass || smtpPass === MASKED || !resendApiKey || resendApiKey === MASKED) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT smtp_pass AS "smtpPass", resend_api_key AS "resendApiKey" FROM settings WHERE id = 1`
+      )
+      const stored = rows[0] || {}
+      if (!smtpPass || smtpPass === MASKED) smtpPass = stored.smtpPass || ''
+      if (!resendApiKey || resendApiKey === MASKED) resendApiKey = stored.resendApiKey || ''
+    } catch { /* fall through — validation below will report a clear error */ }
   }
 
   const subject = 'Prueba de configuración — Amazonia ERP'

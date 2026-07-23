@@ -1381,11 +1381,15 @@ function WhatsAppConnectionPanel() {
     } catch { /* offline */ }
   }
 
+  // Poll faster (every 3s) while a QR is showing or connecting, since Baileys
+  // rotates the QR about every 20s; otherwise poll every 10s.
   useEffect(() => {
     fetchStatus()
-    const id = window.setInterval(fetchStatus, 10000)
+    const s = info?.status
+    const interval = (s === 'qr' || s === 'connecting') ? 3000 : 10000
+    const id = window.setInterval(fetchStatus, interval)
     return () => window.clearInterval(id)
-  }, [])
+  }, [info?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const connect = async () => {
     setBusy(true)

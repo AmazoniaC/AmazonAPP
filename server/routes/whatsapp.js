@@ -11,7 +11,8 @@ router.get('/status', (_req, res) => {
 
 router.post('/connect', async (_req, res) => {
   try {
-    await startWhatsApp()
+    // force=true tears down a stuck non-connected socket so a fresh QR appears.
+    await startWhatsApp(true)
     res.json(getWhatsAppStatus())
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
