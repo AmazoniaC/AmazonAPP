@@ -225,3 +225,41 @@ export async function sendWhatsAppMessage(phone, text) {
   await sock.sendMessage(jid, { text })
   return true
 }
+
+/**
+ * Send a document (e.g. a PDF quotation/invoice) via WhatsApp, with an optional
+ * text caption. `base64` is the raw base64 of the file (no data: prefix).
+ */
+export async function sendWhatsAppDocument(phone, { base64, fileName, mimetype, caption }) {
+  if (!sock || status !== 'connected') {
+    const reason = lastError ? ` (${lastError})` : ''
+    throw new Error(`WhatsApp no está conectado [estado: ${status}]${reason}. Escanea el QR desde Configuración → WhatsApp.`)
+  }
+  if (!base64) throw new Error('No se recibió el documento a enviar.')
+  const digits = toE164Digits(phone)
+  if (!digits) throw new Error(`Teléfono inválido: "${phone}". Debe contener al menos 7 dígitos.`)
+  const jid = `${digits}@s.whatsapp.net`
+
+  // Verify the number is registered before sending.
+  try {
+    if (typeof sock.onWhatsApp === 'function') {
+      const results = await sock.onWhatsApp(jid)
+      const found = Array.isArray(results) && results.some((r) => r?.exists)
+      if (!found) throw new Error(`El número +${digits} no está registrado en WhatsApp.`)
+    }
+  } catch (e) {
+    if (e.message && e.message.includes('no está registrado')) throw e
+  }
+
+  // Strip an accidental data: prefix if present
+  const cleanB64 = String(base64).includes(',') ? String(base64).split(',').pop() : base64
+  const buffer = Buffer.from(cleanB64, 'base64')
+
+  await sock.sendMessage(jid, {
+    document: buffer,
+    mimetype: mimetype || 'application/pdf',
+    fileName: fileName || 'documento.pdf',
+    caption: caption || undefined,
+  })
+  return true
+}
