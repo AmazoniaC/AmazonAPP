@@ -185,7 +185,7 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
             )}
             {items.map((item, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 mb-2 items-start">
-                <div className="col-span-4">
+                <div className="col-span-3">
                   {i === 0 && <label className="label">Producto</label>}
                   <select className="input" value={item.productId} onChange={e => updateItem(i, 'productId', e.target.value)}>
                     <option value="">-- Producto --</option>
@@ -206,9 +206,11 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
                     )
                   })()}
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-2">
                   {i === 0 && <label className="label">Cant.</label>}
-                  <input className="input" type="number" min="1" value={item.qty} onChange={e => updateItem(i, 'qty', parseFloat(e.target.value)||1)} />
+                  <input className="input text-center" type="number" min="1" step="1" inputMode="numeric"
+                    value={item.qty}
+                    onChange={e => updateItem(i, 'qty', parseFloat(e.target.value)||1)} />
                 </div>
                 <div className="col-span-2">
                   {i === 0 && <label className="label">Precio</label>}
