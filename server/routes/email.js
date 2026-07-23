@@ -321,8 +321,9 @@ router.post('/invoice', async (req, res) => {
       const msg = data.message || JSON.stringify(data)
       if (msg.includes('testing emails') || msg.includes('verify a domain') || msg.includes('own email address')) {
         return res.status(500).json({
-          error: 'Tu cuenta Resend está en modo de pruebas: solo puedes enviarte correos a ti mismo. '
-               + 'Para enviar a cualquier cliente debes verificar tu dominio en resend.com/domains.',
+          error: 'No se pudo enviar porque solo hay una cuenta de Resend en modo de pruebas. '
+               + 'Para enviar correos GRATIS y automáticamente a tus clientes, configura tu Gmail (SMTP) '
+               + 'en Configuración → Empresa → Correo. No necesitas Resend.',
         })
       }
       return res.status(500).json({ error: `Error Resend: ${msg}` })
@@ -480,7 +481,7 @@ async function deliverEmail({ settings, to, subject, html, pdfBase64, pdfFilenam
   if (!response.ok) {
     const msg = data.message || JSON.stringify(data)
     if (msg.includes('testing emails') || msg.includes('verify a domain') || msg.includes('own email address')) {
-      throw new Error('Tu cuenta Resend está en modo de pruebas: solo puedes enviarte correos a ti mismo. Verifica tu dominio en resend.com/domains para enviar a clientes.')
+      throw new Error('No se pudo enviar porque solo hay una cuenta de Resend en modo de pruebas. Para enviar correos GRATIS y automáticamente a tus clientes, configura tu Gmail (SMTP) en Configuración → Empresa → Correo. No necesitas Resend.')
     }
     throw new Error(`Error Resend: ${msg}`)
   }
