@@ -4,6 +4,7 @@ import {
   PurchaseOrder, Dispatch, Expense, Opportunity, PriceList, Supplier, Return, Payment, InventoryMovement,
 } from '../data/mockData'
 import { toast } from '../components/Toast'
+import { cleanPhone } from '../utils/whatsapp'
 
 export type NotifCategory = 'inventory' | 'purchases' | 'sales' | 'crm' | 'production' | 'dispatch' | 'general'
 
@@ -577,7 +578,9 @@ export const useStore = create<AppState>((set, get) => ({
   checkCalendarReminders: () => {
     const s = get()
     const now = Date.now()
-    const todayISO = new Date().toISOString().split('T')[0]
+    // Local calendar date (not UTC) so the "day" rolls over at local midnight.
+    const d = new Date()
+    const todayISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
     const deliveredKey = 'erp_calendar_inapp_delivered'
     let delivered: string[] = []
@@ -615,7 +618,7 @@ export const useStore = create<AppState>((set, get) => ({
           .map((i) => `• ${i.time ? i.time + ' ' : ''}${i.kind === 'meeting' ? '📅' : '🔔'} ${i.title}`)
           .join('\n')
         // Auto-send daily agenda via WhatsApp if company WhatsApp is configured
-        const phone = s.companySettings.whatsapp?.replace(/\D/g, '') || ''
+        const phone = cleanPhone(s.companySettings.whatsapp || '')
         if (phone) {
           apiFetch('/api/whatsapp/send', {
             method: 'POST',

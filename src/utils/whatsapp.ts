@@ -84,9 +84,22 @@ Te escribimos de {empresa}. Tienes *{num_ordenes} orden(es)* con saldo pendiente
 
 export type WaTemplateKey = keyof typeof WA_TEMPLATES
 
-/** Clean phone number for wa.me (remove spaces, dashes, parentheses; keep +) */
-function cleanPhone(phone: string): string {
-  return phone.replace(/[\s\-\(\)]/g, '').replace(/^\+/, '')
+/** Default country code for numbers entered without one (Colombia = 57). */
+const DEFAULT_COUNTRY_CODE = '57'
+
+/**
+ * Normalize a phone for wa.me: return E.164 digits (no '+'), defaulting to
+ * Colombia when the number is a bare 10-digit local number. This ensures
+ * WhatsApp opens the correct chat instead of an invalid/US number.
+ */
+export function cleanPhone(phone: string): string {
+  let digits = (phone || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  if (digits.startsWith(DEFAULT_COUNTRY_CODE) && digits.length >= 11) return digits
+  if (digits.length === 10) return DEFAULT_COUNTRY_CODE + digits
+  if (digits.length >= 7 && digits.length <= 9) return DEFAULT_COUNTRY_CODE + digits
+  return digits
 }
 
 /** Open WhatsApp with a pre-filled message */

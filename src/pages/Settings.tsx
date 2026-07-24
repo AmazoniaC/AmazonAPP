@@ -569,8 +569,26 @@ export default function Settings() {
 
                 {/* SMTP block */}
                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg mb-5">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                     <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">✉️ Servidor SMTP <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">(recomendado — gratis, envía desde tu correo real)</span></p>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
+                      onClick={() => {
+                        // Pre-fill Gmail SMTP and clear any leftover Resend key so
+                        // email uses the free, automatic Gmail path.
+                        setCompany({
+                          ...company,
+                          smtpHost: 'smtp.gmail.com',
+                          smtpPort: 587,
+                          resendApiKey: '',
+                        })
+                        setSmtpTestMsg({ ok: true, text: '✅ Gmail precargado. Escribe tu correo y la contraseña de aplicación abajo, luego Guardar.' })
+                      }}
+                      title="Precarga la configuración de Gmail"
+                    >
+                      ⚡ Usar mi Gmail
+                    </button>
                   </div>
                   <details className="mb-3">
                     <summary className="text-xs text-emerald-700 dark:text-emerald-400 cursor-pointer hover:underline">📘 Cómo configurar Gmail con "Contraseña de aplicación"</summary>
@@ -611,12 +629,35 @@ export default function Settings() {
                   </div>
                 </div>
 
+                {/* Active-provider hint */}
+                {company.smtpHost && company.smtpUser && company.smtpPass ? (
+                  <div className="mb-4 text-xs px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                    ✅ Se enviará por tu SMTP ({company.smtpHost}). Resend queda ignorado.
+                  </div>
+                ) : company.resendApiKey ? (
+                  <div className="mb-4 text-xs px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                    ⚠️ Solo hay una clave de Resend configurada. Sin un dominio verificado, Resend solo te deja enviar correos a ti mismo. Configura tu Gmail arriba (gratis) o quita la clave de Resend abajo.
+                  </div>
+                ) : null}
+
                 {/* Resend block */}
                 <div className="p-4 bg-slate-50 dark:bg-gray-900/30 border border-slate-200 dark:border-gray-700 rounded-lg">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-2">🔄 Resend API <span className="text-xs font-normal text-slate-500">(alternativa / respaldo)</span></p>
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">🔄 Resend API <span className="text-xs font-normal text-slate-500">(alternativa avanzada — requiere dominio propio)</span></p>
+                    {company.resendApiKey && (
+                      <button
+                        type="button"
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-gray-700 hover:bg-slate-300 dark:hover:bg-gray-600 text-slate-700 dark:text-gray-200"
+                        onClick={() => setCompany({ ...company, resendApiKey: '' })}
+                        title="Borra la clave de Resend"
+                      >
+                        Quitar Resend
+                      </button>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">
-                    Crea una cuenta gratis en <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline text-blue-500">resend.com</a> →
-                    <em> API Keys</em>. <strong>Importante:</strong> sin un dominio verificado en <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">resend.com/domains</a>, Resend solo permite enviarte correos a ti mismo.
+                    Si no tienes Resend, <strong>déjalo vacío</strong> y usa tu Gmail (SMTP) arriba — es gratis y envía automáticamente.
+                    Resend solo entrega a cualquier cliente si verificas tu dominio en <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">resend.com/domains</a>.
                   </p>
                   <label className="label">API Key de Resend</label>
                   <input className="input font-mono" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" value={company.resendApiKey}
@@ -1381,11 +1422,15 @@ function WhatsAppConnectionPanel() {
     } catch { /* offline */ }
   }
 
+  // Poll faster (every 3s) while a QR is showing or connecting, since Baileys
+  // rotates the QR about every 20s; otherwise poll every 10s.
   useEffect(() => {
     fetchStatus()
-    const id = window.setInterval(fetchStatus, 10000)
+    const s = info?.status
+    const interval = (s === 'qr' || s === 'connecting') ? 3000 : 10000
+    const id = window.setInterval(fetchStatus, interval)
     return () => window.clearInterval(id)
-  }, [])
+  }, [info?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const connect = async () => {
     setBusy(true)

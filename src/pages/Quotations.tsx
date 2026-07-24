@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import {
   Plus, X, Search, FileText, CheckCircle, XCircle, Send,
   Clock, Eye, Pencil, Trash2, Download, ShoppingCart,
-  TrendingUp, DollarSign, AlertCircle, RotateCcw, MessageCircle,
+  TrendingUp, DollarSign, AlertCircle, RotateCcw, MessageCircle, Mail,
 } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -185,7 +185,7 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
             )}
             {items.map((item, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 mb-2 items-start">
-                <div className="col-span-4">
+                <div className="col-span-3">
                   {i === 0 && <label className="label">Producto</label>}
                   <select className="input" value={item.productId} onChange={e => updateItem(i, 'productId', e.target.value)}>
                     <option value="">-- Producto --</option>
@@ -206,9 +206,11 @@ function NewQuotationModal({ quotation, onClose }: { quotation?: Quotation; onCl
                     )
                   })()}
                 </div>
-                <div className="col-span-1">
+                <div className="col-span-2">
                   {i === 0 && <label className="label">Cant.</label>}
-                  <input className="input" type="number" min="1" value={item.qty} onChange={e => updateItem(i, 'qty', parseFloat(e.target.value)||1)} />
+                  <input className="input text-center" type="number" min="1" step="1" inputMode="numeric"
+                    value={item.qty}
+                    onChange={e => updateItem(i, 'qty', parseFloat(e.target.value)||1)} />
                 </div>
                 <div className="col-span-2">
                   {i === 0 && <label className="label">Precio</label>}
@@ -384,18 +386,52 @@ function QuotePrintTemplate({ quotation, printRef }: { quotation: Quotation; pri
 }
 
 // ─── QuotationDrawer ──────────────────────────────────────────────────────────
-function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, converting }: {
+function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, generatePdfBase64, converting }: {
   quotation: Quotation
   onClose: () => void
   onEdit: () => void
   onConvert: () => void
   onDownload: () => void
+  generatePdfBase64: (q: Quotation) => Promise<string | null>
   converting: boolean
 }) {
   const { updateQuotation, companySettings, customers, addActivity, opportunities, addOpportunity } = useStore()
   const [q, setQ] = useState(quotation)
   const detailTaxRate = companySettings.taxRate ?? 0.19
   const drawerCustomer = customers.find(c => c.id === q.customerId)
+  const [sendingWA, setSendingWA]   = useState(false)
+  const [showEmail, setShowEmail]   = useState(false)
+  const [emailTo, setEmailTo]       = useState(drawerCustomer?.email ?? '')
+  const [sendingEmail, setSendingEmail] = useState(false)
+
+  // Small helper: read the JWT for authenticated fetches
+  const authHeader = (): Record<string, string> => {
+    try {
+      const r = localStorage.getItem('erp_auth'); if (!r) return {}
+      const u = JSON.parse(r); return u.token ? { 'Authorization': `Bearer ${u.token}` } : {}
+    } catch { return {} }
+  }
+
+  // Mark the quote sent (from draft) and schedule a 3-day follow-up activity.
+  const markSentAndFollowUp = (channel: string) => {
+    if (q.status === 'draft') {
+      const updated = { ...q, status: 'sent' as const }
+      setQ(updated)
+      updateQuotation(updated)
+    }
+    const followUpDate = new Date()
+    followUpDate.setDate(followUpDate.getDate() + 3)
+    addActivity({
+      id: `act${Date.now()}`,
+      customerId: q.customerId,
+      type: channel === 'email' ? 'email' : 'whatsapp',
+      date: followUpDate.toISOString().split('T')[0],
+      subject: `Seguimiento cotización ${q.quoteNumber}`,
+      notes: `Revisar respuesta a la cotización enviada por ${channel}.`,
+      done: false,
+      createdAt: new Date().toISOString(),
+    })
+  }
 
   const updateStatus = (status: Quotation['status']) => {
     const updated = { ...q, status }
@@ -428,43 +464,102 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
     }
   }
 
-  const handleSendWhatsApp = () => {
-    if (!drawerCustomer?.phone) {
-      toast.error('El cliente no tiene teléfono registrado')
-      return
-    }
+  const buildWaMessage = () => {
     const itemsSummary = q.items.slice(0, 5).map(it => `• ${it.qty}× ${it.product}`).join('\n') +
                         (q.items.length > 5 ? `\n… y ${q.items.length - 5} ítems más` : '')
-    const msg = buildQuotationShare({
+    return buildQuotationShare({
       companyName: companySettings.companyName || 'Amazonia Concrete',
-      customer: drawerCustomer.name.split(' ')[0],
+      customer: drawerCustomer?.name.split(' ')[0] ?? '',
       quoteNumber: q.quoteNumber,
       total: q.total,
       validUntil: q.validUntil,
       itemsSummary,
     })
-    openWhatsApp(drawerCustomer.phone, msg)
+  }
 
-    // If still draft, promote to "sent" and log a follow-up activity
-    if (q.status === 'draft') {
-      const updated = { ...q, status: 'sent' as const }
-      setQ(updated)
-      updateQuotation(updated)
+  const handleSendWhatsApp = async () => {
+    if (!drawerCustomer?.phone) {
+      toast.error('El cliente no tiene teléfono registrado')
+      return
     }
-    // Schedule follow-up activity in 3 days
-    const followUpDate = new Date()
-    followUpDate.setDate(followUpDate.getDate() + 3)
-    addActivity({
-      id: `act${Date.now()}`,
-      customerId: q.customerId,
-      type: 'whatsapp',
-      date: followUpDate.toISOString().split('T')[0],
-      subject: `Seguimiento cotización ${q.quoteNumber}`,
-      notes: `Revisar respuesta a la cotización enviada por WhatsApp.`,
-      done: false,
-      createdAt: new Date().toISOString(),
-    })
-    toast.success('Cotización enviada · seguimiento programado en 3 días')
+    setSendingWA(true)
+    try {
+      const msg = buildWaMessage()
+      // Generate the PDF so we can attach it.
+      const pdfBase64 = await generatePdfBase64(q)
+
+      // Try to send message + PDF automatically via the server's linked WhatsApp.
+      let sentViaServer = false
+      if (pdfBase64) {
+        try {
+          const res = await fetch('/api/whatsapp/send-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
+            body: JSON.stringify({
+              phone: drawerCustomer.phone,
+              base64: pdfBase64,
+              fileName: `Cotizacion-${q.quoteNumber}.pdf`,
+              mimetype: 'application/pdf',
+              caption: msg,
+            }),
+          })
+          if (res.ok) sentViaServer = true
+        } catch { /* fall through to wa.me */ }
+      }
+
+      if (sentViaServer) {
+        markSentAndFollowUp('whatsapp')
+        toast.success('Cotización + PDF enviados por WhatsApp')
+      } else {
+        // Fallback: server WhatsApp not connected — download the PDF and open
+        // wa.me so the user can attach it manually (wa.me links can't attach files).
+        if (pdfBase64) {
+          const a = document.createElement('a')
+          a.href = `data:application/pdf;base64,${pdfBase64}`
+          a.download = `Cotizacion-${q.quoteNumber}.pdf`
+          a.click()
+        }
+        openWhatsApp(drawerCustomer.phone, msg)
+        markSentAndFollowUp('whatsapp')
+        toast.info('WhatsApp no está conectado en el servidor. Descargamos el PDF — adjúntalo en el chat que se abrió. (Conéctalo en Configuración → WhatsApp para envío automático)')
+      }
+    } finally {
+      setSendingWA(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailTo.trim()) { toast.error('Ingresa un correo de destino'); return }
+    setSendingEmail(true)
+    try {
+      const pdfBase64 = await generatePdfBase64(q)
+      const res = await fetch('/api/email/quotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        body: JSON.stringify({
+          quotation: q,
+          customer: {
+            name:  drawerCustomer?.name  ?? q.customer,
+            email: emailTo.trim(),
+            phone: drawerCustomer?.phone ?? '',
+          },
+          recipientEmail: emailTo.trim(),
+          pdfBase64,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        markSentAndFollowUp('email')
+        setShowEmail(false)
+        toast.success(data.message ?? 'Cotización enviada por correo')
+      } else {
+        toast.error(data.error ?? 'No se pudo enviar el correo')
+      }
+    } catch {
+      toast.error('Error de conexión con el servidor')
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   const eff = effectiveStatus(q)
@@ -601,13 +696,21 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
           {/* Action buttons */}
           <div className="space-y-2 pt-2">
             <button
-              className="btn w-full flex items-center gap-2 justify-center text-white"
+              className="btn w-full flex items-center gap-2 justify-center text-white disabled:opacity-60"
               style={{ background: 'linear-gradient(135deg, #25d366 0%, #128c7e 100%)' }}
               onClick={handleSendWhatsApp}
-              disabled={!drawerCustomer?.phone}
-              title={!drawerCustomer?.phone ? 'Cliente sin teléfono' : 'Compartir por WhatsApp'}
+              disabled={!drawerCustomer?.phone || sendingWA}
+              title={!drawerCustomer?.phone ? 'Cliente sin teléfono' : 'Enviar cotización con PDF por WhatsApp'}
             >
-              <MessageCircle size={15} /> Enviar por WhatsApp
+              {sendingWA
+                ? <><RotateCcw size={15} className="animate-spin" /> Enviando…</>
+                : <><MessageCircle size={15} /> Enviar por WhatsApp (con PDF)</>}
+            </button>
+            <button
+              className="btn btn-secondary w-full flex items-center gap-2 justify-center"
+              onClick={() => { setEmailTo(drawerCustomer?.email ?? ''); setShowEmail(true) }}
+            >
+              <Mail size={15} /> Enviar por correo
             </button>
             <button className="btn btn-secondary w-full flex items-center gap-2 justify-center" onClick={onDownload}>
               <Download size={15} /> Descargar PDF
@@ -628,6 +731,53 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, co
           </div>
         </div>
       </div>
+
+      {/* Email modal */}
+      {showEmail && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+             onClick={() => !sendingEmail && setShowEmail(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md animate-fadeIn"
+               onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail size={18} className="text-amazonia-600" />
+                <h3 className="font-semibold text-slate-800 dark:text-white">Enviar cotización por correo</h3>
+              </div>
+              <button onClick={() => !sendingEmail && setShowEmail(false)}><X size={18} className="text-slate-400" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-500 dark:text-gray-400">
+                Se enviará la cotización <b>{q.quoteNumber}</b> con el PDF adjunto.
+              </p>
+              <div>
+                <label className="label">Correo del destinatario</label>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="cliente@correo.com"
+                  value={emailTo}
+                  onChange={e => setEmailTo(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !sendingEmail) handleSendEmail() }}
+                  autoFocus
+                />
+                {!drawerCustomer?.email && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                    El cliente no tiene correo guardado — escríbelo aquí.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button className="btn btn-secondary flex-1" onClick={() => setShowEmail(false)} disabled={sendingEmail}>
+                Cancelar
+              </button>
+              <button className="btn btn-primary flex-1" onClick={handleSendEmail} disabled={sendingEmail || !emailTo.trim()}>
+                {sendingEmail ? <><RotateCcw size={15} className="animate-spin" /> Enviando…</> : <><Mail size={15} /> Enviar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -662,18 +812,38 @@ export default function Quotations() {
   }, [searchParams, quotations, setSearchParams])
 
   // ── PDF generation ──────────────────────────────────────────────────────────
-  const handleDownload = async (q: Quotation) => {
+  // Build the quotation PDF and return the jsPDF instance (shared by download &
+  // by the WhatsApp/email senders which need the base64).
+  const buildQuotationPdf = async (q: Quotation): Promise<jsPDF | null> => {
     setPrintQ(q)
-    await new Promise(r => setTimeout(r, 120))
-    if (!printRef.current) return
-    const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const imgData = canvas.toDataURL('image/png')
-    const pdfWidth = pdf.internal.pageSize.getWidth()
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-    pdf.save(`${q.quoteNumber}.pdf`)
-    setPrintQ(null)
+    await new Promise(r => setTimeout(r, 150))
+    if (!printRef.current) { setPrintQ(null); return null }
+    try {
+      const canvas = await html2canvas(printRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const imgData = canvas.toDataURL('image/png')
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+      return pdf
+    } catch {
+      return null
+    } finally {
+      setPrintQ(null)
+    }
+  }
+
+  const handleDownload = async (q: Quotation) => {
+    const pdf = await buildQuotationPdf(q)
+    if (pdf) pdf.save(`${q.quoteNumber}.pdf`)
+  }
+
+  // Returns the PDF as base64 (no data: prefix) for WhatsApp/email attachments.
+  const generatePdfBase64 = async (q: Quotation): Promise<string | null> => {
+    const pdf = await buildQuotationPdf(q)
+    if (!pdf) return null
+    const dataUri = pdf.output('datauristring')
+    return dataUri.split(',')[1] ?? null
   }
 
   const handleConvert = async (id: string) => {
@@ -865,6 +1035,7 @@ export default function Quotations() {
           onEdit={() => { setEditTarget(drawer); setShowModal(true); setDrawer(null) }}
           onConvert={() => handleConvert(drawer.id)}
           onDownload={() => handleDownload(drawer)}
+          generatePdfBase64={generatePdfBase64}
           converting={converting}
         />
       )}

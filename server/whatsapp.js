@@ -34,45 +34,63 @@ async function loadBaileys() {
 }
 
 let connecting = false
-export async function startWhatsApp() {
+/**
+ * Start (or restart) the WhatsApp socket.
+ * @param {boolean} force  When true, tears down an existing non-connected
+ *   socket first so a fresh QR can be generated (used by the "Generar QR"
+ *   button when a previous attempt got stuck).
+ */
+export async function startWhatsApp(force = false) {
+  // If we're being forced and there's a socket that isn't fully connected,
+  // discard it so we can start clean.
+  if (force && sock && status !== 'connected') {
+    try { sock.end?.(new Error('force restart')) } catch {}
+    sock = null
+    status = 'disconnected'
+    connecting = false
+  }
   if (sock || connecting) return
   connecting = true
-  if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true })
 
-  const baileys = await loadBaileys()
-  if (!baileys) return
-
-  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
-
-  let version
   try {
-    const v = await fetchLatestBaileysVersion()
-    version = v.version
-  } catch { /* offline — Baileys uses bundled default */ }
+    if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true })
 
-  // Minimal pino-compatible silent logger. Baileys calls .child() recursively
-  // so it must return another logger of the same shape.
-  const makeSilentLogger = () => {
-    const logger = {
-      level: 'silent',
-      trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {},
-      child() { return makeSilentLogger() },
+    const baileys = await loadBaileys()
+    if (!baileys) { connecting = false; status = 'disconnected'; return }
+
+    const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+
+    let version
+    try {
+      const v = await fetchLatestBaileysVersion()
+      version = v.version
+    } catch { /* offline — Baileys uses bundled default */ }
+
+    // Minimal pino-compatible silent logger. Baileys calls .child() recursively
+    // so it must return another logger of the same shape.
+    const makeSilentLogger = () => {
+      const logger = {
+        level: 'silent',
+        trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {},
+        child() { return makeSilentLogger() },
+      }
+      return logger
     }
-    return logger
-  }
 
-  status = 'connecting'
-  connecting = false
-  sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false,
-    logger: makeSilentLogger(),
-    browser: ['Amazonia ERP', 'Chrome', '1.0.0'],
-  })
+    status = 'connecting'
+    sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      logger: makeSilentLogger(),
+      browser: ['Amazonia ERP', 'Chrome', '1.0.0'],
+    })
+    // Socket built successfully — clear the connecting guard so event handlers
+    // (and any future /connect) behave correctly.
+    connecting = false
 
-  sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
@@ -109,7 +127,16 @@ export async function startWhatsApp() {
         setTimeout(() => startWhatsApp().catch(() => {}), delay)
       }
     }
-  })
+    })
+  } catch (e) {
+    // Socket construction failed — reset state so the UI doesn't get stuck on
+    // "Conectando…" and a later /connect can retry.
+    connecting = false
+    sock = null
+    status = 'disconnected'
+    lastError = e?.message || 'No se pudo iniciar WhatsApp'
+    console.error('⚠️  startWhatsApp error:', lastError)
+  }
 }
 
 export function getWhatsAppStatus() {
@@ -134,10 +161,38 @@ export async function logoutWhatsApp() {
   setTimeout(() => startWhatsApp().catch(() => {}), 500)
 }
 
-function normalizePhone(phone) {
+// Default country code for numbers entered without one (Colombia = 57).
+const DEFAULT_COUNTRY_CODE = process.env.WA_COUNTRY_CODE || '57'
+
+/**
+ * Turn a user-entered phone into E.164 digits (no '+'), defaulting to Colombia.
+ * Handles the common ways a Colombian user types their number:
+ *   "3001234567"        → 573001234567   (10-digit mobile, prepend 57)
+ *   "300 123 4567"      → 573001234567
+ *   "+57 300 123 4567"  → 573001234567   (already has code)
+ *   "573001234567"      → 573001234567   (already has code)
+ *   "6041234567"        → 576041234567   (10-digit landline)
+ * Returns null when there aren't enough digits to be a real number.
+ */
+function toE164Digits(phone) {
   if (!phone) return null
-  const digits = String(phone).replace(/\D/g, '')
-  if (digits.length < 8) return null
+  let digits = String(phone).replace(/\D/g, '')
+  if (digits.length < 7) return null
+  // Strip a leading 00 international prefix if present
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  // Already has the Colombian country code
+  if (digits.startsWith(DEFAULT_COUNTRY_CODE) && digits.length >= 11) return digits
+  // Bare 10-digit Colombian number (mobile or landline) → prepend country code
+  if (digits.length === 10) return DEFAULT_COUNTRY_CODE + digits
+  // Some users store the old 7-digit landline — prepend code (best effort)
+  if (digits.length >= 7 && digits.length <= 9) return DEFAULT_COUNTRY_CODE + digits
+  // Otherwise assume it already carries a country code
+  return digits
+}
+
+function normalizePhone(phone) {
+  const digits = toE164Digits(phone)
+  if (!digits) return null
   return `${digits}@s.whatsapp.net`
 }
 
@@ -146,8 +201,65 @@ export async function sendWhatsAppMessage(phone, text) {
     const reason = lastError ? ` (${lastError})` : ''
     throw new Error(`WhatsApp no está conectado [estado: ${status}]${reason}. Escanea el QR desde Configuración → WhatsApp.`)
   }
-  const jid = normalizePhone(phone)
-  if (!jid) throw new Error(`Teléfono inválido: "${phone}". Debe contener al menos 8 dígitos con código de país.`)
+  const digits = toE164Digits(phone)
+  if (!digits) throw new Error(`Teléfono inválido: "${phone}". Debe contener al menos 7 dígitos.`)
+  const jid = `${digits}@s.whatsapp.net`
+
+  // Verify the number is actually registered on WhatsApp before sending, so we
+  // never mark a reminder as delivered to a non-existent account.
+  try {
+    if (typeof sock.onWhatsApp === 'function') {
+      const results = await sock.onWhatsApp(jid)
+      const found = Array.isArray(results) && results.some((r) => r?.exists)
+      if (!found) {
+        throw new Error(`El número +${digits} no está registrado en WhatsApp.`)
+      }
+    }
+  } catch (e) {
+    // If the check itself errored (network/proto), rethrow a clear message;
+    // if it was our "not registered" error, propagate it too.
+    if (e.message && e.message.includes('no está registrado')) throw e
+    // onWhatsApp lookup failed for another reason — fall through and try to send
+  }
+
   await sock.sendMessage(jid, { text })
+  return true
+}
+
+/**
+ * Send a document (e.g. a PDF quotation/invoice) via WhatsApp, with an optional
+ * text caption. `base64` is the raw base64 of the file (no data: prefix).
+ */
+export async function sendWhatsAppDocument(phone, { base64, fileName, mimetype, caption }) {
+  if (!sock || status !== 'connected') {
+    const reason = lastError ? ` (${lastError})` : ''
+    throw new Error(`WhatsApp no está conectado [estado: ${status}]${reason}. Escanea el QR desde Configuración → WhatsApp.`)
+  }
+  if (!base64) throw new Error('No se recibió el documento a enviar.')
+  const digits = toE164Digits(phone)
+  if (!digits) throw new Error(`Teléfono inválido: "${phone}". Debe contener al menos 7 dígitos.`)
+  const jid = `${digits}@s.whatsapp.net`
+
+  // Verify the number is registered before sending.
+  try {
+    if (typeof sock.onWhatsApp === 'function') {
+      const results = await sock.onWhatsApp(jid)
+      const found = Array.isArray(results) && results.some((r) => r?.exists)
+      if (!found) throw new Error(`El número +${digits} no está registrado en WhatsApp.`)
+    }
+  } catch (e) {
+    if (e.message && e.message.includes('no está registrado')) throw e
+  }
+
+  // Strip an accidental data: prefix if present
+  const cleanB64 = String(base64).includes(',') ? String(base64).split(',').pop() : base64
+  const buffer = Buffer.from(cleanB64, 'base64')
+
+  await sock.sendMessage(jid, {
+    document: buffer,
+    mimetype: mimetype || 'application/pdf',
+    fileName: fileName || 'documento.pdf',
+    caption: caption || undefined,
+  })
   return true
 }
