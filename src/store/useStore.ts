@@ -311,6 +311,25 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   throw new Error('No se pudo completar la solicitud después de varios intentos.')
 }
 
+// Result the calendar API returns after attempting an immediate WhatsApp send.
+type WhatsAppSendResult = { sent: boolean; error?: string; status?: string }
+
+// Surface the outcome of the automatic WhatsApp confirmation to the user so a
+// silent failure (e.g. WhatsApp not connected) never looks like "nothing works".
+function notifyWhatsAppResult(
+  item: { notifyWhatsapp?: boolean }, result?: WhatsAppSendResult | null,
+) {
+  if (!item.notifyWhatsapp) return
+  if (!result) return
+  if (result.sent) {
+    toast.success('Mensaje enviado por WhatsApp')
+  } else if (result.status && result.status !== 'connected') {
+    toast.error('WhatsApp no está conectado — conéctalo en Configuración → WhatsApp')
+  } else {
+    toast.error(`No se pudo enviar por WhatsApp: ${result.error || 'error desconocido'}`)
+  }
+}
+
 // ── Initial state ────────────────────────────────────────────────────────────
 
 const initialAuth          = getAuth()
@@ -529,8 +548,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   addCalendarItem: async (item) => {
     const newItem: CalendarItem = { ...item, id: crypto.randomUUID() }
+    let res: { whatsapp?: WhatsAppSendResult | null }
     try {
-      await apiFetch('/api/calendar-items', { method: 'POST', body: JSON.stringify(newItem) })
+      res = await apiFetch<{ whatsapp?: WhatsAppSendResult | null }>(
+        '/api/calendar-items', { method: 'POST', body: JSON.stringify(newItem) },
+      )
     } catch (e) {
       toast.error('No se pudo guardar en el servidor')
       console.error(e)
@@ -542,18 +564,23 @@ export const useStore = create<AppState>((set, get) => ({
       return { calendarItems: updated }
     })
     toast.success(item.kind === 'meeting' ? 'Reunión agendada' : 'Recordatorio creado')
+    notifyWhatsAppResult(item, res?.whatsapp)
     setTimeout(() => get().checkCalendarReminders(), 0)
   },
 
   updateCalendarItem: async (item) => {
+    let res: { whatsapp?: WhatsAppSendResult | null }
     try {
-      await apiFetch(`/api/calendar-items/${item.id}`, { method: 'PUT', body: JSON.stringify(item) })
+      res = await apiFetch<{ whatsapp?: WhatsAppSendResult | null }>(
+        `/api/calendar-items/${item.id}`, { method: 'PUT', body: JSON.stringify(item) },
+      )
     } catch (e) { toast.error('No se pudo actualizar'); return }
     set((s) => {
       const updated = s.calendarItems.map((x) => x.id === item.id ? item : x)
       lsSet('erp_calendar_items', updated)
       return { calendarItems: updated }
     })
+    notifyWhatsAppResult(item, res?.whatsapp)
   },
 
   deleteCalendarItem: async (id) => {
