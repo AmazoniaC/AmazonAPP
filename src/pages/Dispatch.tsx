@@ -16,8 +16,6 @@ import StatCard from '../components/StatCard'
 import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DRIVERS = ['Carlos López', 'Miguel Herrera', 'Andrés Ruiz', 'Pedro Díaz', 'Juan Martínez']
-
 const STATUS_LABEL: Record<string, string> = {
   scheduled:  'Programado',
   in_transit: 'En ruta',
@@ -47,13 +45,18 @@ function fmt(d?: string) {
 
 // ── Create/Edit Modal ─────────────────────────────────────────────────────────
 function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () => void }) {
-  const { saleOrders, dispatches, addDispatch, updateDispatch } = useStore()
+  const { saleOrders, dispatches, addDispatch, updateDispatch, companySettings } = useStore()
   const today = new Date().toISOString().split('T')[0]
+
+  // Conductores configurables (Configuración → Equipo de trabajo).
+  const drivers = (companySettings.teamMembers ?? [])
+    .filter((m) => m.role === 'driver' && m.isActive)
+    .map((m) => m.name)
 
   const [form, setForm] = useState<Partial<Dispatch>>(initial ?? {
     scheduledDate: today,
     status:        'scheduled',
-    driver:        DRIVERS[0],
+    driver:        drivers[0] ?? '',
     date:          today,
     items:         [],
   })
@@ -227,7 +230,11 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
               <select className={`input ${errors.driver ? 'border-red-400' : ''}`}
                 value={form.driver ?? ''} onChange={(e) => set('driver', e.target.value)}>
                 <option value="">Seleccionar...</option>
-                {DRIVERS.map((d) => <option key={d} value={d}>{d}</option>)}
+                {/* Conserva el conductor asignado aunque haya sido desactivado/eliminado */}
+                {form.driver && !drivers.includes(form.driver) && (
+                  <option value={form.driver}>{form.driver}</option>
+                )}
+                {drivers.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
               {errors.driver && <p className="text-xs text-red-500 mt-1">{errors.driver}</p>}
             </div>

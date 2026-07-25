@@ -74,6 +74,18 @@ export interface CompanySettings {
   taxRate: number  // IVA rate as decimal (0.19 = 19%)
   paymentMethods: { id: string; name: string; isActive: boolean }[]
   taxRates: { id: string; name: string; rate: number; isDefault: boolean; isActive: boolean }[]
+  // Equipo de trabajo — nombres editables de vendedores, producción y conductores
+  teamMembers: TeamMember[]
+}
+
+// Roles del equipo que alimentan los selectores de la app (vendedor asignado,
+// operario de producción, conductor de despacho).
+export type TeamRole = 'seller' | 'production' | 'driver'
+export interface TeamMember {
+  id: string
+  name: string
+  role: TeamRole
+  isActive: boolean
 }
 
 interface AppState {
@@ -377,6 +389,21 @@ const defaultCompanySettings: CompanySettings = {
     { id: 'iva0',   name: 'IVA 0%',  rate: 0,    isDefault: false, isActive: true },
     { id: 'exento', name: 'Exento',  rate: 0,    isDefault: false, isActive: true },
   ],
+  teamMembers: [
+    { id: 'tm_s1', name: 'Ana Ramos',      role: 'seller',     isActive: true },
+    { id: 'tm_s2', name: 'Carlos López',   role: 'seller',     isActive: true },
+    { id: 'tm_s3', name: 'María García',   role: 'seller',     isActive: true },
+    { id: 'tm_s4', name: 'Roberto Méndez', role: 'seller',     isActive: true },
+    { id: 'tm_s5', name: 'Admin General',  role: 'seller',     isActive: true },
+    { id: 'tm_p1', name: 'Carlos Mendez',  role: 'production', isActive: true },
+    { id: 'tm_p2', name: 'Laura Herrera',  role: 'production', isActive: true },
+    { id: 'tm_p3', name: 'Miguel Torres',  role: 'production', isActive: true },
+    { id: 'tm_d1', name: 'Carlos López',   role: 'driver',     isActive: true },
+    { id: 'tm_d2', name: 'Miguel Herrera', role: 'driver',     isActive: true },
+    { id: 'tm_d3', name: 'Andrés Ruiz',    role: 'driver',     isActive: true },
+    { id: 'tm_d4', name: 'Pedro Díaz',     role: 'driver',     isActive: true },
+    { id: 'tm_d5', name: 'Juan Martínez',  role: 'driver',     isActive: true },
+  ],
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -466,6 +493,7 @@ export const useStore = create<AppState>((set, get) => ({
         taxRate:            settings.taxRate            ?? defaultCompanySettings.taxRate,
         paymentMethods:     settings.paymentMethods     ?? defaultCompanySettings.paymentMethods,
         taxRates:           settings.taxRates           ?? defaultCompanySettings.taxRates,
+        teamMembers:        settings.teamMembers        ?? defaultCompanySettings.teamMembers,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })
