@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Topbar from './Topbar'
+import MobileTabBar from './MobileTabBar'
 import GlobalSearch from './GlobalSearch'
 import { PageSkeleton } from '../Skeletons'
 import { useStore } from '../../store/useStore'
@@ -47,9 +48,10 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[var(--app-canvas)]">
       <Topbar title={resolveTitle()} />
-      <main className="flex-1 px-5 py-4 overflow-auto max-w-[1500px] w-full mx-auto">
+      {/* pb-20 on phones clears the fixed bottom tab bar */}
+      <main className="mx-auto w-full max-w-[1500px] flex-1 overflow-auto px-3 py-4 pb-20 sm:px-5 md:pb-6">
         {!dataLoaded && pathname !== '/settings' ? (
           <PageSkeleton />
         ) : (
@@ -58,6 +60,7 @@ export default function Layout() {
           </div>
         )}
       </main>
+      <MobileTabBar />
       <GlobalSearch />
       <InstallPWA />
     </div>

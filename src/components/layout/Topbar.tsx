@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import ModuleNav, { ModuleTitle } from './ModuleNav'
 
 // ── UserAvatar ─────────────────────────────────────────────────────────────
 
@@ -89,92 +90,67 @@ export default function Topbar({ title }: { title?: string }) {
   const logo = companySettings.logo
 
   return (
-    <header className="h-16 glass border-b border-slate-200/40 dark:border-gray-700/40 flex items-center justify-between px-5 sticky top-0 z-30">
-      {/* Brand / breadcrumb */}
-      <div className="flex items-center gap-3 min-w-0">
-        <Link
-          to="/"
-          className="flex items-center gap-2.5 group flex-shrink-0"
-          title="Volver al inicio"
-        >
+    <header className="app-header sticky top-0 z-30 flex h-14 items-center gap-3 px-3 sm:px-5">
+      {/* Brand + module switcher */}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <Link to="/" className="flex flex-shrink-0 items-center gap-2.5" title="Volver al inicio">
           {logo ? (
-            <img src={logo} alt="" className="h-10 w-10 object-contain rounded-xl group-hover:scale-105 transition-transform" />
+            <img src={logo} alt="" className="h-8 w-8 rounded-lg object-contain" />
           ) : (
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform"
-                 style={{
-                   background: 'linear-gradient(135deg, #527d36 0%, #2d4a1e 100%)',
-                   boxShadow: '0 4px 12px -2px rgba(82, 125, 54, 0.4)',
-                 }}>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
               <Leaf size={16} className="text-white" />
             </div>
           )}
-          <div className="hidden sm:block min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate group-hover:text-amazonia-700 dark:group-hover:text-amazonia-300 transition-colors leading-tight">
-              {companySettings.companyName || 'Amazonia Concrete'}
-            </p>
-            <p className="text-[10px] text-amazonia-700 dark:text-amazonia-400 font-medium tracking-wider uppercase leading-tight">
-              Sistema ERP
-            </p>
-          </div>
+          <span className="hidden truncate text-sm font-bold tracking-tight text-white sm:block">
+            {companySettings.companyName || 'Amazonia Concrete'}
+          </span>
         </Link>
 
-        {title && (
-          <>
-            <ChevronRight size={14} className="text-slate-400 dark:text-gray-500 flex-shrink-0 hidden md:block" />
-            <Link
-              to="/"
-              className="hidden md:flex items-center gap-1 text-[11px] text-slate-500 dark:text-gray-400 hover:text-amazonia-700 dark:hover:text-amazonia-400 transition-colors flex-shrink-0"
-              title="Inicio"
-            >
-              <Home size={12} /> Inicio
-            </Link>
-            <ChevronRight size={14} className="text-slate-400 dark:text-gray-500 flex-shrink-0 hidden md:block" />
-            <h2 className="font-bold text-slate-800 dark:text-gray-100 tracking-tight text-sm md:text-base truncate">
-              {title}
-            </h2>
-          </>
-        )}
+        <ModuleNav />
+        <ModuleTitle title={title} />
       </div>
 
-      {/* Right cluster */}
-      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-          className="hidden md:flex items-center gap-2 pl-9 pr-3 py-2 text-sm bg-white/60 dark:bg-gray-700/60 dark:text-gray-400 border border-slate-200/70 dark:border-gray-600/70 rounded-xl w-52 text-slate-400 hover:border-amazonia-400 dark:hover:border-amazonia-500 hover:shadow-soft transition-all duration-200 relative cursor-pointer"
-        >
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <span className="flex-1 text-left">Buscar...</span>
-          <kbd className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-gray-600 text-[10px] font-mono border border-slate-300/60 dark:border-gray-500 text-slate-500 dark:text-gray-300">⌘K</kbd>
-        </button>
-      </div>
+      {/* Search — full control on desktop, icon on phones */}
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('open-global-search'))}
+        className="hidden items-center gap-2 rounded-full bg-white/12 px-3.5 py-1.5 text-sm text-white/70
+                   transition-colors hover:bg-white/20 md:flex md:w-56 lg:w-72"
+      >
+        <Search size={14} className="flex-shrink-0" />
+        <span className="flex-1 text-left">Buscar cliente, orden…</span>
+        <kbd className="rounded border border-white/25 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+      </button>
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('open-global-search'))}
+        aria-label="Buscar"
+        className="flex h-9 w-9 items-center justify-center rounded-full text-white/85 hover:bg-white/15 md:hidden"
+      >
+        <Search size={17} />
+      </button>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-shrink-0 items-center gap-1">
         {/* Dark mode */}
         <button
           onClick={toggleDarkMode}
-          className="w-9 h-9 rounded-xl bg-white/60 dark:bg-gray-700/60 border border-slate-200/70 dark:border-gray-600/70 flex items-center justify-center hover:bg-white dark:hover:bg-gray-600 hover:shadow-soft hover:-translate-y-0.5 transition-all duration-200"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15"
           title={darkMode ? 'Modo claro' : 'Modo oscuro'}
         >
-          {darkMode
-            ? <Sun  size={15} className="text-amber-400" />
-            : <Moon size={15} className="text-slate-600" />
-          }
+          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
         {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => { setShowNotif(!showNotif); setShowUser(false) }}
-            className="relative w-9 h-9 rounded-xl bg-white/60 dark:bg-gray-700/60 border border-slate-200/70 dark:border-gray-600/70 flex items-center justify-center hover:bg-white dark:hover:bg-gray-600 hover:shadow-soft hover:-translate-y-0.5 transition-all duration-200"
+            aria-label="Notificaciones"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15"
           >
-            <Bell size={15} className="text-slate-600 dark:text-slate-300" />
+            <Bell size={16} />
             {unread > 0 && (
-              <>
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-white dark:ring-gray-800 z-10">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500/60 rounded-full animate-ping" />
-              </>
+              <span className="absolute -right-0.5 -top-0.5 z-10 flex h-4 min-w-[16px] items-center justify-center
+                               rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-amazonia-800">
+                {unread > 9 ? '9+' : unread}
+              </span>
             )}
           </button>
 
@@ -290,26 +266,16 @@ export default function Topbar({ title }: { title?: string }) {
           )}
         </div>
 
-        {/* Date */}
-        <div className="hidden md:block text-right ml-1">
-          <p className="text-xs text-slate-500 dark:text-gray-400">
-            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-        </div>
-
         {/* User avatar + dropdown */}
         {user && (
-          <div className="relative ml-1.5">
+          <div className="relative ml-0.5">
             <button onClick={() => { setShowUser(!showUser); setShowNotif(false) }}
-              className="flex items-center gap-2.5 pl-1.5 pr-2.5 py-1 rounded-xl hover:bg-white dark:hover:bg-gray-700 hover:shadow-soft transition-all duration-200 border border-transparent hover:border-slate-200/60 dark:hover:border-gray-600/60">
-              <div className="relative">
-                <UserAvatar name={user.name} size={30} />
-                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-white dark:ring-gray-800" />
-              </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-xs font-bold text-slate-800 dark:text-gray-200 leading-tight">{user.name.split(' ')[0]}</p>
-                <p className="text-[10px] text-amazonia-600 dark:text-amazonia-400 leading-tight font-medium">{user.role}</p>
-              </div>
+              aria-label={`Cuenta de ${user.name}`}
+              className="flex items-center gap-2 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-white/15 sm:pr-2.5">
+              <UserAvatar name={user.name} size={30} />
+              <span className="hidden text-left text-xs font-semibold leading-tight text-white sm:block">
+                {user.name.split(' ')[0]}
+              </span>
             </button>
 
             {showUser && (

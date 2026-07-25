@@ -661,7 +661,7 @@ export default function Production() {
       />
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 stagger-children">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard icon={Clock}        label="Pendientes"     value={counts.pending}     accent="#f59e0b" />
         <StatCard icon={Play}         label="En producción"  value={counts.in_progress} accent="#2563eb" />
         <StatCard icon={CheckCircle}  label="Finalizadas"    value={counts.finished}    accent="#10b981" />

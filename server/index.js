@@ -3,6 +3,9 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { readFileSync } from 'fs'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 
 import { pool } from './db.js'
 import { authMiddleware } from './middleware/auth.js'
@@ -38,57 +41,25 @@ dotenv.config()
 
 const app  = express()
 const PORT = process.env.PORT || 3001
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ── Run DB migrations on startup ───────────────────────────────────────────
+// Order matters: the base tables must exist before the ADD COLUMN statements
+// below can reference them, otherwise a fresh database aborts the whole batch
+// and no table ever gets created. Each stage runs in its own statement batch so
+// a failure in one does not silently skip the rest.
 async function migrate() {
+  // 1. Base schema (idempotent: every statement is IF NOT EXISTS / ON CONFLICT).
+  //    Running it here means a fresh database works from `npm run server` alone.
+  try {
+    await pool.query(readFileSync(join(__dirname, 'schema.sql'), 'utf8'))
+  } catch (e) {
+    console.error('⚠️  Schema error:', e.message)
+  }
+
+  // 2. Tables owned by this file.
   try {
     await pool.query(`
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS code            TEXT;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS company         TEXT;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS segment         TEXT DEFAULT 'regular';
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS total_purchases NUMERIC DEFAULT 0;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_purchase   DATE;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active       BOOLEAN DEFAULT TRUE;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes           TEXT;
-      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS order_number   TEXT;
-      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending';
-      ALTER TABLE recipe_ingredients ADD COLUMN IF NOT EXISTS cost NUMERIC NOT NULL DEFAULT 0;
-      ALTER TABLE supplies ADD COLUMN IF NOT EXISTS sku TEXT;
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_name          TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_key           TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_account_type  TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_account_number TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_message       TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tiktok             TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS whatsapp           TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram          TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_handle   TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_host     TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_port     INTEGER DEFAULT 587;
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_user     TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_pass     TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_from          TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS resend_api_key     TEXT DEFAULT '';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS invoice_prefix     TEXT DEFAULT 'VTA';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS monthly_goal       NUMERIC(14,2) DEFAULT 0;
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tax_rate           NUMERIC(5,4) DEFAULT 0.19;
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS payment_methods    JSONB DEFAULT '[{"id":"cash","name":"Efectivo","isActive":true},{"id":"transfer","name":"Transferencia","isActive":true},{"id":"nequi","name":"Nequi","isActive":true},{"id":"daviplata","name":"Daviplata","isActive":true},{"id":"card","name":"Tarjeta","isActive":true},{"id":"check","name":"Cheque","isActive":false}]';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tax_rates          JSONB DEFAULT '[{"id":"iva19","name":"IVA 19%","rate":0.19,"isDefault":true,"isActive":true},{"id":"iva0","name":"IVA 0%","rate":0,"isDefault":false,"isActive":true},{"id":"exento","name":"Exento","rate":0,"isDefault":false,"isActive":true}]';
-      ALTER TABLE settings ADD COLUMN IF NOT EXISTS team_members       JSONB DEFAULT '[{"id":"tm_s1","name":"Ana Ramos","role":"seller","isActive":true},{"id":"tm_s2","name":"Carlos López","role":"seller","isActive":true},{"id":"tm_s3","name":"María García","role":"seller","isActive":true},{"id":"tm_s4","name":"Roberto Méndez","role":"seller","isActive":true},{"id":"tm_s5","name":"Admin General","role":"seller","isActive":true},{"id":"tm_p1","name":"Carlos Mendez","role":"production","isActive":true},{"id":"tm_p2","name":"Laura Herrera","role":"production","isActive":true},{"id":"tm_p3","name":"Miguel Torres","role":"production","isActive":true},{"id":"tm_d1","name":"Carlos López","role":"driver","isActive":true},{"id":"tm_d2","name":"Miguel Herrera","role":"driver","isActive":true},{"id":"tm_d3","name":"Andrés Ruiz","role":"driver","isActive":true},{"id":"tm_d4","name":"Pedro Díaz","role":"driver","isActive":true},{"id":"tm_d5","name":"Juan Martínez","role":"driver","isActive":true}]';
-      ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_attempts JSONB DEFAULT '[]';
-      ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_proof    JSONB DEFAULT NULL;
-      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS lead_time_days  INTEGER DEFAULT 0;
-      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms   INTEGER DEFAULT 0;
-      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS min_order_value NUMERIC(14,2) DEFAULT 0;
-      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS rejected_qty       NUMERIC DEFAULT 0;
-      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS finished_at        TIMESTAMP;
-      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS actual_ingredients JSONB DEFAULT '[]';
-      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS notes              TEXT DEFAULT '';
-      ALTER TABLE products   ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
-      ALTER TABLE products   ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '';
-      ALTER TABLE products   ADD COLUMN IF NOT EXISTS sku TEXT DEFAULT '';
-      ALTER TABLE products   ADD COLUMN IF NOT EXISTS recipe_id TEXT DEFAULT '';
-      ALTER TABLE products   ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS quotations (
         id                    TEXT PRIMARY KEY,
         quote_number          TEXT,
@@ -290,6 +261,61 @@ async function migrate() {
         created_by      TEXT DEFAULT 'Sistema',
         created_at      TIMESTAMP DEFAULT NOW()
       );
+    `)
+  } catch (e) {
+    console.error('⚠️  Table error:', e.message)
+  }
+
+  // 3. Additive column migrations for databases created before these columns
+  //    existed. Safe to re-run: every statement is ADD COLUMN IF NOT EXISTS.
+  try {
+    await pool.query(`
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS code            TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS company         TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS segment         TEXT DEFAULT 'regular';
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS total_purchases NUMERIC DEFAULT 0;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_purchase   DATE;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active       BOOLEAN DEFAULT TRUE;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes           TEXT;
+      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS order_number   TEXT;
+      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending';
+      ALTER TABLE recipe_ingredients ADD COLUMN IF NOT EXISTS cost NUMERIC NOT NULL DEFAULT 0;
+      ALTER TABLE supplies ADD COLUMN IF NOT EXISTS sku TEXT;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_name          TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_key           TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_account_type  TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_account_number TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS bank_message       TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tiktok             TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS whatsapp           TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram          TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_handle   TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_host     TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_port     INTEGER DEFAULT 587;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_user     TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_pass     TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS smtp_from          TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS resend_api_key     TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS invoice_prefix     TEXT DEFAULT 'VTA';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS monthly_goal       NUMERIC(14,2) DEFAULT 0;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tax_rate           NUMERIC(5,4) DEFAULT 0.19;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS payment_methods    JSONB DEFAULT '[{"id":"cash","name":"Efectivo","isActive":true},{"id":"transfer","name":"Transferencia","isActive":true},{"id":"nequi","name":"Nequi","isActive":true},{"id":"daviplata","name":"Daviplata","isActive":true},{"id":"card","name":"Tarjeta","isActive":true},{"id":"check","name":"Cheque","isActive":false}]';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS tax_rates          JSONB DEFAULT '[{"id":"iva19","name":"IVA 19%","rate":0.19,"isDefault":true,"isActive":true},{"id":"iva0","name":"IVA 0%","rate":0,"isDefault":false,"isActive":true},{"id":"exento","name":"Exento","rate":0,"isDefault":false,"isActive":true}]';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS team_members       JSONB DEFAULT '[{"id":"tm_s1","name":"Ana Ramos","role":"seller","isActive":true},{"id":"tm_s2","name":"Carlos López","role":"seller","isActive":true},{"id":"tm_s3","name":"María García","role":"seller","isActive":true},{"id":"tm_s4","name":"Roberto Méndez","role":"seller","isActive":true},{"id":"tm_s5","name":"Admin General","role":"seller","isActive":true},{"id":"tm_p1","name":"Carlos Mendez","role":"production","isActive":true},{"id":"tm_p2","name":"Laura Herrera","role":"production","isActive":true},{"id":"tm_p3","name":"Miguel Torres","role":"production","isActive":true},{"id":"tm_d1","name":"Carlos López","role":"driver","isActive":true},{"id":"tm_d2","name":"Miguel Herrera","role":"driver","isActive":true},{"id":"tm_d3","name":"Andrés Ruiz","role":"driver","isActive":true},{"id":"tm_d4","name":"Pedro Díaz","role":"driver","isActive":true},{"id":"tm_d5","name":"Juan Martínez","role":"driver","isActive":true}]';
+      ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_attempts JSONB DEFAULT '[]';
+      ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS delivery_proof    JSONB DEFAULT NULL;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS lead_time_days  INTEGER DEFAULT 0;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms   INTEGER DEFAULT 0;
+      ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS min_order_value NUMERIC(14,2) DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS rejected_qty       NUMERIC DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS finished_at        TIMESTAMP;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS actual_ingredients JSONB DEFAULT '[]';
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS notes              TEXT DEFAULT '';
+      ALTER TABLE products   ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+      ALTER TABLE products   ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '';
+      ALTER TABLE products   ADD COLUMN IF NOT EXISTS sku TEXT DEFAULT '';
+      ALTER TABLE products   ADD COLUMN IF NOT EXISTS recipe_id TEXT DEFAULT '';
+      ALTER TABLE products   ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]';
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

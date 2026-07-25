@@ -10,6 +10,8 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import FacturaModal from '../components/InvoiceModal'
 import { formatCOP } from '../utils/currency'
+import { formatDate } from '../utils/date'
+import RowActions from '../components/RowActions'
 import { nextOrderNumber } from '../utils/orderNumber'
 import { toast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
@@ -910,10 +912,10 @@ export default function Sales() {
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 stagger-children">
-        <StatCard icon={DollarSign}  label="Ingresos totales" value={formatCOP(totalRevenue)} accent="#2563eb" hint={`${saleOrders.length} órdenes`} />
-        <StatCard icon={Clock}       label="Por cobrar"       value={formatCOP(pendingPay)}   accent="#f59e0b" hint={pendingPay > 0 ? 'Pagos pendientes' : 'Todo cobrado'} />
-        <StatCard icon={CheckCircle} label="Órdenes totales"  value={String(todayOrders)}     accent="#0d9488" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard icon={DollarSign}  label="Ingresos totales" value={formatCOP(totalRevenue)} hint={`${saleOrders.length} órdenes`} />
+        <StatCard icon={Clock}       label="Por cobrar"       value={formatCOP(pendingPay)}   tone={pendingPay > 0 ? 'warning' : 'positive'} hint={pendingPay > 0 ? 'Pagos pendientes' : 'Todo cobrado'} />
+        <StatCard icon={CheckCircle} label="Órdenes totales"  value={String(todayOrders)} />
       </div>
 
       {/* Filters */}
@@ -924,14 +926,18 @@ export default function Sales() {
             <input className="input pl-9" placeholder="Buscar orden o cliente..." value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
           </div>
-          {/* Date range */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">Desde</label>
-            <input type="date" className="input text-xs py-1.5 w-36" value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)} />
-            <label className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">Hasta</label>
-            <input type="date" className="input text-xs py-1.5 w-36" value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)} />
+          {/* Date range — dos columnas en teléfono para que no se salgan de pantalla */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-gray-400 sm:flex-row sm:items-center sm:gap-2">
+              <span className="whitespace-nowrap">Desde</span>
+              <input type="date" className="input text-xs sm:w-36" value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-gray-400 sm:flex-row sm:items-center sm:gap-2">
+              <span className="whitespace-nowrap">Hasta</span>
+              <input type="date" className="input text-xs sm:w-36" value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)} />
+            </label>
           </div>
           {hasActiveFilters && (
             <button onClick={clearFilters}
@@ -940,23 +946,26 @@ export default function Sales() {
             </button>
           )}
         </div>
-        <div className="flex gap-1.5 flex-wrap items-center">
-          <span className="text-[10px] text-slate-500 dark:text-gray-500 font-bold uppercase tracking-wider mr-1">Estado</span>
+        {/* Cada grupo en su propia fila: mezclados se leían como una sola lista */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 w-14 flex-shrink-0 text-xs text-slate-500 dark:text-gray-400">Estado</span>
           {[['all','Todas'],['pending','Pendiente'],['confirmed','Confirmado'],['processing','En proceso'],['delivered','Entregado']].map(([v,l]) => (
             <button key={v} onClick={() => setStatus(v)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 statusFilter === v
-                  ? 'bg-blue-600 text-white shadow-soft ring-1 ring-inset ring-blue-500/30'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-700'
+                  ? 'bg-amazonia-700 text-white'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-amazonia-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
               }`}>{l}</button>
           ))}
-          <span className="text-[10px] text-slate-500 dark:text-gray-500 font-bold uppercase tracking-wider ml-3 mr-1">Pago</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 w-14 flex-shrink-0 text-xs text-slate-500 dark:text-gray-400">Pago</span>
           {[['all','Todos'],['pending','Pendiente'],['paid','Pagado'],['partial','Parcial']].map(([v,l]) => (
             <button key={v} onClick={() => setPayFilter(v)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 payFilter === v
-                  ? 'bg-emerald-600 text-white shadow-soft ring-1 ring-inset ring-emerald-500/30'
-                  : 'bg-white dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 hover:border-emerald-400 hover:text-emerald-700'
+                  ? 'bg-amazonia-700 text-white'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-amazonia-400 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300'
               }`}>{l}</button>
           ))}
           {filtered.length !== saleOrders.length && (
@@ -970,7 +979,7 @@ export default function Sales() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="table-cards w-full text-sm">
           <thead>
             <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
               {['Orden','Cliente','Productos','Total','Pago','Estado pedido','Método','Fecha','Acciones'].map((h) => (
@@ -981,106 +990,77 @@ export default function Sales() {
           <tbody>
             {paginated.map((o) => (
               <tr key={o.id} className="table-row cursor-pointer" onClick={() => setDetail(o)}>
-                <td className="px-4 py-3">
+                {/* En teléfono el cliente es el título de la tarjeta y la orden pasa a ser un dato más */}
+                <td className="px-4 py-3" data-label="Orden">
                   <div className="font-mono text-xs text-blue-600 dark:text-blue-400">{o.orderNumber}</div>
                   {o.invoiceNumber && (
                     <div className="font-mono text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">{o.invoiceNumber}</div>
                   )}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-800 dark:text-gray-200">{o.customer}</td>
-                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs">{o.items.length} ítem(s)</td>
-                <td className="px-4 py-3 font-bold text-slate-800 dark:text-white">{formatCOP(o.total)}</td>
-                <td className="px-4 py-3"><span className={`badge ${PAY_BADGE[o.paymentStatus] ?? 'badge-yellow'}`}>{PAY_LABELS[o.paymentStatus] ?? o.paymentStatus}</span></td>
-                <td className="px-4 py-3"><span className={`badge ${STATUS_BADGE[o.status] ?? 'badge-yellow'}`}>{STATUS_LABELS[o.status] ?? o.status}</span></td>
-                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs">{o.paymentMethod}</td>
-                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs">{o.date}</td>
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button className="btn btn-sm btn-secondary" onClick={() => setDetail(o)}>Ver</button>
-                    {o.paymentStatus !== 'paid' && (
-                      <button className="btn btn-sm flex items-center gap-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
-                        onClick={() => updateSaleOrder({ ...o, paymentStatus: 'paid' })} title="Marcar como pagado">
-                        <CheckCircle size={12} />
-                      </button>
-                    )}
-                    <button className="btn btn-sm flex items-center gap-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-                      onClick={() => setInvoice(o)} title="Ver recibo de pedido">
-                      <FileText size={12} />
-                    </button>
-                    <button
-                      className={`btn btn-sm flex items-center gap-1.5 ${
-                        o.invoiceNumber
-                          ? 'text-emerald-700 border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400'
-                          : 'text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 border border-violet-200 dark:border-violet-800'
-                      }`}
-                      onClick={() => handleInvoice(o)}
-                      disabled={generatingInv === o.id}
-                      title={o.invoiceNumber ? `Factura ${o.invoiceNumber}` : 'Generar factura'}
-                    >
-                      {generatingInv === o.id
-                        ? <Loader2 size={12} className="animate-spin" />
-                        : <Receipt size={12} />
-                      }
-                      {o.invoiceNumber ? o.invoiceNumber.split('-').pop() : 'FAC'}
-                    </button>
-                    {/* Despachar: show when order is confirmed or processing */}
-                    {['confirmed','processing'].includes(o.status) && (() => {
-                      const hasDispatch = dispatches.some((d) => d.saleOrderId === o.id)
-                      return (
-                        <button
-                          className={`btn btn-sm flex items-center gap-1 ${
-                            hasDispatch
-                              ? 'text-blue-700 border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400'
-                              : 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                          }`}
-                          title={hasDispatch ? 'Ver despacho' : 'Crear despacho'}
-                          onClick={() => navigate(`/dispatch`)}
-                        >
-                          <Truck size={12} />
-                        </button>
-                      )
-                    })()}
-                    {(() => {
-                      const cust = customers.find(c => c.id === o.customerId)
-                      if (!cust?.phone) return null
-                      return o.paymentStatus !== 'paid' ? (
-                        <button className="btn btn-sm flex items-center gap-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 border border-green-200 dark:border-green-800"
-                          onClick={() => openWhatsApp(cust.phone, buildPaymentReminder({
-                            companyName: companySettings.companyName, customer: o.customer,
-                            orderNumber: o.orderNumber, date: o.date, total: o.total,
-                            paymentStatus: o.paymentStatus, bankInfo: getBankInfo(companySettings),
-                          }))} title="Cobrar por WhatsApp">
-                          <MessageCircle size={12} />
-                        </button>
-                      ) : (
-                        <button className="btn btn-sm flex items-center gap-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 border border-green-200 dark:border-green-800"
-                          onClick={() => openWhatsApp(cust.phone, buildOrderConfirmation({
-                            companyName: companySettings.companyName, customer: o.customer,
-                            phone: cust.phone, orderNumber: o.orderNumber, date: o.date,
-                            total: o.total, paymentMethod: o.paymentMethod, items: o.items,
-                            deliveryDate: o.deliveryDate, bankInfo: getBankInfo(companySettings),
-                          }))} title="Enviar confirmación por WhatsApp">
-                          <MessageCircle size={12} />
-                        </button>
-                      )
-                    })()}
-                    {o.paymentStatus !== 'paid' && (
-                      <button className="btn btn-sm flex items-center gap-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800"
-                        onClick={() => setPayTarget(o)} title="Registrar pago">
-                        <Banknote size={12} />
-                      </button>
-                    )}
-                    <button className="btn btn-sm flex items-center gap-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
-                      onClick={() => handleDuplicate(o)} title="Duplicar orden">
-                      <Copy size={12} />
-                    </button>
-                    {canDelete('sales') && (
-                      <button className="btn btn-sm flex items-center gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
-                        onClick={() => setDeleteTarget(o)}>
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
+                <td className="px-4 py-3 font-medium text-slate-800 dark:text-gray-200" data-primary>{o.customer}</td>
+                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs" data-label="Productos">{o.items.length} ítem(s)</td>
+                <td className="px-4 py-3 font-bold text-slate-800 dark:text-white" data-label="Total">{formatCOP(o.total)}</td>
+                <td className="px-4 py-3" data-label="Pago"><span className={`badge ${PAY_BADGE[o.paymentStatus] ?? 'badge-yellow'}`}>{PAY_LABELS[o.paymentStatus] ?? o.paymentStatus}</span></td>
+                <td className="px-4 py-3" data-label="Estado"><span className={`badge ${STATUS_BADGE[o.status] ?? 'badge-yellow'}`}>{STATUS_LABELS[o.status] ?? o.status}</span></td>
+                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs" data-label="Método" data-hide-sm>{o.paymentMethod}</td>
+                <td className="px-4 py-3 text-slate-500 dark:text-gray-400 text-xs" data-label="Fecha">{formatDate(o.date)}</td>
+                <td className="px-4 py-3" data-actions onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const cust = customers.find((c) => c.id === o.customerId)
+                    const unpaid = o.paymentStatus !== 'paid'
+                    return (
+                      <RowActions
+                        primary={{ label: 'Ver', onClick: () => setDetail(o) }}
+                        actions={[
+                          unpaid && {
+                            label: 'Registrar pago', icon: Banknote,
+                            onClick: () => setPayTarget(o),
+                          },
+                          unpaid && {
+                            label: 'Marcar como pagado', icon: CheckCircle,
+                            onClick: () => updateSaleOrder({ ...o, paymentStatus: 'paid' }),
+                          },
+                          {
+                            label: o.invoiceNumber ? 'Ver factura' : 'Generar factura',
+                            icon: Receipt,
+                            hint: o.invoiceNumber ?? undefined,
+                            loading: generatingInv === o.id,
+                            onClick: () => handleInvoice(o),
+                          },
+                          { label: 'Recibo de pedido', icon: FileText, onClick: () => setInvoice(o) },
+                          ['confirmed', 'processing'].includes(o.status) && {
+                            label: dispatches.some((d) => d.saleOrderId === o.id) ? 'Ver despacho' : 'Crear despacho',
+                            icon: Truck,
+                            onClick: () => navigate('/dispatch'),
+                          },
+                          cust?.phone && {
+                            label: unpaid ? 'Cobrar por WhatsApp' : 'Enviar confirmación',
+                            icon: MessageCircle,
+                            onClick: () => openWhatsApp(
+                              cust.phone,
+                              unpaid
+                                ? buildPaymentReminder({
+                                    companyName: companySettings.companyName, customer: o.customer,
+                                    orderNumber: o.orderNumber, date: o.date, total: o.total,
+                                    paymentStatus: o.paymentStatus, bankInfo: getBankInfo(companySettings),
+                                  })
+                                : buildOrderConfirmation({
+                                    companyName: companySettings.companyName, customer: o.customer,
+                                    phone: cust.phone, orderNumber: o.orderNumber, date: o.date,
+                                    total: o.total, paymentMethod: o.paymentMethod, items: o.items,
+                                    deliveryDate: o.deliveryDate, bankInfo: getBankInfo(companySettings),
+                                  }),
+                            ),
+                          },
+                          { label: 'Duplicar orden', icon: Copy, onClick: () => handleDuplicate(o) },
+                          canDelete('sales') && {
+                            label: 'Eliminar orden', icon: Trash2, danger: true,
+                            onClick: () => setDeleteTarget(o),
+                          },
+                        ]}
+                      />
+                    )
+                  })()}
                 </td>
               </tr>
             ))}

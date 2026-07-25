@@ -83,6 +83,61 @@ Abrir en el navegador: http://localhost:3000
 
 ---
 
+## 6. Abrir la app desde el celular
+
+El computador donde corre la app hace de servidor. El celular solo necesita
+estar en **la misma red WiFi**.
+
+### Paso 1 — Averiguar la IP del computador
+
+```bash
+# Windows (PowerShell)
+ipconfig
+# Busca "Dirección IPv4" en tu adaptador WiFi, algo como 192.168.1.20
+
+# Linux / Mac
+hostname -I | awk '{print $1}'
+```
+
+Al arrancar `npm run dev`, Vite también la imprime directamente:
+
+```
+➜  Local:   http://localhost:3000/
+➜  Network: http://192.168.1.20:3000/   ← esta es la que se usa en el celular
+```
+
+### Paso 2 — Abrirla en el celular
+
+En el navegador del celular escribe esa dirección **con el puerto**:
+
+```
+http://192.168.1.20:3000
+```
+
+(Reemplaza `192.168.1.20` por la IP real de tu computador.)
+
+### Paso 3 — Instalarla como aplicación (opcional pero recomendado)
+
+Así queda con su propio ícono, a pantalla completa y sin barra del navegador:
+
+- **Android (Chrome):** menú ⋮ → *Instalar aplicación* / *Añadir a pantalla de inicio*
+- **iPhone (Safari):** botón Compartir → *Añadir a pantalla de inicio*
+
+### Si no carga en el celular
+
+| Síntoma | Causa habitual | Solución |
+|---|---|---|
+| No abre nada | El celular está en otra red (ej. datos móviles) | Conéctalo al mismo WiFi |
+| No abre nada | El firewall de Windows bloquea el puerto | Permite Node.js en redes privadas, o abre el puerto 3000 |
+| Abre pero sin datos | El backend no está corriendo | Verifica que `npm run server:dev` siga activo |
+| Dejó de funcionar | La IP del computador cambió | Vuelve a mirarla con `ipconfig` / `hostname -I` |
+
+> **Nota:** esto funciona solo dentro de tu red local. Para entrar desde fuera
+> (datos móviles, otra ciudad) hay que publicar la app en un servidor con
+> dominio y HTTPS — es un paso aparte.
+
+---
+
 ## Si PostgreSQL se apaga (reinicio del PC)
 
 ```bash

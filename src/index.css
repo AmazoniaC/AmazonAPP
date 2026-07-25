@@ -4,22 +4,48 @@
 
 * { font-family: 'Inter', system-ui, sans-serif; }
 
+/* ── Design tokens — dirección "Claridad" ────────────────────────────────────
+   Un solo lugar donde vive el color. El verde de marca es identidad y acción;
+   verde/ámbar/rojo quedan reservados exclusivamente para estado.            */
+:root {
+  --app-canvas:   #f7f6f3;  /* lienzo cálido, no blanco puro */
+  --app-surface:  #ffffff;
+  --app-header:   #1e3315;  /* verde profundo de marca */
+  --app-action:   #3d6227;
+  --app-earth:    #8b5e3c;
+  --app-ink:      #1c1f1a;
+  --app-mute:     #6f7269;
+  --app-rule:     #e7e4dc;
+  --app-radius:   14px;
+  --app-shadow:   0 1px 3px rgba(28, 31, 26, .05);
+  --app-shadow-lg:0 8px 24px -10px rgba(28, 31, 26, .18);
+}
+.dark {
+  --app-canvas:   #12140f;
+  --app-surface:  #1a1d17;
+  --app-header:   #16220f;
+  --app-action:   #5b9139;
+  --app-earth:    #b3835e;
+  --app-ink:      #e8eae3;
+  --app-mute:     #989c90;
+  --app-rule:     #2a2e24;
+  --app-shadow:   0 1px 3px rgba(0, 0, 0, .3);
+  --app-shadow-lg:0 8px 24px -10px rgba(0, 0, 0, .5);
+}
+
 html {
-  font-size: 13px;
+  /* 16px base — antes 13px, que encogía toda la interfaz ~19 % */
+  font-size: 16px;
 }
 
 body {
-  @apply bg-stone-50 text-slate-900;
-  background-image:
-    radial-gradient(at 15% 0%, rgba(82, 125, 54, 0.04) 0px, transparent 50%),
-    radial-gradient(at 85% 100%, rgba(168, 112, 80, 0.03) 0px, transparent 50%);
-  background-attachment: fixed;
+  background: var(--app-canvas);
+  color: var(--app-ink);
 }
-.dark body, body.dark {
-  @apply bg-gray-900 text-gray-100;
-  background-image:
-    radial-gradient(at 15% 0%, rgba(82, 125, 54, 0.10) 0px, transparent 50%),
-    radial-gradient(at 85% 100%, rgba(168, 112, 80, 0.05) 0px, transparent 50%);
+
+/* Cabecera de marca */
+.app-header {
+  background: var(--app-header);
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -29,79 +55,28 @@ body {
 .dark ::-webkit-scrollbar-thumb { @apply bg-gray-600/60; }
 .dark ::-webkit-scrollbar-thumb:hover { @apply bg-gray-500/80; }
 
-/* ── Sidebar ─────────────────────────────── */
-.sidebar-link {
-  @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer relative;
-  transition: all 220ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sidebar-link:hover  {
-  background: rgba(255, 255, 255, 0.08);
-  @apply text-white;
-  transform: translateX(2px);
-}
-.sidebar-link.active {
-  @apply bg-gradient-to-r from-amazonia-600/90 to-amazonia-700 text-white;
-  box-shadow: 0 4px 16px -4px rgba(82, 125, 54, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-.sidebar-link.active svg { @apply text-white; }
-.sidebar-link.active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  background: linear-gradient(180deg, #97be82, #527d36);
-  border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 8px rgba(151, 190, 130, 0.6);
-}
-
-.dark .sidebar-link:hover  { @apply bg-white/10 text-white; }
-.dark .sidebar-link.active { @apply text-white; }
+/* La barra lateral de esta hoja nunca se construyó como componente. La
+   navegación real vive ahora en ModuleNav (cabecera) y MobileTabBar (teléfono). */
 
 /* ── Card ─────────────────────────────── */
+/* Superficie plana: un borde de 1px y una sola sombra suave. Sin degradados,
+   sin desenfoque y sin elevación al pasar el cursor (la tarjeta no es un botón). */
 .card {
-  @apply bg-white rounded-2xl border border-slate-200/70;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
-  transition: box-shadow 220ms ease, transform 220ms ease, border-color 220ms ease;
-}
-.card:hover {
-  box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.12), 0 4px 8px -4px rgba(15, 23, 42, 0.06);
-  border-color: rgb(203 213 225 / 0.9);
-}
-.dark .card {
-  @apply bg-gray-800/80 border-gray-700/60;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-.dark .card:hover {
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
-  border-color: rgb(75 85 99 / 0.9);
+  background: var(--app-surface);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
 }
 
 /* ── Card variants ─────────────────────── */
-.card-gradient {
-  @apply rounded-2xl border border-slate-200/60;
-  background: linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.8) 100%);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-.dark .card-gradient {
-  @apply border-gray-700/60;
-  background: linear-gradient(135deg, rgba(31,41,55,0.9) 0%, rgba(17,24,39,0.7) 100%);
-  backdrop-filter: blur(8px);
-}
-
+/* Variantes heredadas — ahora comparten la misma superficie plana, de modo que
+   las pantallas que aún las usan no reintroducen degradados ni cristal. */
+.card-gradient,
 .card-glass {
-  @apply rounded-2xl border border-white/40;
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.08);
-}
-.dark .card-glass {
-  @apply border-gray-700/40;
-  background: rgba(31, 41, 55, 0.55);
+  background: var(--app-surface);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
 }
 
 /* ── Buttons ─────────────────────────── */
@@ -116,53 +91,27 @@ body {
   outline-offset: 2px;
 }
 
+/* Botones planos de un solo color. Sin degradado, sin desplazamiento vertical:
+   el color de fondo ya comunica la jerarquía. */
 .btn-primary {
   @apply text-white;
-  background: linear-gradient(135deg, #3d6227 0%, #2d4a1e 100%);
-  box-shadow: 0 2px 8px -2px rgba(45, 74, 30, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: var(--app-action);
 }
-.btn-primary:hover {
-  background: linear-gradient(135deg, #527d36 0%, #3d6227 100%);
-  box-shadow: 0 4px 16px -4px rgba(45, 74, 30, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
+.btn-primary:hover { background: #527d36; }
+.dark .btn-primary:hover { background: #6ea050; }
 
 .btn-secondary {
-  @apply bg-white text-slate-700 border border-slate-200;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background: var(--app-surface);
+  color: var(--app-ink);
+  border: 1px solid var(--app-rule);
 }
-.btn-secondary:hover {
-  @apply bg-slate-50 border-slate-300;
-  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-.dark .btn-secondary {
-  @apply bg-gray-700/80 text-gray-100 border-gray-600/80;
-  backdrop-filter: blur(8px);
-}
-.dark .btn-secondary:hover { @apply bg-gray-600 border-gray-500; }
+.btn-secondary:hover { border-color: var(--app-mute); }
 
-.btn-danger {
-  @apply text-white;
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  box-shadow: 0 2px 8px -2px rgba(220, 38, 38, 0.35);
-}
-.btn-danger:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  box-shadow: 0 4px 16px -4px rgba(220, 38, 38, 0.45);
-  transform: translateY(-1px);
-}
+.btn-danger  { @apply text-white; background: #b3261e; }
+.btn-danger:hover  { background: #c9342b; }
 
-.btn-success {
-  @apply text-white;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  box-shadow: 0 2px 8px -2px rgba(5, 150, 105, 0.35);
-}
-.btn-success:hover {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 4px 16px -4px rgba(5, 150, 105, 0.45);
-  transform: translateY(-1px);
-}
+.btn-success { @apply text-white; background: #2f7d52; }
+.btn-success:hover { background: #379461; }
 
 .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
 
@@ -193,71 +142,118 @@ body {
 .dark .badge-purple { @apply bg-purple-900/40 text-purple-300 ring-purple-500/30; }
 
 /* ── Input ────────────────────────────── */
+/* min-height 44px = área táctil cómoda en teléfono */
 .input {
-  @apply w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl bg-white
-         focus:outline-none focus:ring-4 focus:ring-amazonia-500/15 focus:border-amazonia-500;
-  transition: all 180ms ease;
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.02);
+  @apply w-full rounded-xl px-3.5 py-2.5 text-sm
+         focus:outline-none focus:ring-2 focus:ring-amazonia-500/30;
+  min-height: 44px;
+  background: var(--app-surface);
+  color: var(--app-ink);
+  border: 1px solid var(--app-rule);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-.input:hover { @apply border-slate-300; }
-.dark .input {
-  @apply bg-gray-700/80 border-gray-600 text-gray-100 placeholder-gray-400
-         focus:ring-amazonia-400/20 focus:border-amazonia-400;
-  backdrop-filter: blur(4px);
-}
-.dark .input:hover { @apply border-gray-500; }
+.input:hover { border-color: var(--app-mute); }
+.input:focus { border-color: var(--app-action); }
+.dark .input { @apply placeholder-gray-500; }
 
+/* Sin mayúsculas forzadas: en español las tildes y las palabras largas
+   ("DESCRIPCIÓN", "CANTIDAD SUGERIDA") pierden legibilidad en versalitas. */
 .label {
-  @apply block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wide;
+  @apply block text-sm font-medium mb-1.5;
+  color: var(--app-mute);
+  letter-spacing: 0;
+  text-transform: none;
 }
-.dark .label { @apply text-slate-300; }
 
 /* ── Table rows ───────────────────────── */
 .table-row {
-  @apply border-b border-slate-100;
+  border-bottom: 1px solid var(--app-rule);
   transition: background-color 140ms ease;
 }
-.table-row:hover { @apply bg-slate-50/80; }
-.dark .table-row { @apply border-gray-700/70; }
-.dark .table-row:hover { @apply bg-gray-700/40; }
+.table-row:hover { background: rgba(61, 98, 39, .04); }
+.dark .table-row:hover { background: rgba(255, 255, 255, .04); }
+
+/* ── Tabla → tarjetas en teléfono ─────────
+   Marca una tabla con .table-cards y pon data-label="Columna" en cada <td>.
+   Por debajo de 768px cada fila se apila como una tarjeta con sus etiquetas,
+   en lugar de obligar a desplazarse en horizontal. */
+@media (max-width: 767px) {
+  .table-cards,
+  .table-cards tbody,
+  .table-cards tr,
+  .table-cards td { display: block; width: 100%; }
+
+  .table-cards thead { display: none; }
+
+  .table-cards tr {
+    background: var(--app-surface);
+    border: 1px solid var(--app-rule);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+
+  .table-cards td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0 !important;
+    border: 0;
+    text-align: right;
+  }
+
+  .table-cards td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--app-mute);
+    text-align: left;
+  }
+
+  /* Celda destacada: ocupa el ancho completo como título de la tarjeta */
+  .table-cards td[data-primary] {
+    display: block;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 650;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--app-rule);
+  }
+  .table-cards td[data-primary]::before { content: none; }
+
+  /* La celda de acciones se alinea a la derecha, sin etiqueta */
+  .table-cards td[data-actions] {
+    justify-content: flex-end;
+    padding-top: 10px !important;
+    margin-top: 4px;
+    border-top: 1px solid var(--app-rule);
+  }
+  .table-cards td[data-actions]::before { content: none; }
+
+  /* Oculta columnas secundarias en pantalla pequeña */
+  .table-cards td[data-hide-sm] { display: none; }
+}
 
 /* ── KPI Card ─────────────────────────── */
+/* Tarjeta de indicador: misma superficie plana que .card. Se eliminó el círculo
+   decorativo ::before, que aportaba una mancha de color sin significado. */
 .kpi-card {
-  @apply relative overflow-hidden rounded-2xl border border-slate-200/60 p-5;
-  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
-  transition: transform 220ms ease, box-shadow 220ms ease;
-}
-.kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
-}
-.kpi-card::before {
-  content: '';
-  position: absolute;
-  top: -30px;
-  right: -30px;
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  opacity: 0.08;
-  transition: opacity 320ms ease, transform 320ms ease;
-}
-.kpi-card:hover::before {
-  opacity: 0.12;
-  transform: scale(1.15);
-}
-.dark .kpi-card {
-  @apply border-gray-700/60;
-  background: linear-gradient(135deg, rgba(31,41,55,0.9) 0%, rgba(17,24,39,0.7) 100%);
-  backdrop-filter: blur(8px);
+  @apply relative p-5;
+  background: var(--app-surface);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
 }
 
 .stat-value {
-  @apply text-2xl font-bold text-slate-800 tabular-nums;
-  letter-spacing: -0.02em;
+  @apply text-2xl font-bold tabular-nums;
+  color: var(--app-ink);
+  letter-spacing: -0.03em;
 }
-.dark .stat-value { @apply text-white; }
 
 /* ── Icon glow ────────────────────────── */
 .icon-glow { transition: filter 280ms ease; }
@@ -267,12 +263,12 @@ body {
 .progress-bar {
   @apply h-1.5 rounded-full overflow-hidden bg-slate-100;
 }
+/* Relleno sólido: el degradado con brillo animado se movía sin parar y
+   competía por la atención con los datos que hay al lado. */
 .progress-bar-fill {
   @apply h-full rounded-full;
+  background-color: currentColor;
   transition: width 700ms cubic-bezier(0.4, 0, 0.2, 1);
-  background-image: linear-gradient(90deg, currentColor, transparent 50%, currentColor);
-  background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
 }
 .dark .progress-bar { @apply bg-gray-700/80; }
 
@@ -328,25 +324,13 @@ body {
 .stagger-children > *:nth-child(7) { animation-delay: 300ms; }
 .stagger-children > *:nth-child(8) { animation-delay: 350ms; }
 
-/* ── Glass effect ─────────────────────── */
-.glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-.dark .glass {
-  background: rgba(17, 24, 39, 0.72);
-  border: 1px solid rgba(75, 85, 99, 0.3);
-}
-
+/* ── Superficies flotantes ────────────────
+   Antes usaban cristal esmerilado; ahora son opacas. Un menú translúcido sobre
+   una tabla deja leer las filas de fondo a través del texto. */
+.glass,
 .glass-strong {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-.dark .glass-strong {
-  background: rgba(17, 24, 39, 0.85);
+  background: var(--app-surface);
+  border: 1px solid var(--app-rule);
 }
 
 /* ── Gradient text ────────────────────── */
