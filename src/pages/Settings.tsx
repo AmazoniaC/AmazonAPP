@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import type { TeamMember, TeamRole } from '../store/useStore'
 import { UserAvatar } from '../components/layout/Topbar'
 import Pagination from '../components/Pagination'
 import UserManual from '../components/UserManual'
@@ -215,6 +216,15 @@ export default function Settings() {
   const [plForm, setPlForm] = useState({ name: '', discountPercent: 0, isActive: true })
   const [plDelTarget, setPlDelTarget] = useState<string | null>(null)
 
+  // Equipo de trabajo — modal de alta/edición
+  const [teamModal, setTeamModal] = useState<'add' | 'edit' | null>(null)
+  const [editingTeam, setEditingTeam] = useState<TeamMember | null>(null)
+  const [teamForm, setTeamForm] = useState<{ name: string; role: TeamRole; isActive: boolean }>({
+    name: '', role: 'seller', isActive: true,
+  })
+  const [teamError, setTeamError] = useState('')
+  const [teamDelTarget, setTeamDelTarget] = useState<TeamMember | null>(null)
+
   const handleFactoryReset = async () => {
     if (resetConfirmText !== 'RESTABLECER') return
     setResetting(true)
@@ -389,28 +399,47 @@ export default function Settings() {
   // ── Equipo de trabajo (vendedores, producción, conductores) ───────────
   const team = companySettings.teamMembers ?? []
 
-  const addTeamMember = async (role: 'seller' | 'production' | 'driver') => {
-    const roleLabel = TEAM_ROLE_LABEL[role]
-    const name = window.prompt(`Nombre del nuevo ${roleLabel.toLowerCase()}:`)
-    if (!name?.trim()) return
-    const id = `tm_${Date.now()}`
-    const updated = [...team, { id, name: name.trim(), role, isActive: true }]
-    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+  // Abre el modal en modo alta, preseleccionando el rol de la sección pulsada.
+  const openAddTeamMember = (role: TeamRole) => {
+    setEditingTeam(null)
+    setTeamForm({ name: '', role, isActive: true })
+    setTeamError('')
+    setTeamModal('add')
   }
-  const renameTeamMember = async (id: string) => {
-    const current = team.find(m => m.id === id)
-    const name = window.prompt('Nuevo nombre:', current?.name ?? '')
-    if (!name?.trim()) return
-    const updated = team.map(m => m.id === id ? { ...m, name: name.trim() } : m)
-    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+  // Abre el modal en modo edición: permite cambiar nombre, rol y estado.
+  const openEditTeamMember = (m: TeamMember) => {
+    setEditingTeam(m)
+    setTeamForm({ name: m.name, role: m.role, isActive: m.isActive })
+    setTeamError('')
+    setTeamModal('edit')
   }
+
+  const submitTeamMember = async () => {
+    const name = teamForm.name.trim()
+    if (!name) { setTeamError('El nombre es obligatorio'); return }
+    // Evita duplicados dentro del mismo rol (ignorando mayúsculas y acentos).
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const clash = team.some(m =>
+      m.id !== editingTeam?.id && m.role === teamForm.role && norm(m.name) === norm(name))
+    if (clash) { setTeamError(`Ya existe un ${TEAM_ROLE_LABEL[teamForm.role].toLowerCase()} con ese nombre`); return }
+
+    const updated = editingTeam
+      ? team.map(m => m.id === editingTeam.id ? { ...m, ...teamForm, name } : m)
+      : [...team, { id: `tm_${Date.now()}`, name, role: teamForm.role, isActive: teamForm.isActive }]
+    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+    setTeamModal(null)
+    setEditingTeam(null)
+  }
+
   const toggleTeamMember = async (id: string) => {
     const updated = team.map(m => m.id === id ? { ...m, isActive: !m.isActive } : m)
     await saveCompanySettings({ ...companySettings, teamMembers: updated })
   }
-  const removeTeamMember = async (id: string) => {
-    const updated = team.filter(m => m.id !== id)
+  const confirmRemoveTeamMember = async () => {
+    if (!teamDelTarget) return
+    const updated = team.filter(m => m.id !== teamDelTarget.id)
     await saveCompanySettings({ ...companySettings, teamMembers: updated })
+    setTeamDelTarget(null)
   }
 
   return (
@@ -1012,7 +1041,7 @@ export default function Settings() {
                         {label === 'Vendedor' ? 'Vendedores' : label === 'Conductor' ? 'Conductores' : 'Personal de producción'}
                         <span className="ml-2 text-xs font-normal text-slate-400 dark:text-gray-500">({members.length})</span>
                       </h3>
-                      <button onClick={() => addTeamMember(role)} className="btn btn-sm btn-secondary">
+                      <button onClick={() => openAddTeamMember(role)} className="btn btn-sm btn-secondary">
                         <Plus size={14} /> Agregar
                       </button>
                     </div>
@@ -1035,10 +1064,10 @@ export default function Settings() {
                                 <input type="checkbox" checked={m.isActive} onChange={() => toggleTeamMember(m.id)} className="sr-only peer" />
                                 <div className="w-9 h-5 bg-slate-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-amazonia-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                               </label>
-                              <button onClick={() => renameTeamMember(m.id)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Editar nombre">
+                              <button onClick={() => openEditTeamMember(m)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
                                 <Pencil size={14} />
                               </button>
-                              <button onClick={() => removeTeamMember(m.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
+                              <button onClick={() => setTeamDelTarget(m)} className="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -1049,6 +1078,87 @@ export default function Settings() {
                   </div>
                 )
               })}
+
+              {/* Alta / edición de trabajador */}
+              {teamModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md animate-fadeIn">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-slate-800 dark:text-white">
+                        {teamModal === 'add' ? 'Nuevo trabajador' : 'Editar trabajador'}
+                      </h3>
+                      <button onClick={() => setTeamModal(null)}><X size={18} className="text-slate-400" /></button>
+                    </div>
+                    <div className="px-6 py-5 space-y-4">
+                      <div>
+                        <label className="label">Nombre completo *</label>
+                        <input
+                          className={`input ${teamError ? 'border-red-400' : ''}`}
+                          autoFocus
+                          value={teamForm.name}
+                          onChange={(e) => { setTeamForm({ ...teamForm, name: e.target.value }); setTeamError('') }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') submitTeamMember() }}
+                          placeholder="ej. Juan Pérez" />
+                        {teamError && <p className="text-xs text-red-500 mt-1">{teamError}</p>}
+                      </div>
+                      <div>
+                        <label className="label">Rol que desempeña *</label>
+                        <div className="grid grid-cols-3 gap-2 mt-1">
+                          {TEAM_ROLES.map(({ value, label }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => { setTeamForm({ ...teamForm, role: value }); setTeamError('') }}
+                              className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                                teamForm.role === value
+                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  : 'border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700'
+                              }`}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">
+                          {teamForm.role === 'seller'     && 'Aparecerá en “Asignado a” del CRM / Pipeline.'}
+                          {teamForm.role === 'production' && 'Aparecerá en “Asignado a” de las órdenes de producción.'}
+                          {teamForm.role === 'driver'     && 'Aparecerá en “Conductor” de los despachos.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" id="tm-active" className="rounded"
+                          checked={teamForm.isActive}
+                          onChange={(e) => setTeamForm({ ...teamForm, isActive: e.target.checked })} />
+                        <label htmlFor="tm-active" className="text-sm text-slate-700 dark:text-gray-300">
+                          Activo (visible en los formularios)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 px-6 pb-5">
+                      <button className="btn btn-secondary flex-1" onClick={() => setTeamModal(null)}>Cancelar</button>
+                      <button className="btn btn-primary flex-1" onClick={submitTeamMember}>
+                        {teamModal === 'add' ? 'Agregar' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Confirmación de eliminación */}
+              {teamDelTarget && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm animate-fadeIn p-6 text-center">
+                    <AlertTriangle size={36} className="mx-auto text-red-500 mb-3" />
+                    <h3 className="font-semibold text-slate-800 dark:text-white">Eliminar a {teamDelTarget.name}</h3>
+                    <p className="text-sm text-slate-500 dark:text-gray-400 mt-2">
+                      Dejará de aparecer en los formularios. Los registros que ya lo tienen asignado conservan su nombre.
+                    </p>
+                    <div className="flex gap-3 mt-5">
+                      <button className="btn btn-secondary flex-1" onClick={() => setTeamDelTarget(null)}>Cancelar</button>
+                      <button className="btn btn-danger flex-1" onClick={confirmRemoveTeamMember}>Eliminar</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
