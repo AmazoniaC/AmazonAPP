@@ -33,8 +33,6 @@ const STAGES: StageConfig[] = [
 
 const ACTIVE_STAGES = STAGES.filter((s) => s.key !== 'won' && s.key !== 'lost')
 
-const SELLERS = ['Ana Ramos', 'Carlos López', 'María García', 'Roberto Méndez', 'Admin General']
-
 function today() { return new Date().toISOString().split('T')[0] }
 function fmt(d?: string) {
   if (!d) return '—'
@@ -150,7 +148,8 @@ function OppModal({ initial, onClose, defaultStage }: {
   onClose:      () => void
   defaultStage?: PipelineStage
 }) {
-  const { customers, quotations, addOpportunity, updateOpportunity, opportunities } = useStore()
+  const { customers, quotations, addOpportunity, updateOpportunity, opportunities, companySettings } = useStore()
+
   const [form, setForm] = useState<Partial<Opportunity>>(initial ?? {
     stage:       defaultStage ?? 'lead',
     probability: 30,
@@ -160,6 +159,18 @@ function OppModal({ initial, onClose, defaultStage }: {
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Vendedores configurables (Configuración → Equipo de trabajo). Se muestran los
+  // activos; si la oportunidad ya tenía a alguien asignado que fue desactivado o
+  // eliminado, se conserva como opción para no perder el dato.
+  const sellers = (() => {
+    const active = (companySettings.teamMembers ?? [])
+      .filter((m) => m.role === 'seller' && m.isActive)
+      .map((m) => m.name)
+    const current = form.assignedTo
+    if (current && !active.includes(current)) return [current, ...active]
+    return active
+  })()
 
   const handleCustomer = (id: string) => {
     const c = customers.find((x) => x.id === id)
@@ -288,7 +299,7 @@ function OppModal({ initial, onClose, defaultStage }: {
               <select className="input" value={form.assignedTo ?? ''}
                 onChange={(e) => set('assignedTo', e.target.value)}>
                 <option value="">Sin asignar</option>
-                {SELLERS.map((s) => <option key={s} value={s}>{s}</option>)}
+                {sellers.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>

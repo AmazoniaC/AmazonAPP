@@ -8,14 +8,23 @@ import UserManual from '../components/UserManual'
 import { WA_TEMPLATES, WaTemplateKey } from '../utils/whatsapp'
 
 const TAB_ICONS: Record<string, any> = {
-  empresa: Building, usuarios: Users, pagos: CreditCard, precios: Tag,
+  empresa: Building, usuarios: Users, equipo: Users, pagos: CreditCard, precios: Tag,
   impuestos: Percent, notificaciones: Bell, whatsapp: MessageCircle, seguridad: Shield, auditoria: ClipboardList, manual: BookOpen,
 }
 
-const tabs = ['empresa','usuarios','pagos','precios','impuestos','notificaciones','whatsapp','seguridad','auditoria','manual']
+const tabs = ['empresa','usuarios','equipo','pagos','precios','impuestos','notificaciones','whatsapp','seguridad','auditoria','manual']
 const TAB_LABELS: Record<string, string> = {
-  empresa:'Empresa', usuarios:'Usuarios y roles', pagos:'Métodos de pago', precios:'Listas de precios',
+  empresa:'Empresa', usuarios:'Usuarios y roles', equipo:'Equipo de trabajo', pagos:'Métodos de pago', precios:'Listas de precios',
   impuestos:'Impuestos', notificaciones:'Notificaciones', whatsapp:'WhatsApp', seguridad:'Seguridad', auditoria:'Auditoría', manual:'Manual de usuario',
+}
+
+const TEAM_ROLES: { value: 'seller' | 'production' | 'driver'; label: string }[] = [
+  { value: 'seller',     label: 'Vendedor' },
+  { value: 'production', label: 'Producción' },
+  { value: 'driver',     label: 'Conductor' },
+]
+const TEAM_ROLE_LABEL: Record<string, string> = {
+  seller: 'Vendedor', production: 'Producción', driver: 'Conductor',
 }
 
 interface AuditEntry {
@@ -323,6 +332,7 @@ export default function Settings() {
         taxRate:            company.taxRate ?? 0.19,
         paymentMethods:     companySettings.paymentMethods,
         taxRates:           companySettings.taxRates,
+        teamMembers:        companySettings.teamMembers,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -374,6 +384,33 @@ export default function Settings() {
     const id = `tx_${Date.now()}`
     const updated = [...taxes, { id, name: name.trim(), rate, isDefault: false, isActive: true }]
     await saveCompanySettings({ ...companySettings, taxRates: updated })
+  }
+
+  // ── Equipo de trabajo (vendedores, producción, conductores) ───────────
+  const team = companySettings.teamMembers ?? []
+
+  const addTeamMember = async (role: 'seller' | 'production' | 'driver') => {
+    const roleLabel = TEAM_ROLE_LABEL[role]
+    const name = window.prompt(`Nombre del nuevo ${roleLabel.toLowerCase()}:`)
+    if (!name?.trim()) return
+    const id = `tm_${Date.now()}`
+    const updated = [...team, { id, name: name.trim(), role, isActive: true }]
+    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+  }
+  const renameTeamMember = async (id: string) => {
+    const current = team.find(m => m.id === id)
+    const name = window.prompt('Nuevo nombre:', current?.name ?? '')
+    if (!name?.trim()) return
+    const updated = team.map(m => m.id === id ? { ...m, name: name.trim() } : m)
+    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+  }
+  const toggleTeamMember = async (id: string) => {
+    const updated = team.map(m => m.id === id ? { ...m, isActive: !m.isActive } : m)
+    await saveCompanySettings({ ...companySettings, teamMembers: updated })
+  }
+  const removeTeamMember = async (id: string) => {
+    const updated = team.filter(m => m.id !== id)
+    await saveCompanySettings({ ...companySettings, teamMembers: updated })
   }
 
   return (
@@ -953,6 +990,65 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'equipo' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Users size={18} /> Equipo de trabajo</h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+                  Configura los nombres de tu personal. Estos aparecen en los selectores de <b>vendedor asignado</b> (CRM / Pipeline),
+                  <b> operario de producción</b> y <b>conductor de despacho</b>. Solo los marcados como activos se muestran en los formularios.
+                </p>
+              </div>
+
+              {TEAM_ROLES.map(({ value: role, label }) => {
+                const members = team.filter(m => m.role === role)
+                return (
+                  <div key={role} className="rounded-xl border border-slate-200 dark:border-gray-700 overflow-hidden">
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-gray-700/50 px-4 py-3 border-b border-slate-100 dark:border-gray-700">
+                      <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">
+                        {label === 'Vendedor' ? 'Vendedores' : label === 'Conductor' ? 'Conductores' : 'Personal de producción'}
+                        <span className="ml-2 text-xs font-normal text-slate-400 dark:text-gray-500">({members.length})</span>
+                      </h3>
+                      <button onClick={() => addTeamMember(role)} className="btn btn-sm btn-secondary">
+                        <Plus size={14} /> Agregar
+                      </button>
+                    </div>
+                    {members.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-xs text-slate-400 dark:text-gray-500">
+                        No hay {label.toLowerCase()}es registrados. Agrega el primero.
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-gray-700">
+                        {members.map((m) => (
+                          <div key={m.id} className="flex items-center justify-between px-4 py-3">
+                            <span className={`text-sm font-medium ${m.isActive ? 'text-slate-800 dark:text-gray-200' : 'text-slate-400 dark:text-gray-500 line-through'}`}>
+                              {m.name}
+                            </span>
+                            <div className="flex items-center gap-3">
+                              <span className={`badge ${m.isActive ? 'badge-green' : 'badge-gray'}`}>
+                                {m.isActive ? 'Activo' : 'Inactivo'}
+                              </span>
+                              <label className="relative inline-flex items-center cursor-pointer" title={m.isActive ? 'Desactivar' : 'Activar'}>
+                                <input type="checkbox" checked={m.isActive} onChange={() => toggleTeamMember(m.id)} className="sr-only peer" />
+                                <div className="w-9 h-5 bg-slate-200 dark:bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-amazonia-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                              </label>
+                              <button onClick={() => renameTeamMember(m.id)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors" title="Editar nombre">
+                                <Pencil size={14} />
+                              </button>
+                              <button onClick={() => removeTeamMember(m.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors" title="Eliminar">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 

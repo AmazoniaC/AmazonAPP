@@ -343,11 +343,17 @@ function FinalizeProductionModal({ order, onClose }: { order: ProductionOrder; o
 }
 
 function NewOrderModal({ onClose }: { onClose: () => void }) {
-  const { recipes, addProductionOrder, productionOrders, supplies } = useStore()
+  const { recipes, addProductionOrder, productionOrders, supplies, companySettings } = useStore()
+
+  // Personal de producción configurable (Configuración → Equipo de trabajo).
+  const staff = (companySettings.teamMembers ?? [])
+    .filter((m) => m.role === 'production' && m.isActive)
+    .map((m) => m.name)
+
   const [recipeId, setRecipeId] = useState('')
   const [qty, setQty]           = useState('')
   const [date, setDate]         = useState(new Date().toISOString().split('T')[0])
-  const [assigned, setAssigned] = useState('Carlos Mendez')
+  const [assigned, setAssigned] = useState(staff[0] ?? '')
 
   const recipe = recipes.find((r) => r.id === recipeId)
 
@@ -417,9 +423,15 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="label">Asignado a</label>
-            <select className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
-              {['Carlos Mendez','Laura Herrera','Miguel Torres'].map((n) => <option key={n}>{n}</option>)}
-            </select>
+            {staff.length === 0 ? (
+              <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">
+                No hay personal de producción configurado. Agrégalo en Configuración → Equipo de trabajo.
+              </p>
+            ) : (
+              <select className="input" value={assigned} onChange={(e) => setAssigned(e.target.value)}>
+                {staff.map((n) => <option key={n}>{n}</option>)}
+              </select>
+            )}
           </div>
           {recipe && qty && (
             <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 text-xs animate-fadeIn">
