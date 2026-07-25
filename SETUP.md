@@ -67,17 +67,34 @@ npm run setup:db
 
 ## 5. Ejecutar la aplicación
 
-Necesitas **dos terminales**:
+Un solo comando arranca el backend y la app juntos:
 
 ```bash
-# Terminal 1 — Backend (API)
-npm run server:dev
-
-# Terminal 2 — Frontend
 npm run dev
 ```
 
+Deberías ver algo así:
+
+```
+[API] ✅ Servidor ERP corriendo en http://localhost:3001
+[API] ✅ PostgreSQL conectado (erp_amazonia)
+[APP]   ➜  Local:   http://localhost:3000/
+[APP]   ➜  Network: http://192.168.1.20:3000/
+```
+
 Abrir en el navegador: http://localhost:3000
+
+> Si prefieres separarlos en dos terminales: `npm run dev:api` y `npm run dev:web`.
+
+### Si aparece "No hay conexión con el servidor"
+
+Significa que la app (puerto 3000) está arriba pero la API (puerto 3001) no.
+Casi siempre es una de estas dos:
+
+| Qué ves en la terminal | Qué pasa | Solución |
+|---|---|---|
+| Solo líneas `[APP]`, ninguna `[API]` | Arrancaste únicamente el frontend | Detén con Ctrl+C y ejecuta `npm run dev` |
+| `⚠️ No se pudo conectar a PostgreSQL` | La base de datos está apagada | Enciende PostgreSQL (ver la sección de abajo) |
 
 **Usuario demo:** admin@empresa.com / admin123
 

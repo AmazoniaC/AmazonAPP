@@ -414,8 +414,33 @@ app.use((err, req, res, _next) => {
   res.status(status).json({ error: status === 500 ? 'Error interno del servidor' : err.message })
 })
 
-app.listen(PORT, () => {
+/**
+ * Comprueba la conexión a PostgreSQL al arrancar. Sin esto el servidor decía
+ * "corriendo" aunque la base estuviera apagada, y el usuario solo veía errores
+ * 500 sueltos en cada pantalla sin saber la causa.
+ */
+async function checkDatabase() {
+  try {
+    await pool.query('SELECT 1')
+    console.log(`✅ PostgreSQL conectado (${process.env.DB_NAME || 'erp_amazonia'})`)
+    return true
+  } catch (e) {
+    const host = process.env.DB_HOST || 'localhost'
+    console.error(
+      `\n⚠️  No se pudo conectar a PostgreSQL en ${host}:${process.env.DB_PORT || 5432}\n` +
+      `   Motivo: ${e.message}\n` +
+      `   La API responderá con errores hasta que la base esté disponible.\n` +
+      `   • Windows: inicia el servicio "postgresql-x64-16"\n` +
+      `   • Linux:   pg_ctlcluster 16 main start\n` +
+      `   • Revisa también los datos de conexión en el archivo .env\n`,
+    )
+    return false
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`✅ Servidor ERP corriendo en http://localhost:${PORT}`)
+  await checkDatabase()
   // Start background services after the HTTP server is up
   startWhatsApp().catch((e) => console.warn('WhatsApp init failed:', e.message))
   startScheduler()
