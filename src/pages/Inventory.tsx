@@ -9,6 +9,7 @@ import ImportModal from '../components/ImportModal'
 import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import RowActions from '../components/RowActions'
 import { formatCOP } from '../utils/currency'
 
 const UNITS = ['u','kg','g','lb','oz','L','mL','m','cm','mm','m²','m³','rollo','par','caja','doc','bolsa']
@@ -284,7 +285,7 @@ export default function Inventory() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
         <StatCard icon={Boxes}         label="Total insumos"     value={supplies.length}        accent="#3b82f6" />
-        <StatCard icon={AlertTriangle} label="Bajo stock"        value={lowStock}               accent="#ef4444" hint={lowStock > 0 ? 'Requiere atención' : 'Todo en orden'} />
+        <StatCard icon={AlertTriangle} label="Bajo stock"        value={lowStock}               tone={lowStock > 0 ? 'critical' : 'positive'} hint={lowStock > 0 ? 'Requiere atención' : 'Todo en orden'} />
         <StatCard icon={Layers}        label="Categorías"        value={categories.length - 1} accent="#0d9488" />
         <StatCard icon={Package}       label="Valor inventario"  value={formatCOP(totalVal)}    accent="#8b5cf6" />
       </div>
@@ -396,7 +397,7 @@ export default function Inventory() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="table-cards w-full text-xs">
           <thead>
             <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-100 dark:border-gray-700">
               {['SKU','Nombre','Categoría','Stock','Mín','Estado','Costo/u','Valor','Acciones'].map((h) => (
@@ -409,10 +410,10 @@ export default function Inventory() {
               const status = s.stock < s.minStock ? 'bajo' : s.stock < s.minStock * 1.5 ? 'alerta' : 'ok'
               return (
                 <tr key={s.id} className="table-row">
-                  <td className="px-2 py-2 font-mono text-xs text-slate-400 dark:text-gray-500">{s.sku}</td>
-                  <td className="px-2 py-2 font-medium text-slate-800 dark:text-gray-200 whitespace-nowrap">{s.name}</td>
-                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400">{s.category}</td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2 font-mono text-xs text-slate-400 dark:text-gray-500" data-label="SKU">{s.sku}</td>
+                  <td className="px-2 py-2 font-medium text-slate-800 dark:text-gray-200 whitespace-nowrap" data-primary>{s.name}</td>
+                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400" data-label="Categoría">{s.category}</td>
+                  <td className="px-2 py-2" data-label="Stock">
                     <div className="flex items-center gap-1.5">
                       <span className={`font-semibold ${status === 'bajo' ? 'text-red-600' : status === 'alerta' ? 'text-amber-600' : 'text-slate-800 dark:text-gray-200'}`}>
                         {s.stock} {s.unit}
@@ -420,32 +421,28 @@ export default function Inventory() {
                       <StockBar value={s.stock} min={s.minStock} />
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400">{s.minStock} {s.unit}</td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2 text-slate-500 dark:text-gray-400" data-label="Mínimo">{s.minStock} {s.unit}</td>
+                  <td className="px-2 py-2" data-label="Estado">
                     <span className={`badge ${status === 'bajo' ? 'badge-red' : status === 'alerta' ? 'badge-yellow' : 'badge-green'}`}>
                       {status === 'bajo' ? 'Bajo' : status === 'alerta' ? 'Alerta' : 'OK'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-slate-600 dark:text-gray-300 whitespace-nowrap">{formatCOP(s.cost)}</td>
-                  <td className="px-2 py-2 font-semibold text-slate-700 dark:text-gray-200 whitespace-nowrap">{formatCOP(s.stock * s.cost)}</td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center gap-1">
-                      <button className="btn btn-sm btn-secondary" onClick={() => setMovSupply(s)}>
-                        Mov
-                      </button>
-                      {canEdit('supplies') && (
-                        <button className="btn btn-sm btn-secondary flex items-center gap-1"
-                          onClick={() => { setEditSupply(s); setShowModal(true) }}>
-                          <Pencil size={12} />
-                        </button>
-                      )}
-                      {canDelete('supplies') && (
-                        <button className="btn btn-sm flex items-center gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
-                          onClick={() => setDeleteTarget(s)}>
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
+                  <td className="px-2 py-2 text-slate-600 dark:text-gray-300 whitespace-nowrap" data-label="Costo/u" data-hide-sm>{formatCOP(s.cost)}</td>
+                  <td className="px-2 py-2 font-semibold text-slate-700 dark:text-gray-200 whitespace-nowrap" data-label="Valor">{formatCOP(s.stock * s.cost)}</td>
+                  <td className="px-2 py-2" data-actions>
+                    <RowActions
+                      primary={{ label: 'Movimiento', onClick: () => setMovSupply(s) }}
+                      actions={[
+                        canEdit('supplies') && {
+                          label: 'Editar insumo', icon: Pencil,
+                          onClick: () => { setEditSupply(s); setShowModal(true) },
+                        },
+                        canDelete('supplies') && {
+                          label: 'Eliminar insumo', icon: Trash2, danger: true,
+                          onClick: () => setDeleteTarget(s),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               )

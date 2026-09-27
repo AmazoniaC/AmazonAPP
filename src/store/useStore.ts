@@ -276,6 +276,12 @@ function getUserHeader(): Record<string, string> {
   } catch { return {} }
 }
 
+// El fallo más común al arrancar en local: se ejecutó solo el frontend y el
+// backend no está escuchando. El mensaje dice exactamente qué hacer.
+const SERVER_DOWN_MSG =
+  'No hay conexión con el servidor. Cierra la terminal y ejecuta "npm run dev", ' +
+  'que arranca el backend y la app juntos. Si ya lo hiciste, revisa que PostgreSQL esté encendido.'
+
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const MAX_RETRIES = 2
   const RETRY_DELAYS = [1000, 3000]
@@ -293,7 +299,16 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
         continue
       }
-      throw new Error('No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.')
+      throw new Error(SERVER_DOWN_MSG)
+    }
+
+    // 503 = el proxy de Vite no encontró el backend (ver vite.config.ts)
+    if (res.status === 503) {
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]))
+        continue
+      }
+      throw new Error(SERVER_DOWN_MSG)
     }
 
     if (res.status === 429) {

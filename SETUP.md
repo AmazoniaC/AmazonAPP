@@ -67,19 +67,91 @@ npm run setup:db
 
 ## 5. Ejecutar la aplicación
 
-Necesitas **dos terminales**:
+Un solo comando arranca el backend y la app juntos:
 
 ```bash
-# Terminal 1 — Backend (API)
-npm run server:dev
-
-# Terminal 2 — Frontend
 npm run dev
+```
+
+Deberías ver algo así:
+
+```
+[API] ✅ Servidor ERP corriendo en http://localhost:3001
+[API] ✅ PostgreSQL conectado (erp_amazonia)
+[APP]   ➜  Local:   http://localhost:3000/
+[APP]   ➜  Network: http://192.168.1.20:3000/
 ```
 
 Abrir en el navegador: http://localhost:3000
 
+> Si prefieres separarlos en dos terminales: `npm run dev:api` y `npm run dev:web`.
+
+### Si aparece "No hay conexión con el servidor"
+
+Significa que la app (puerto 3000) está arriba pero la API (puerto 3001) no.
+Casi siempre es una de estas dos:
+
+| Qué ves en la terminal | Qué pasa | Solución |
+|---|---|---|
+| Solo líneas `[APP]`, ninguna `[API]` | Arrancaste únicamente el frontend | Detén con Ctrl+C y ejecuta `npm run dev` |
+| `⚠️ No se pudo conectar a PostgreSQL` | La base de datos está apagada | Enciende PostgreSQL (ver la sección de abajo) |
+
 **Usuario demo:** admin@empresa.com / admin123
+
+---
+
+## 6. Abrir la app desde el celular
+
+El computador donde corre la app hace de servidor. El celular solo necesita
+estar en **la misma red WiFi**.
+
+### Paso 1 — Averiguar la IP del computador
+
+```bash
+# Windows (PowerShell)
+ipconfig
+# Busca "Dirección IPv4" en tu adaptador WiFi, algo como 192.168.1.20
+
+# Linux / Mac
+hostname -I | awk '{print $1}'
+```
+
+Al arrancar `npm run dev`, Vite también la imprime directamente:
+
+```
+➜  Local:   http://localhost:3000/
+➜  Network: http://192.168.1.20:3000/   ← esta es la que se usa en el celular
+```
+
+### Paso 2 — Abrirla en el celular
+
+En el navegador del celular escribe esa dirección **con el puerto**:
+
+```
+http://192.168.1.20:3000
+```
+
+(Reemplaza `192.168.1.20` por la IP real de tu computador.)
+
+### Paso 3 — Instalarla como aplicación (opcional pero recomendado)
+
+Así queda con su propio ícono, a pantalla completa y sin barra del navegador:
+
+- **Android (Chrome):** menú ⋮ → *Instalar aplicación* / *Añadir a pantalla de inicio*
+- **iPhone (Safari):** botón Compartir → *Añadir a pantalla de inicio*
+
+### Si no carga en el celular
+
+| Síntoma | Causa habitual | Solución |
+|---|---|---|
+| No abre nada | El celular está en otra red (ej. datos móviles) | Conéctalo al mismo WiFi |
+| No abre nada | El firewall de Windows bloquea el puerto | Permite Node.js en redes privadas, o abre el puerto 3000 |
+| Abre pero sin datos | El backend no está corriendo | Verifica que `npm run server:dev` siga activo |
+| Dejó de funcionar | La IP del computador cambió | Vuelve a mirarla con `ipconfig` / `hostname -I` |
+
+> **Nota:** esto funciona solo dentro de tu red local. Para entrar desde fuera
+> (datos móviles, otra ciudad) hay que publicar la app en un servidor con
+> dominio y HTTPS — es un paso aparte.
 
 ---
 

@@ -40,8 +40,14 @@ export default function GlobalSearch() {
       }
       if (e.key === 'Escape') setOpen(false)
     }
+    // Phones have no ⌘K, so the header and tab bar open search by event instead.
+    const openByEvent = () => setOpen(true)
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('open-global-search', openByEvent)
+    return () => {
+      window.removeEventListener('keydown', handler)
+      window.removeEventListener('open-global-search', openByEvent)
+    }
   }, [])
 
   useEffect(() => {

@@ -4,8 +4,8 @@
   "description": "Sistema ERP para gestión empresarial",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0c4a1f",
-  "theme_color": "#0c4a1f",
+  "background_color": "#f7f6f3",
+  "theme_color": "#1e3315",
   "orientation": "any",
   "icons": [
     {

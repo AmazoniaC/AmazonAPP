@@ -134,17 +134,18 @@ async function run() {
     }
 
     // Customers
+    // [id, name, email, phone, address, city, last_purchase, total_purchases, is_active, segment]
     const customers = [
-      ['c1','Laura Martínez','laura@eventos.com','+57 310 1234567','','Bogotá','2024-01-15',8,4850,'active'],
-      ['c2','Pedro Sánchez','pedro@cafeteria.com','+57 311 2345678','','Medellín','2024-02-01',15,9200,'active'],
-      ['c3','Valentina Ríos','vale@gmail.com','+57 312 3456789','','Cali','2024-03-10',3,1200,'active'],
-      ['c4','Andrés Torres','andres@elpan.com','+57 313 4567890','','Bogotá','2024-01-20',12,6700,'active'],
-      ['c5','Sofía Herrera','sofia@outlook.com','+57 314 5678901','','Barranquilla','2024-04-05',2,850,'active'],
-      ['c6','Martín Castillo','mcastillo@hotel.com','+57 315 6789012','','Cartagena','2024-02-15',6,3400,'active'],
+      ['c1','Laura Martínez','laura@eventos.com','+57 310 1234567','','Bogotá','2024-01-15',4850,true,'mayorista'],
+      ['c2','Pedro Sánchez','pedro@cafeteria.com','+57 311 2345678','','Medellín','2024-02-01',9200,true,'mayorista'],
+      ['c3','Valentina Ríos','vale@gmail.com','+57 312 3456789','','Cali','2024-03-10',1200,true,'regular'],
+      ['c4','Andrés Torres','andres@elpan.com','+57 313 4567890','','Bogotá','2024-01-20',6700,true,'mayorista'],
+      ['c5','Sofía Herrera','sofia@outlook.com','+57 314 5678901','','Barranquilla','2024-04-05',850,true,'regular'],
+      ['c6','Martín Castillo','mcastillo@hotel.com','+57 315 6789012','','Cartagena','2024-02-15',3400,true,'regular'],
     ]
     for (const c of customers) {
       await client.query(
-        `INSERT INTO customers (id,name,email,phone,address,city,created_at,total_orders,total_spent,status)
+        `INSERT INTO customers (id,name,email,phone,address,city,last_purchase,total_purchases,is_active,segment)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
         c
       )

@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n \"API,APP\" -c \"green,cyan\" \"node server/index.js\" \"vite\"",
+    "dev:web": "vite",
+    "dev:api": "node server/index.js",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "server": "node server/index.js",

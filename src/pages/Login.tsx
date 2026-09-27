@@ -10,6 +10,10 @@ const FEATURES = [
   'Reportes financieros y análisis de costos',
 ]
 
+const SERVER_DOWN =
+  'No hay conexión con el servidor. Cierra la terminal y ejecuta "npm run dev", ' +
+  'que arranca el backend y la app juntos. Si ya lo hiciste, revisa que PostgreSQL esté encendido.'
+
 export default function Login() {
   const navigate = useNavigate()
   const login           = useStore((s) => s.login)
@@ -30,7 +34,13 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-      const data = await res.json()
+      // 503 = el proxy no encontró el backend; no es un problema de credenciales
+      if (res.status === 503) {
+        setError(SERVER_DOWN)
+        setLoading(false)
+        return
+      }
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error ?? 'Correo o contraseña incorrectos')
         setLoading(false)
@@ -39,7 +49,7 @@ export default function Login() {
       login({ name: data.name, email: data.email, role: data.role, token: data.token })
       navigate('/', { replace: true })
     } catch {
-      setError('No se pudo conectar con el servidor')
+      setError(SERVER_DOWN)
       setLoading(false)
     }
   }

@@ -383,29 +383,27 @@ export default function Welcome() {
       </div>
 
       {/* Main content grid */}
-      <div className="relative z-10 max-w-[1500px] mx-auto px-12 py-14 grid grid-cols-[minmax(0,460px),minmax(0,1fr)] gap-12 items-start min-h-screen">
+      {/* Una sola columna en teléfono; el panel de marca solo aparece cuando hay
+          ancho de sobra, para que los módulos nunca queden fuera de pantalla. */}
+      <div className="relative z-10 mx-auto grid min-h-screen max-w-[1500px] grid-cols-1 items-start gap-8
+                      px-4 py-8 sm:px-8 lg:grid-cols-[minmax(0,460px),minmax(0,1fr)] lg:gap-12 lg:px-12 lg:py-14">
 
         {/* ─── LEFT: Brand panel ─── */}
-        <div className="flex flex-col h-full justify-between pt-6">
-          <div className="flex-1 flex items-center justify-center">
+        <div className="hidden h-full flex-col justify-between pt-6 lg:flex">
+          <div className="flex flex-1 items-center justify-center">
             {logo ? (
               <img
                 src={logo}
                 alt="Amazonia Concrete"
-                className="max-w-[420px] w-full h-auto object-contain drop-shadow-xl animate-float"
-                style={{ filter: 'drop-shadow(0 16px 32px rgba(45, 74, 30, 0.18))' }}
+                className="h-auto w-full max-w-[420px] object-contain"
               />
             ) : (
               <div className="text-center">
-                <div className="w-44 h-44 rounded-full mx-auto flex items-center justify-center mb-4"
-                     style={{
-                       background: 'linear-gradient(135deg, #f5f3eb 0%, #e0d9c8 100%)',
-                       boxShadow: '0 16px 40px -8px rgba(45, 74, 30, 0.25), inset 0 -8px 16px rgba(168, 112, 80, 0.10)',
-                     }}>
+                <div className="mx-auto mb-4 flex h-44 w-44 items-center justify-center rounded-full bg-stone-100">
                   <Leaf size={64} className="text-amazonia-700" strokeWidth={1.6} />
                 </div>
-                <h2 className="text-5xl font-light text-amazonia-900 tracking-[0.3em] mt-6">AMAZONIA</h2>
-                <p className="text-base text-amazonia-700 tracking-[0.4em] mt-1">CONCRETE</p>
+                <h2 className="mt-6 text-5xl font-light tracking-[0.3em] text-amazonia-900">AMAZONIA</h2>
+                <p className="mt-1 text-base tracking-[0.4em] text-amazonia-700">CONCRETE</p>
               </div>
             )}
           </div>
@@ -446,14 +444,14 @@ export default function Welcome() {
         {/* ─── RIGHT: Welcome + Module grid ─── */}
         <div className="flex flex-col min-w-0">
           {/* Welcome text */}
-          <div className="mb-8 animate-fadeIn">
-            <p className="text-2xl text-amazonia-900/85 font-light tracking-tight">Bienvenido a</p>
-            <h1 className="text-5xl font-bold text-amazonia-900 tracking-tight mt-1 leading-tight">
+          <div className="mb-6 animate-fadeIn lg:mb-8">
+            <p className="text-lg font-light tracking-tight text-amazonia-900/85 lg:text-2xl">Bienvenido a</p>
+            <h1 className="mt-1 text-[clamp(1.75rem,7vw,3rem)] font-bold leading-tight tracking-tight text-amazonia-900">
               {companySettings.companyName || 'Amazonia Concrete'}
             </h1>
-            <div className="flex items-center gap-2 mt-3">
-              <Leaf size={16} className="text-amazonia-700" strokeWidth={2} />
-              <p className="text-base text-amazonia-700/80 tracking-wide">
+            <div className="mt-3 flex items-center gap-2">
+              <Leaf size={16} className="flex-shrink-0 text-amazonia-700" strokeWidth={2} />
+              <p className="text-sm tracking-wide text-amazonia-700/80 lg:text-base">
                 {(companySettings.slogan || 'Belleza Natural En Concreto').replace(/\b\w/g, (c) => c.toUpperCase())}
               </p>
             </div>
@@ -499,6 +497,18 @@ export default function Welcome() {
           grid-auto-columns: var(--tile-size, 168px);
           gap: 16px;
           align-content: start;
+        }
+        /* En teléfono y tableta el desplazamiento horizontal escondía la mayoría
+           de los módulos. Debajo de 1024px la rejilla fluye hacia abajo y todas
+           las baldosas se alcanzan con el scroll vertical normal. */
+        @media (max-width: 1023px) {
+          .welcome-hgrid {
+            grid-template-rows: none;
+            grid-auto-flow: row;
+            grid-auto-columns: auto;
+            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+            gap: 10px;
+          }
         }
         @media (min-width: 1280px) {
           .welcome-hgrid { --tile-size: 180px; }
