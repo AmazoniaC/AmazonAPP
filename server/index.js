@@ -340,8 +340,32 @@ migrate()
 
 // ── Security middleware ──────────────────────────────────────────────────────
 app.use(helmet())
-app.use(cors())
-app.use(express.json({ limit: '50mb' })) // limit amplio para logos y PDF base64
+
+// Sin CORS_ORIGIN definido se permite cualquier origen (comportamiento previo,
+// cómodo en desarrollo). En producción, definir CORS_ORIGIN con el dominio real
+// del frontend (o una lista separada por comas) restringe qué sitios pueden
+// llamar a esta API desde el navegador.
+const corsOrigin = process.env.CORS_ORIGIN
+if (corsOrigin) {
+  const allowedOrigins = corsOrigin.split(',').map((o) => o.trim())
+  app.use(cors({ origin: allowedOrigins }))
+} else {
+  console.warn(
+    '⚠️  CORS_ORIGIN no está definido: la API acepta peticiones desde cualquier origen. ' +
+    'Define CORS_ORIGIN=https://tu-dominio.com en .env para restringirlo en producción.'
+  )
+  app.use(cors())
+}
+
+// Solo las rutas que reciben logos o PDFs en base64 necesitan un límite de
+// body amplio; el resto de la API usa uno mucho más chico para no ampliar
+// la superficie de un DoS por memoria en cada endpoint.
+const largeJsonBody = express.json({ limit: '15mb' })
+app.use('/api/settings', largeJsonBody)
+app.use('/api/email',    largeJsonBody)
+app.use('/api/whatsapp', largeJsonBody)
+app.use('/api/import',   largeJsonBody)
+app.use(express.json({ limit: '1mb' }))
 
 // ── Rate limiting ───────────────────────────────────────────────────────────
 // Reads (GET) use a generous limit because the SPA polls multiple endpoints
