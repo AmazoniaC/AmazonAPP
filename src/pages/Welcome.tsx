@@ -34,24 +34,52 @@ function makeBubbles(count: number): Bubble[] {
   return out
 }
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReduced(mq.matches)
+    const onChange = () => setReduced(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduced
+}
+
 function BubbleField() {
   const bubbles = useMemo(() => makeBubbles(34), [])
   const ref = useRef<HTMLDivElement>(null)
+  const reducedMotion = usePrefersReducedMotion()
   // Parallax: mouse pos in [-1, 1] relative to center
   const [m, setM] = useState({ x: 0, y: 0 })
   const [pops, setPops] = useState<{ id: number; x: number; y: number }[]>([])
   const popId = useRef(0)
+  const lastPos = useRef({ x: 0, y: 0 })
+  const rafId = useRef<number | null>(null)
 
   useEffect(() => {
+    // Skip mouse-parallax tracking entirely for users who asked for less motion.
+    if (reducedMotion) return
     const onMove = (e: MouseEvent) => {
-      const w = window.innerWidth, h = window.innerHeight
-      setM({ x: (e.clientX / w) * 2 - 1, y: (e.clientY / h) * 2 - 1 })
+      lastPos.current = { x: e.clientX, y: e.clientY }
+      // Coalesce every mousemove into at most one state update per frame,
+      // instead of re-rendering 34 bubbles on every pixel of cursor travel.
+      if (rafId.current != null) return
+      rafId.current = requestAnimationFrame(() => {
+        rafId.current = null
+        const w = window.innerWidth, h = window.innerHeight
+        setM({ x: (lastPos.current.x / w) * 2 - 1, y: (lastPos.current.y / h) * 2 - 1 })
+      })
     }
     window.addEventListener('mousemove', onMove, { passive: true })
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      if (rafId.current != null) cancelAnimationFrame(rafId.current)
+    }
+  }, [reducedMotion])
 
   const handleClick = (e: React.MouseEvent) => {
+    if (reducedMotion) return
     const t = e.target as HTMLElement
     // Only respond to clicks on the field background, not on UI elements
     if (!ref.current || (t !== ref.current && !t.classList.contains('bubble'))) return
@@ -70,8 +98,8 @@ function BubbleField() {
     >
       {bubbles.map((b) => {
         // Larger bubbles parallax more
-        const px = (m.x * b.size) / 20
-        const py = (m.y * b.size) / 24
+        const px = reducedMotion ? 0 : (m.x * b.size) / 20
+        const py = reducedMotion ? 0 : (m.y * b.size) / 24
         return (
           <span
             key={b.id}
@@ -87,10 +115,10 @@ function BubbleField() {
               border: '1px solid rgba(255, 255, 255, 0.5)',
               boxShadow:
                 'inset 0 0 12px rgba(255, 255, 255, 0.5), 0 4px 12px rgba(82, 125, 54, 0.06)',
-              animation: `floatBubble ${b.dur}s ease-in-out ${b.delay}s infinite`,
+              animation: reducedMotion ? 'none' : `floatBubble ${b.dur}s ease-in-out ${b.delay}s infinite`,
               transform: `translate(${px}px, ${py}px)`,
               transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-              cursor: 'pointer',
+              cursor: reducedMotion ? 'default' : 'pointer',
               ['--drift' as string]: `${b.drift}px`,
             } as React.CSSProperties}
           />
