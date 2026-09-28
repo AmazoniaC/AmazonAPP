@@ -7,6 +7,7 @@ import { useStore } from '../../store/useStore'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { useSessionTimeout }    from '../../hooks/useSessionTimeout'
 import InstallPWA from '../InstallPWA'
+import ErrorBoundary from '../ErrorBoundary'
 
 const titles: Record<string, string> = {
   '/dashboard':  'Dashboard',
@@ -56,7 +57,13 @@ export default function Layout() {
           <PageSkeleton />
         ) : (
           <div className="animate-fadeIn">
-            <Outlet />
+            {/* Keyed by pathname so navigating away from a crashed page
+                remounts a fresh boundary instead of staying stuck on the
+                fallback — a render error here no longer takes the header,
+                nav or other modules down with it. */}
+            <ErrorBoundary key={pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         )}
       </main>

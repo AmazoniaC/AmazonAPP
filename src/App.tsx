@@ -1,7 +1,8 @@
-import { useEffect, lazy, Suspense, Component, type ReactNode } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import Layout from './components/layout/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import { useStore } from './store/useStore'
 
@@ -35,36 +36,6 @@ function PageFallback() {
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amazonia-600" />
     </div>
   )
-}
-
-interface ErrorBoundaryState { hasError: boolean; error: Error | null }
-
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: null }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <div className="text-red-600 dark:text-red-400 text-lg font-semibold">Algo salió mal</div>
-          <p className="text-slate-500 dark:text-gray-400 text-sm max-w-md text-center">
-            {this.state.error?.message || 'Error inesperado en la aplicación'}
-          </p>
-          <button
-            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
-            className="px-4 py-2 bg-amazonia-600 text-white rounded-lg hover:bg-amazonia-700 transition-colors text-sm"
-          >
-            Recargar página
-          </button>
-        </div>
-      )
-    }
-    return this.props.children
-  }
 }
 
 export default function App() {
