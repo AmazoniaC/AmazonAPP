@@ -1,6 +1,17 @@
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
+// Sin JWT_SECRET no hay forma segura de firmar/verificar tokens: un valor por
+// defecto conocido permitiría a cualquiera forjar un token válido como
+// Administrador. Preferible que el servidor no arranque a que arranque
+// "inseguro en silencio".
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET no está definido. Agrega una línea JWT_SECRET=<valor secreto largo> ' +
+    'a tu archivo .env antes de arrancar el servidor (ver .env.example). ' +
+    'Para generar uno: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"'
+  )
+}
 
 export function authMiddleware(req, res, next) {
   const publicPaths = [

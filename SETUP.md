@@ -53,6 +53,13 @@ DB_USER=postgres
 DB_PASSWORD=la_contraseña_que_pusiste_al_instalar
 DB_NAME=erp_amazonia
 PORT=3001
+JWT_SECRET=
+```
+
+`JWT_SECRET` es obligatorio — el servidor no arranca sin él (firma los tokens de
+sesión). Genera uno con:
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
 ---
