@@ -1,35 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  LayoutDashboard, CalendarDays, Package, ArrowLeftRight, Factory,
-  ShoppingCart, FileText, Truck, Navigation, Users, Kanban, RotateCcw,
-  Building2, Banknote, Wallet, Receipt, BookOpen, BarChart3, Settings,
-  LogOut, Bell, User, Leaf, Instagram, Facebook, Linkedin, MessageCircle,
-} from 'lucide-react'
+import { LogOut, Bell, User, Leaf, Instagram, Facebook, Linkedin, MessageCircle } from 'lucide-react'
 import { useStore } from '../store/useStore'
-
-// ── Module grid (5 columns × 4 rows = 19 modules) ────────────────────────────
-const MODULES: { to: string; icon: React.ElementType; label: string; roles?: string[] }[] = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/calendar',    icon: CalendarDays,    label: 'Calendario' },
-  { to: '/inventory',   icon: Package,         label: 'Inventario',   roles: ['Administrador','Inventario','Producción'] },
-  { to: '/inventory/movements', icon: ArrowLeftRight, label: 'Movimientos', roles: ['Administrador','Inventario'] },
-  { to: '/production',  icon: Factory,         label: 'Producción',   roles: ['Administrador','Producción'] },
-  { to: '/sales',       icon: ShoppingCart,    label: 'Ventas',       roles: ['Administrador','Ventas','Contabilidad'] },
-  { to: '/quotations',  icon: FileText,        label: 'Cotizaciones', roles: ['Administrador','Ventas'] },
-  { to: '/purchases',   icon: Truck,           label: 'Compras',      roles: ['Administrador','Inventario','Contabilidad'] },
-  { to: '/dispatch',    icon: Navigation,      label: 'Despachos',    roles: ['Administrador','Ventas','Producción'] },
-  { to: '/crm',         icon: Users,           label: 'Clientes',     roles: ['Administrador','Ventas'] },
-  { to: '/pipeline',    icon: Kanban,          label: 'Pipeline',     roles: ['Administrador','Ventas'] },
-  { to: '/returns',     icon: RotateCcw,       label: 'Devoluciones', roles: ['Administrador','Ventas'] },
-  { to: '/suppliers',   icon: Building2,       label: 'Proveedores',  roles: ['Administrador','Inventario','Contabilidad'] },
-  { to: '/payments',    icon: Banknote,        label: 'Pagos',        roles: ['Administrador','Contabilidad','Ventas'] },
-  { to: '/cartera',     icon: Wallet,          label: 'Cartera',      roles: ['Administrador','Contabilidad','Ventas'] },
-  { to: '/expenses',    icon: Receipt,         label: 'Gastos',       roles: ['Administrador','Contabilidad'] },
-  { to: '/catalog',     icon: BookOpen,        label: 'Catálogo',     roles: ['Administrador','Ventas','Inventario'] },
-  { to: '/reports',     icon: BarChart3,       label: 'Reportes',     roles: ['Administrador','Contabilidad'] },
-  { to: '/settings',    icon: Settings,        label: 'Configuración', roles: ['Administrador'] },
-]
+import { MODULE_GROUPS, modulesForRole, type AppModule } from '../config/modules'
 
 // ── Bubble field — interactive floating circles ──────────────────────────────
 interface Bubble {
@@ -156,173 +129,40 @@ function BubbleField() {
   )
 }
 
-// ── Module grid: 3 fixed rows, horizontal scroll with custom green bar ───────
-function ScrollableModuleGrid({ modules }: { modules: typeof MODULES }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const innerRef  = useRef<HTMLDivElement>(null)
-  const trackRef  = useRef<HTMLDivElement>(null)
-  // Default to visible so the bar paints immediately on first frame
-  const [thumb, setThumb] = useState({ left: 0, width: 80, visible: true })
-  const drag = useRef<{ startX: number; startScroll: number } | null>(null)
-
-  // Compute thumb size & position from horizontal scroll state
-  const recompute = () => {
-    const el = scrollRef.current
-    const track = trackRef.current
-    if (!el || !track) return
-    const sw = el.scrollWidth
-    const cw = el.clientWidth
-    const ratio = cw / sw
-    if (ratio >= 1 || sw === 0) {
-      setThumb((p) => p.visible ? { left: 0, width: 0, visible: false } : p)
-      return
-    }
-    const trackW = track.clientWidth
-    const w = Math.max(60, trackW * ratio)
-    const l = (el.scrollLeft / (sw - cw)) * (trackW - w)
-    setThumb({ left: l, width: w, visible: true })
-  }
-
-  useEffect(() => {
-    recompute()
-    const ids = [
-      window.setTimeout(recompute, 50),
-      window.setTimeout(recompute, 200),
-      window.setTimeout(recompute, 500),
-    ]
-    const el = scrollRef.current
-    const inner = innerRef.current
-    if (!el || !inner) return () => ids.forEach(clearTimeout)
-    const onScroll = () => recompute()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    // Allow vertical wheel to scroll horizontally
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        el.scrollLeft += e.deltaY
-        e.preventDefault()
-      }
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    const ro = new ResizeObserver(() => recompute())
-    ro.observe(el)
-    ro.observe(inner)
-    window.addEventListener('resize', recompute)
-    return () => {
-      ids.forEach(clearTimeout)
-      el.removeEventListener('scroll', onScroll)
-      el.removeEventListener('wheel', onWheel)
-      ro.disconnect()
-      window.removeEventListener('resize', recompute)
-    }
-  }, [modules.length])
-
-  // Drag the thumb
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!drag.current || !scrollRef.current || !trackRef.current) return
-      const el = scrollRef.current
-      const trackW = trackRef.current.clientWidth
-      const dx = e.clientX - drag.current.startX
-      const ratio = el.clientWidth / el.scrollWidth
-      const w = Math.max(60, trackW * ratio)
-      const scrollable = el.scrollWidth - el.clientWidth
-      const moveable   = trackW - w
-      if (moveable <= 0) return
-      el.scrollLeft = drag.current.startScroll + (dx / moveable) * scrollable
-    }
-    const onUp = () => { drag.current = null; document.body.style.userSelect = '' }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [])
-
-  const onThumbDown = (e: React.MouseEvent) => {
-    if (!scrollRef.current) return
-    drag.current = { startX: e.clientX, startScroll: scrollRef.current.scrollLeft }
-    document.body.style.userSelect = 'none'
-    e.preventDefault()
-  }
-
-  const onTrackDown = (e: React.MouseEvent) => {
-    if (!scrollRef.current || !trackRef.current || e.target !== trackRef.current) return
-    const rect = trackRef.current.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const target = (clickX / rect.width) * (scrollRef.current.scrollWidth - scrollRef.current.clientWidth)
-    scrollRef.current.scrollTo({ left: target, behavior: 'smooth' })
-  }
-
+// ── Module grid: grouped by category, same groups as the header switcher
+// and the mobile "Más" sheet, so the three navigation surfaces read the same. ─
+function GroupedModuleGrid({ modules }: { modules: AppModule[] }) {
+  let tileIdx = 0
   return (
-    <div className="relative" style={{ paddingBottom: 26 }}>
-      {/* Tile grid — 3 fixed rows, columns fill horizontally */}
-      <div
-        ref={scrollRef}
-        className="welcome-scroll-hide"
-        style={{
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          paddingBottom: 6,
-        }}
-      >
-        <div
-          ref={innerRef}
-          className="welcome-hgrid"
-        >
-          {modules.map((m, idx) => (
-            <Link
-              key={m.to}
-              to={m.to}
-              className="welcome-tile group"
-              style={{ animationDelay: `${idx * 30}ms` }}
-              title={m.label}
-            >
-              <m.icon size={28} className="text-amazonia-900 transition-transform duration-300 group-hover:scale-110" strokeWidth={1.5} />
-              <span className="welcome-tile-label">{m.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Custom horizontal transparent-green scrollbar */}
-      {thumb.visible && (
-        <div
-          ref={trackRef}
-          onMouseDown={onTrackDown}
-          className="absolute"
-          style={{
-            left: 4,
-            right: 4,
-            bottom: 2,
-            height: 14,
-            borderRadius: 999,
-            background: 'rgba(82, 125, 54, 0.18)',
-            border: '1.5px solid rgba(82, 125, 54, 0.35)',
-            backdropFilter: 'blur(6px)',
-            cursor: 'pointer',
-            boxShadow:
-              'inset 0 1px 2px rgba(82, 125, 54, 0.12), 0 2px 8px rgba(82, 125, 54, 0.10)',
-          }}
-        >
-          <div
-            onMouseDown={onThumbDown}
-            className="welcome-scrollthumb"
-            style={{
-              position: 'absolute',
-              left: thumb.left,
-              top: 1,
-              bottom: 1,
-              width: thumb.width,
-              borderRadius: 999,
-              background: 'linear-gradient(180deg, rgba(110, 160, 80, 0.9) 0%, rgba(45, 74, 30, 0.95) 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20), 0 2px 8px rgba(45, 74, 30, 0.30)',
-              cursor: 'grab',
-              transition: 'background 180ms ease',
-            }}
-          />
-        </div>
-      )}
+    <div>
+      {MODULE_GROUPS.map((group) => {
+        const items = modules.filter((m) => m.group === group)
+        if (items.length === 0) return null
+        return (
+          <div key={group} className="mb-6 last:mb-0">
+            <p className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-amazonia-800/50">
+              {group}
+            </p>
+            <div className="welcome-grid">
+              {items.map((m) => {
+                const idx = tileIdx++
+                return (
+                  <Link
+                    key={m.to}
+                    to={m.to}
+                    className="welcome-tile group"
+                    style={{ animationDelay: `${idx * 30}ms` }}
+                    title={m.label}
+                  >
+                    <m.icon size={26} className="text-amazonia-900 transition-transform duration-300 group-hover:scale-110" strokeWidth={1.5} />
+                    <span className="welcome-tile-label">{m.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -338,8 +178,7 @@ export default function Welcome() {
     navigate('/login', { replace: true })
   }
 
-  const role = user?.role ?? 'Administrador'
-  const visibleModules = MODULES.filter((m) => !m.roles || m.roles.includes(role))
+  const visibleModules = modulesForRole(user?.role ?? 'Administrador')
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
     : 'AG'
@@ -457,8 +296,8 @@ export default function Welcome() {
             </div>
           </div>
 
-          {/* Module grid — 3 rows visible, transparent green scrollbar for the rest */}
-          <ScrollableModuleGrid modules={visibleModules} />
+          {/* Module grid — grouped by category, sourced from config/modules.ts */}
+          <GroupedModuleGrid modules={visibleModules} />
 
           {/* Logout */}
           <div className="mt-10 flex justify-end">
@@ -479,42 +318,15 @@ export default function Welcome() {
 
       {/* Welcome-tile styles */}
       <style>{`
-        /* Native scrollbar hidden — we render our own visible green one above */
-        .welcome-scroll-hide { scrollbar-width: none; -ms-overflow-style: none; }
-        .welcome-scroll-hide::-webkit-scrollbar { width: 0; height: 0; display: none; }
-        .welcome-scrollthumb:hover {
-          background: linear-gradient(180deg, rgba(130, 175, 95, 1) 0%, rgba(56, 89, 38, 1) 100%) !important;
-        }
-        .welcome-scrollthumb:active { cursor: grabbing !important; }
-
-        /* Horizontal grid: exactly 3 rows, columns fill left-to-right.
-           Each tile is a fixed-width square so the whole grid grows as wide
-           as it needs and overflows horizontally. */
-        .welcome-hgrid {
+        /* Grouped grid: each category flows its own wrapping row of tiles,
+           same shape on phone and desktop — no horizontal scroll to discover. */
+        .welcome-grid {
           display: grid;
-          grid-template-rows: repeat(3, var(--tile-size, 168px));
-          grid-auto-flow: column;
-          grid-auto-columns: var(--tile-size, 168px);
-          gap: 16px;
-          align-content: start;
+          grid-template-columns: repeat(auto-fill, minmax(92px, 140px));
+          gap: 10px;
         }
-        /* En teléfono y tableta el desplazamiento horizontal escondía la mayoría
-           de los módulos. Debajo de 1024px la rejilla fluye hacia abajo y todas
-           las baldosas se alcanzan con el scroll vertical normal. */
-        @media (max-width: 1023px) {
-          .welcome-hgrid {
-            grid-template-rows: none;
-            grid-auto-flow: row;
-            grid-auto-columns: auto;
-            grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-            gap: 10px;
-          }
-        }
-        @media (min-width: 1280px) {
-          .welcome-hgrid { --tile-size: 180px; }
-        }
-        @media (min-width: 1500px) {
-          .welcome-hgrid { --tile-size: 188px; }
+        @media (min-width: 640px) {
+          .welcome-grid { grid-template-columns: repeat(auto-fill, minmax(136px, 168px)); gap: 14px; }
         }
 
         .welcome-tile {
