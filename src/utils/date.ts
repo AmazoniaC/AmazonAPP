@@ -14,10 +14,17 @@ function toDate(value?: string | Date | null): Date | null {
   const raw = String(value).trim()
   if (!raw) return null
 
-  // Plain 'YYYY-MM-DD' (or the date half of an ISO string): read it as local
-  // noon so a negative UTC offset can't roll it back to the previous day.
+  // Plain 'YYYY-MM-DD', or a midnight ISO timestamp (the shape node-postgres
+  // returns for DATE columns, e.g. '2024-11-04T00:00:00.000Z'): neither
+  // carries a real time of day, so read as local noon — a negative UTC
+  // offset can't roll a midnight-UTC value back to the previous day, and a
+  // bare date string is parsed as UTC by `Date` unless nudged to local noon.
+  // A timestamp with an actual non-midnight time (used by formatDateTime) is
+  // left alone so its real time survives.
   const dateOnly = raw.slice(0, 10)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+  const timePart = raw.slice(10)
+  const isMidnightOrBare = timePart === '' || /^[T ]00:00:00(\.0+)?(Z|[+-]\d{2}:?\d{2})?$/.test(timePart)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly) && isMidnightOrBare) {
     const d = new Date(`${dateOnly}T12:00:00`)
     return Number.isNaN(d.getTime()) ? null : d
   }
