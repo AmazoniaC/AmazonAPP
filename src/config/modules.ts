@@ -55,17 +55,28 @@ export function modulesForRole(role?: string | null): AppModule[] {
 }
 
 /**
- * Bottom-bar shortcuts on phones. Kept to four so the fifth slot can always be
- * the "Más" sheet that reveals everything else.
+ * Bottom-bar shortcuts on phones, curated per role so each one gets its own
+ * four most-used modules instead of whichever happen to come first in
+ * MODULES. Kept to four so the fifth slot can always be the "Más" sheet
+ * that reveals everything else.
  */
-const QUICK_PATHS = ['/dashboard', '/sales', '/inventory', '/crm']
+const QUICK_PATHS_BY_ROLE: Record<string, string[]> = {
+  Administrador: ['/dashboard', '/sales', '/inventory', '/crm'],
+  Ventas:        ['/dashboard', '/sales', '/crm', '/pipeline'],
+  Producción:    ['/dashboard', '/production', '/inventory', '/dispatch'],
+  Inventario:    ['/dashboard', '/inventory', '/inventory/movements', '/purchases'],
+  Contabilidad:  ['/dashboard', '/cartera', '/payments', '/expenses'],
+}
+const DEFAULT_QUICK_PATHS = ['/dashboard', '/sales', '/inventory', '/crm']
 
 export function quickModules(role?: string | null): AppModule[] {
   const allowed = modulesForRole(role)
-  const quick = QUICK_PATHS
+  const curated = (role && QUICK_PATHS_BY_ROLE[role]) || DEFAULT_QUICK_PATHS
+  const quick = curated
     .map((p) => allowed.find((m) => m.to === p))
     .filter((m): m is AppModule => Boolean(m))
-  // A role without the default four (e.g. Producción) still gets a usable bar.
+  // A role whose curated paths aren't all available to it (or one missing
+  // from the map above) still gets a full bar.
   if (quick.length < 4) {
     for (const m of allowed) {
       if (quick.length >= 4) break
