@@ -8,6 +8,7 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
+import { nextOrderNumber } from '../utils/orderNumber'
 
 const STATUS_LABELS: Record<string, string> = {
   pending:'Pendiente', in_progress:'En producción', finished:'Finalizado', cancelled:'Cancelado'
@@ -379,7 +380,7 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
     if (!recipe || !qty) return
     const n = parseFloat(qty)
     const order: ProductionOrder = {
-      id: `po${Date.now()}`, orderNumber: `OP-${new Date().getFullYear()}-${String(productionOrders.length + 1).padStart(4, '0')}`,
+      id: `po${Date.now()}`, orderNumber: nextOrderNumber(productionOrders.map((o) => o.orderNumber), `OP-${new Date().getFullYear()}-`),
       recipe: recipe.name, recipeId: recipe.id, product: recipe.name.split('(')[0].trim(),
       plannedQty: n, status: 'pending', priority: 3,
       plannedStart: `${date} 08:00`, plannedEnd: `${date} 16:00`,

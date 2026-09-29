@@ -3,6 +3,7 @@ import type { AppState } from '../state'
 import type { SaleOrder, Quotation, Payment } from '../../data/mockData'
 import { apiFetch } from '../api'
 import { toast } from '../../components/Toast'
+import { nextOrderNumber } from '../../utils/orderNumber'
 
 export interface SalesSlice {
   saleOrders: SaleOrder[]
@@ -48,11 +49,10 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     if (!order) throw new Error('Orden no encontrada')
     // If already has invoice number, return as-is
     if (order.invoiceNumber) return order
-    // Sequential number = existing invoices + 1
-    const existing = s.saleOrders.filter((x) => x.invoiceNumber).length
     const year     = new Date().getFullYear()
     const prefix   = s.companySettings.invoicePrefix?.replace('VTA', 'FAC') || 'FAC'
-    const invoiceNumber = `${prefix}-${year}-${String(existing + 1).padStart(4, '0')}`
+    const existingNumbers = s.saleOrders.map((x) => x.invoiceNumber).filter((n): n is string => !!n)
+    const invoiceNumber = nextOrderNumber(existingNumbers, `${prefix}-${year}-`)
     const invoiceDate   = new Date().toISOString().split('T')[0]
     const updated: SaleOrder = { ...order, invoiceNumber, invoiceDate }
     await apiFetch(`/api/sale-orders/${id}`, { method: 'PUT', body: JSON.stringify(updated) })
@@ -79,9 +79,10 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     const s = get()
     const q = s.quotations.find((x) => x.id === id)
     if (!q || q.convertedToOrderId) return
+    const prefix = `${s.companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-`
     const order: SaleOrder = {
       id: `so${Date.now()}`,
-      orderNumber: `${s.companySettings.invoicePrefix || 'VTA'}-${new Date().getFullYear()}-${String(s.saleOrders.length + 1).padStart(4, '0')}`,
+      orderNumber: nextOrderNumber(s.saleOrders.map((x) => x.orderNumber), prefix),
       customer: q.customer, customerId: q.customerId,
       items: q.items,
       subtotal: q.subtotal, discount: q.discount, tax: q.tax, total: q.total,

@@ -12,6 +12,7 @@ import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { formatCOP } from '../utils/currency'
+import { nextOrderNumber } from '../utils/orderNumber'
 import * as XLSX from 'xlsx'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -30,8 +31,8 @@ const STATUS_META: Record<Status, { label: string; badge: string; icon: React.El
 
 function POModal({ order, onClose }: { order?: PurchaseOrder; onClose: () => void }) {
   const { supplies, purchaseOrders, addPurchaseOrder, updatePurchaseOrder } = useStore()
-  const nextNum = String(purchaseOrders.length + 1).padStart(3, '0')
-  const today   = new Date().toISOString().split('T')[0]
+  const poPrefix = `OC-${new Date().getFullYear()}-`
+  const today    = new Date().toISOString().split('T')[0]
 
   const [supplier, setSupplier] = useState(order?.supplier ?? '')
   const [date,     setDate]     = useState(order?.date     ?? today)
@@ -73,7 +74,7 @@ function POModal({ order, onClose }: { order?: PurchaseOrder; onClose: () => voi
     if (!supplier.trim() || items.some((i) => !i.supplyId)) return
     const po: PurchaseOrder = {
       id:          order?.id ?? `oc${Date.now()}`,
-      orderNumber: order?.orderNumber ?? `OC-${new Date().getFullYear()}-${nextNum}`,
+      orderNumber: order?.orderNumber ?? nextOrderNumber(purchaseOrders.map((o) => o.orderNumber), poPrefix, 3),
       supplier:    supplier.trim(),
       status,
       date,
