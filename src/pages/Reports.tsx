@@ -68,7 +68,9 @@ export default function Reports() {
     })
   }, [saleOrders, from, to])
 
-  const totalRevenue = filteredOrders.reduce((a,o) => a + o.total, 0)
+  const totalRevenue = filteredOrders
+    .filter((o) => o.status !== 'cancelled')
+    .reduce((a,o) => a + o.total, 0)
   const totalCost    = productionOrders.reduce((a,o) => a + (o.actualCost ?? o.estimatedCost ?? 0), 0)
   const grossMargin  = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0
 

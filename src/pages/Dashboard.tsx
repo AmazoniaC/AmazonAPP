@@ -201,7 +201,7 @@ export default function Dashboard() {
   const lowStock    = supplies.filter((s) => s.stock < s.minStock)
   const pendingOrds = saleOrders.filter((o) => o.status === 'pending' || o.status === 'processing')
   const inProd      = productionOrders.filter((o) => o.status === 'in_progress')
-  const totalSales  = saleOrders.reduce((a, o) => a + o.total, 0)
+  const totalSales  = saleOrders.filter((o) => o.status !== 'cancelled').reduce((a, o) => a + o.total, 0)
   const recentSales = [...saleOrders].reverse().slice(0, 5)
 
   const gridColor = darkMode ? '#374151' : '#f1f5f9'
