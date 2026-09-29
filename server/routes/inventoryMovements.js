@@ -55,7 +55,7 @@ router.post('/', validate(createInventoryMovementSchema), async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [id, itemId, itemName, itemType, movementType, quantity, previousStock, newStock, unit, reference || '', notes || '', user.name]
     )
-    log({ userName: user.name, userEmail: user.email, action: 'crear', entity: 'Movimiento inventario', entityId: id, entityName: itemName, details: `${movementType} ${quantity}` })
+    await log({ userName: user.name, userEmail: user.email, action: 'crear', entity: 'Movimiento inventario', entityId: id, entityName: itemName, details: `${movementType} ${quantity}` })
     res.status(201).json({ ok: true })
   } catch (err) {
     console.error('POST /inventory-movements', err)
