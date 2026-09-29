@@ -84,6 +84,21 @@ Te escribimos de {empresa}. Tienes *{num_ordenes} orden(es)* con saldo pendiente
 
 export type WaTemplateKey = keyof typeof WA_TEMPLATES
 
+/**
+ * Fill `{placeholder}` tokens in a template. Uses split/join rather than
+ * String#replace, because replace() re-interprets `$&`, `$$`, `` $` ``, etc.
+ * inside the REPLACEMENT string (JS's "GetSubstitution" semantics apply even
+ * for a plain-string search pattern) — a customer/company name containing a
+ * literal `$` would otherwise corrupt or truncate the message.
+ */
+function fillTemplate(template: string, values: Record<string, string>): string {
+  let result = template
+  for (const [key, value] of Object.entries(values)) {
+    result = result.split(`{${key}}`).join(value)
+  }
+  return result
+}
+
 /** Default country code for numbers entered without one (Colombia = 57). */
 const DEFAULT_COUNTRY_CODE = '57'
 
@@ -129,15 +144,16 @@ export function buildOrderConfirmation(params: {
     ? `🚚 *Entrega estimada:* ${params.deliveryDate}`
     : ''
 
-  return WA_TEMPLATES.orderConfirmation
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{orden}', params.orderNumber)
-    .replace('{fecha}', params.date)
-    .replace('{total}', formatCOP(params.total))
-    .replace('{metodo_pago}', params.paymentMethod)
-    .replace('{productos}', productos)
-    .replace('{entrega}', entrega)
+  return fillTemplate(WA_TEMPLATES.orderConfirmation, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    orden: params.orderNumber,
+    fecha: params.date,
+    total: formatCOP(params.total),
+    metodo_pago: params.paymentMethod,
+    productos,
+    entrega,
+  })
 }
 
 /** Build a payment reminder message */
@@ -155,14 +171,15 @@ export function buildPaymentReminder(params: {
     ? `💳 *Datos de pago:*\n${params.bankInfo}`
     : ''
 
-  return WA_TEMPLATES.paymentReminder
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{orden}', params.orderNumber)
-    .replace('{fecha}', params.date)
-    .replace('{total}', formatCOP(params.total))
-    .replace('{estado_pago}', estadoPago)
-    .replace('{datos_bancarios}', datosBancarios)
+  return fillTemplate(WA_TEMPLATES.paymentReminder, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    orden: params.orderNumber,
+    fecha: params.date,
+    total: formatCOP(params.total),
+    estado_pago: estadoPago,
+    datos_bancarios: datosBancarios,
+  })
 }
 
 /** Build a dispatch notification message */
@@ -181,16 +198,17 @@ export function buildDispatchNotification(params: {
     .map(i => `  • ${i.product} × ${i.qty}`)
     .join('\n')
 
-  return WA_TEMPLATES.dispatchNotification
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{despacho}', params.dispatchNumber)
-    .replace('{orden}', params.orderNumber)
-    .replace('{fecha}', params.scheduledDate)
-    .replace('{hora}', params.scheduledTime || 'Por confirmar')
-    .replace('{conductor}', params.driver || 'Por asignar')
-    .replace('{direccion}', params.address || 'Por confirmar')
-    .replace('{productos}', productos)
+  return fillTemplate(WA_TEMPLATES.dispatchNotification, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    despacho: params.dispatchNumber,
+    orden: params.orderNumber,
+    fecha: params.scheduledDate,
+    hora: params.scheduledTime || 'Por confirmar',
+    conductor: params.driver || 'Por asignar',
+    direccion: params.address || 'Por confirmar',
+    productos,
+  })
 }
 
 /** Build a delivery confirmation message */
@@ -200,11 +218,12 @@ export function buildDeliveryConfirmation(params: {
   dispatchNumber: string
   deliveredAt: string
 }): string {
-  return WA_TEMPLATES.deliveryConfirmation
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{despacho}', params.dispatchNumber)
-    .replace('{fecha_entrega}', params.deliveredAt)
+  return fillTemplate(WA_TEMPLATES.deliveryConfirmation, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    despacho: params.dispatchNumber,
+    fecha_entrega: params.deliveredAt,
+  })
 }
 
 /** Build a follow-up message */
@@ -214,11 +233,12 @@ export function buildFollowUp(params: {
   orderNumber: string
   date: string
 }): string {
-  return WA_TEMPLATES.followUp
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{orden}', params.orderNumber)
-    .replace('{fecha}', params.date)
+  return fillTemplate(WA_TEMPLATES.followUp, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    orden: params.orderNumber,
+    fecha: params.date,
+  })
 }
 
 /** Build a quotation share message (for sending the quote itself) */
@@ -277,13 +297,14 @@ export function buildBulkPaymentReminder(params: {
     ? `💳 *Datos de pago:*\n${params.bankInfo}`
     : ''
 
-  return WA_TEMPLATES.bulkPaymentReminder
-    .replace('{cliente}', params.customer)
-    .replace('{empresa}', params.companyName)
-    .replace('{num_ordenes}', String(params.orders.length))
-    .replace('{total_pendiente}', formatCOP(totalPendiente))
-    .replace('{detalle_ordenes}', detalle)
-    .replace('{datos_bancarios}', datosBancarios)
+  return fillTemplate(WA_TEMPLATES.bulkPaymentReminder, {
+    cliente: params.customer,
+    empresa: params.companyName,
+    num_ordenes: String(params.orders.length),
+    total_pendiente: formatCOP(totalPendiente),
+    detalle_ordenes: detalle,
+    datos_bancarios: datosBancarios,
+  })
 }
 
 /** Get bank info string from company settings */

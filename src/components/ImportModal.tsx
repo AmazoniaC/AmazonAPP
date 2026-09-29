@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { read, utils } from 'xlsx'
+import { getAuthHeader as getUserHeader } from '../utils/auth'
 
 type Entity = 'supplies' | 'products' | 'customers'
 
@@ -71,15 +72,6 @@ const KNOWN_ALIASES: Record<string, string> = {
   city: 'city', ciudad: 'city',
   segment: 'segment', segmento: 'segment',
   notes: 'notes', notas: 'notes', observaciones: 'notes',
-}
-
-function getUserHeader(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('erp_auth')
-    if (!raw) return {}
-    const user = JSON.parse(raw)
-    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
-  } catch { return {} }
 }
 
 export default function ImportModal({ entity, onClose, onSuccess }: Props) {

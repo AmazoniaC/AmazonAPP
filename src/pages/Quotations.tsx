@@ -18,6 +18,7 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { openWhatsApp, buildQuotationShare } from '../utils/whatsapp'
 import { toast } from '../components/Toast'
+import { getAuthHeader } from '../utils/auth'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
@@ -404,13 +405,7 @@ function QuotationDrawer({ quotation, onClose, onEdit, onConvert, onDownload, ge
   const [emailTo, setEmailTo]       = useState(drawerCustomer?.email ?? '')
   const [sendingEmail, setSendingEmail] = useState(false)
 
-  // Small helper: read the JWT for authenticated fetches
-  const authHeader = (): Record<string, string> => {
-    try {
-      const r = localStorage.getItem('erp_auth'); if (!r) return {}
-      const u = JSON.parse(r); return u.token ? { 'Authorization': `Bearer ${u.token}` } : {}
-    } catch { return {} }
-  }
+  const authHeader = getAuthHeader
 
   // Mark the quote sent (from draft) and schedule a 3-day follow-up activity.
   const markSentAndFollowUp = (channel: string) => {

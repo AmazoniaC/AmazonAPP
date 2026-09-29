@@ -7,6 +7,7 @@ import { UserAvatar } from '../components/layout/Topbar'
 import Pagination from '../components/Pagination'
 import UserManual from '../components/UserManual'
 import { WA_TEMPLATES, WaTemplateKey } from '../utils/whatsapp'
+import { getAuthHeader } from '../utils/auth'
 
 const TAB_ICONS: Record<string, any> = {
   empresa: Building, usuarios: Users, equipo: Users, pagos: CreditCard, precios: Tag,
@@ -67,15 +68,6 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 const EMPTY_FORM = { name: '', email: '', password: '', role: 'Ventas', isActive: true }
-
-function getAuthHeader(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('erp_auth')
-    if (!raw) return {}
-    const user = JSON.parse(raw)
-    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
-  } catch { return {} }
-}
 
 export default function Settings() {
   const [activeTab, setActiveTab]       = useState('empresa')

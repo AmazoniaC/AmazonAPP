@@ -4,18 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { toast } from '../components/Toast'
 import type { WhatsAppSendResult } from './types'
-
-function getUserHeader(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('erp_auth')
-    if (!raw) return {}
-    const user = JSON.parse(raw)
-    if (user.token) {
-      return { 'Authorization': `Bearer ${user.token}` }
-    }
-    return {}
-  } catch { return {} }
-}
+import { getAuthHeader as getUserHeader } from '../utils/auth'
 
 // El fallo más común al arrancar en local: se ejecutó solo el frontend y el
 // backend no está escuchando. El mensaje dice exactamente qué hacer.

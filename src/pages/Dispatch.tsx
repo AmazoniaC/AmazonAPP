@@ -15,18 +15,7 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
 import { toast } from '../components/Toast'
-
-// Small helper: read the JWT for authenticated fetches (same pattern as
-// Quotations.tsx / Settings.tsx — apiFetch in the store isn't reused here
-// because this call must never throw on a non-2xx, it needs to fall back).
-function authHeader(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem('erp_auth')
-    if (!raw) return {}
-    const user = JSON.parse(raw)
-    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
-  } catch { return {} }
-}
+import { getAuthHeader as authHeader } from '../utils/auth'
 
 /**
  * Send the delivery confirmation automatically via the server's linked
