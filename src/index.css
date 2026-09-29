@@ -55,8 +55,8 @@ body {
 .dark ::-webkit-scrollbar-thumb { @apply bg-gray-600/60; }
 .dark ::-webkit-scrollbar-thumb:hover { @apply bg-gray-500/80; }
 
-/* La barra lateral de esta hoja nunca se construyó como componente. La
-   navegación real vive ahora en ModuleNav (cabecera) y MobileTabBar (teléfono). */
+/* La navegación vive en Sidebar (escritorio, colapsable) y MobileTabBar
+   (teléfono). Ambas comparten el verde de marca vía .app-header. */
 
 /* ── Card ─────────────────────────────── */
 /* Superficie plana: un borde de 1px y una sola sombra suave. Sin degradados,

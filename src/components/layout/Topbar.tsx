@@ -1,14 +1,13 @@
 import {
   Bell, Search, AlertTriangle, Info, CheckCircle, XCircle,
   Sun, Moon, Check, Trash2, LogOut, Package, Truck, ShoppingCart, Users, Factory, Navigation,
-  Home, Leaf, ChevronRight,
+  Leaf,
 } from 'lucide-react'
 import { useStore, NotifCategory } from '../../store/useStore'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import ModuleNav, { ModuleTitle } from './ModuleNav'
 
 // ── UserAvatar ─────────────────────────────────────────────────────────────
 
@@ -91,9 +90,9 @@ export default function Topbar({ title }: { title?: string }) {
 
   return (
     <header className="app-header sticky top-0 z-30 flex h-14 items-center gap-3 px-3 sm:px-5">
-      {/* Brand + module switcher */}
+      {/* Brand (mobile only — the sidebar shows it on desktop) + page title */}
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link to="/" className="flex flex-shrink-0 items-center gap-2.5" title="Volver al inicio">
+        <Link to="/" className="flex flex-shrink-0 items-center gap-2.5 md:hidden" title="Volver al inicio">
           {logo ? (
             <img src={logo} alt="" className="h-8 w-8 rounded-lg object-contain" />
           ) : (
@@ -101,13 +100,11 @@ export default function Topbar({ title }: { title?: string }) {
               <Leaf size={16} className="text-white" />
             </div>
           )}
-          <span className="hidden truncate text-sm font-bold tracking-tight text-white sm:block">
-            {companySettings.companyName || 'Amazonia Concrete'}
-          </span>
         </Link>
 
-        <ModuleNav />
-        <ModuleTitle title={title} />
+        {title && (
+          <span className="truncate text-sm font-medium text-white/85">{title}</span>
+        )}
       </div>
 
       {/* Search — full control on desktop, icon on phones */}

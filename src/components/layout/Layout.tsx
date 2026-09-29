@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Topbar from './Topbar'
+import Sidebar from './Sidebar'
 import MobileTabBar from './MobileTabBar'
 import GlobalSearch from './GlobalSearch'
 import { PageSkeleton } from '../Skeletons'
@@ -49,25 +50,28 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--app-canvas)]">
-      <Topbar title={resolveTitle()} />
-      {/* pb-20 on phones clears the fixed bottom tab bar */}
-      <main className="mx-auto w-full max-w-[1500px] flex-1 overflow-auto px-3 py-4 pb-20 sm:px-5 md:pb-6">
-        {!dataLoaded && pathname !== '/settings' ? (
-          <PageSkeleton />
-        ) : (
-          <div className="animate-fadeIn">
-            {/* Keyed by pathname so navigating away from a crashed page
-                remounts a fresh boundary instead of staying stuck on the
-                fallback — a render error here no longer takes the header,
-                nav or other modules down with it. */}
-            <ErrorBoundary key={pathname}>
-              <Outlet />
-            </ErrorBoundary>
-          </div>
-        )}
-      </main>
-      <MobileTabBar />
+    <div className="flex min-h-screen bg-[var(--app-canvas)]">
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar title={resolveTitle()} />
+        {/* pb-20 on phones clears the fixed bottom tab bar */}
+        <main className="mx-auto w-full max-w-[1500px] flex-1 overflow-auto px-3 py-4 pb-20 sm:px-5 md:pb-6">
+          {!dataLoaded && pathname !== '/settings' ? (
+            <PageSkeleton />
+          ) : (
+            <div className="animate-fadeIn">
+              {/* Keyed by pathname so navigating away from a crashed page
+                  remounts a fresh boundary instead of staying stuck on the
+                  fallback — a render error here no longer takes the header,
+                  nav or other modules down with it. */}
+              <ErrorBoundary key={pathname}>
+                <Outlet />
+              </ErrorBoundary>
+            </div>
+          )}
+        </main>
+        <MobileTabBar />
+      </div>
       <GlobalSearch />
       <InstallPWA />
     </div>

@@ -3,6 +3,7 @@ import type { AppState } from '../state'
 import { getDarkMode } from '../persist'
 
 export interface UiSlice {
+  /** Desktop sidebar: expanded (labels + groups) vs collapsed (icon rail). */
   sidebarOpen: boolean
   darkMode:    boolean
   setSidebarOpen: (v: boolean) => void
@@ -12,11 +13,18 @@ export interface UiSlice {
 const initialDark = getDarkMode()
 if (initialDark) document.documentElement.classList.add('dark')
 
+// Defaults to expanded; only remembers an explicit collapse so a first visit
+// still shows labels.
+const initialSidebarOpen = localStorage.getItem('erp_sidebar_open') !== 'false'
+
 export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set) => ({
-  sidebarOpen: true,
+  sidebarOpen: initialSidebarOpen,
   darkMode:    initialDark,
 
-  setSidebarOpen: (v) => set({ sidebarOpen: v }),
+  setSidebarOpen: (v) => {
+    localStorage.setItem('erp_sidebar_open', String(v))
+    set({ sidebarOpen: v })
+  },
 
   toggleDarkMode: () =>
     set((s) => {
