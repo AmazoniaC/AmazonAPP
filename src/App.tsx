@@ -28,7 +28,6 @@ const ReturnsPage       = lazy(() => import('./pages/Returns'))
 const SuppliersPage     = lazy(() => import('./pages/Suppliers'))
 const CarteraPage       = lazy(() => import('./pages/Cartera'))
 const PaymentsPage      = lazy(() => import('./pages/Payments'))
-const Welcome           = lazy(() => import('./pages/Welcome'))
 
 function PageFallback() {
   return (
@@ -61,9 +60,11 @@ export default function App() {
           <Route path="/catalogo" element={<PublicCatalog />} />
           <Route path="/login" element={<Login />} />
           <Route element={<ProtectedRoute />}>
-            {/* Welcome page — full-screen, no sidebar, the landing after login */}
-            <Route path="/" element={<Welcome />} />
             <Route element={<Layout />}>
+              {/* The sidebar is the only navigation surface now — no separate
+                  module-picker landing page. "/" and any unknown path land
+                  on the dashboard. */}
+              <Route path="/"             element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard"   element={<Dashboard />} />
               <Route path="/calendar"    element={<CalendarPage />} />
               <Route path="/inventory"   element={<Inventory />} />
@@ -84,7 +85,7 @@ export default function App() {
               <Route path="/cartera"     element={<CarteraPage />} />
               <Route path="/payments"    element={<PaymentsPage />} />
               <Route path="/settings"    element={<Settings />} />
-              <Route path="*"            element={<Navigate to="/" replace />} />
+              <Route path="*"            element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Route>
         </Routes>

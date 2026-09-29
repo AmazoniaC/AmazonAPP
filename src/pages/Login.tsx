@@ -47,7 +47,7 @@ export default function Login() {
         return
       }
       login({ name: data.name, email: data.email, role: data.role, token: data.token })
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     } catch {
       setError(SERVER_DOWN)
       setLoading(false)

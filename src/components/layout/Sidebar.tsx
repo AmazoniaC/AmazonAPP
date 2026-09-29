@@ -3,15 +3,25 @@
 // primary way to switch modules. Collapsible to an icon-only rail; hidden on
 // phones, which keep their own bottom tab bar (MobileTabBar).
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, Leaf } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, ChevronDown, Leaf } from 'lucide-react'
 import { useStore } from '../../store/useStore'
-import { MODULE_GROUPS, modulesForRole, moduleForPath } from '../../config/modules'
+import { MODULE_GROUPS, modulesForRole, moduleForPath, type ModuleGroup } from '../../config/modules'
 
 export default function Sidebar() {
   const { user, sidebarOpen, setSidebarOpen, companySettings } = useStore()
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  // Which groups the user manually collapsed. A group with the current page
+  // still expands regardless, so navigating never hides where you are.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<ModuleGroup>>(new Set())
+  const toggleGroup = (group: ModuleGroup) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      next.has(group) ? next.delete(group) : next.add(group)
+      return next
+    })
 
   const allowed = modulesForRole(user?.role)
   const current = moduleForPath(pathname)
@@ -47,35 +57,44 @@ export default function Sidebar() {
         {MODULE_GROUPS.map((group) => {
           const items = allowed.filter((m) => m.group === group)
           if (items.length === 0) return null
+          const hasActive = items.some((m) => m.to === current?.to)
+          const expanded = !sidebarOpen || !collapsedGroups.has(group) || hasActive
           return (
             <div key={group} className="mb-4 last:mb-0">
               {sidebarOpen && (
-                <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                <button
+                  onClick={() => toggleGroup(group)}
+                  className="mb-1 flex w-full items-center justify-between rounded px-2.5 py-1 text-[10px] font-semibold
+                             uppercase tracking-wider text-white/40 transition-colors hover:text-white/70"
+                >
                   {group}
-                </p>
+                  <ChevronDown size={12} className={`transition-transform ${expanded ? '' : '-rotate-90'}`} />
+                </button>
               )}
-              <div className="space-y-0.5">
-                {items.map((m) => {
-                  const active = current?.to === m.to
-                  return (
-                    <Link
-                      key={m.to}
-                      to={m.to}
-                      title={sidebarOpen ? undefined : m.label}
-                      className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${
-                        sidebarOpen ? '' : 'justify-center'
-                      } ${
-                        active
-                          ? 'bg-white/15 font-semibold text-white'
-                          : 'text-white/70 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      <m.icon size={17} className="flex-shrink-0" />
-                      {sidebarOpen && <span className="truncate">{m.label}</span>}
-                    </Link>
-                  )
-                })}
-              </div>
+              {expanded && (
+                <div className="space-y-0.5">
+                  {items.map((m) => {
+                    const active = current?.to === m.to
+                    return (
+                      <Link
+                        key={m.to}
+                        to={m.to}
+                        title={sidebarOpen ? undefined : m.label}
+                        className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                          sidebarOpen ? '' : 'justify-center'
+                        } ${
+                          active
+                            ? 'bg-white/15 font-semibold text-white'
+                            : 'text-white/70 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <m.icon size={17} className="flex-shrink-0" />
+                        {sidebarOpen && <span className="truncate">{m.label}</span>}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}

@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Single source of truth for the app's modules.
 //
-// The module switcher in the header, the mobile tab bar and the Welcome grid all
-// read from here, so a module added once shows up everywhere with the same label,
-// icon and role restriction.
+// The sidebar and the mobile tab bar both read from here, so a module added
+// once shows up everywhere with the same label, icon and role restriction.
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   LayoutDashboard, CalendarDays, Package, ArrowLeftRight, Factory,
