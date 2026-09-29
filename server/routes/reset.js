@@ -7,9 +7,11 @@ const router = Router()
 // DELETE /api/reset  – wipes all business data and settings
 router.delete('/', async (req, res) => {
   const u = getUser(req)
-  // Log BEFORE truncate so the record survives the cascade
-  await log({ userName: u.name, userEmail: u.email, action: 'restablecer', entity: 'Sistema', entityName: 'Restablecimiento de fábrica', details: 'Todos los datos fueron eliminados' })
   try {
+    // audit_log is deliberately NOT in this list: it's the compliance record
+    // of what happened, including this reset itself, so it must survive it.
+    // (It used to be truncated here too, which silently erased the very log
+    // entry written just below, defeating the point of logging the reset.)
     await pool.query(`
       TRUNCATE TABLE
         sale_order_items,
@@ -26,7 +28,6 @@ router.delete('/', async (req, res) => {
         suppliers,
         returns,
         calendar_items,
-        audit_log,
         supplies,
         products,
         production_orders,
@@ -36,6 +37,7 @@ router.delete('/', async (req, res) => {
         settings
       RESTART IDENTITY CASCADE
     `)
+    await log({ userName: u.name, userEmail: u.email, action: 'restablecer', entity: 'Sistema', entityName: 'Restablecimiento de fábrica', details: 'Todos los datos fueron eliminados' })
     res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ error: e.message })

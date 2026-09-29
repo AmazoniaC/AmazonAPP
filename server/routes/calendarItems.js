@@ -90,11 +90,15 @@ router.post('/', validate(createCalendarItemSchema), async (req, res) => {
 router.put('/:id', validate(updateCalendarItemSchema), async (req, res) => {
   const b = req.body
   try {
+    // Clear notified_at on every edit: the scheduler only ever picks up rows
+    // where it's NULL, so once an item fires once (or is marked stale), it
+    // silently never fires again — including after being rescheduled to a
+    // brand new future date/time, which needs its own reminder.
     await pool.query(
       `UPDATE calendar_items SET
         kind=$1, title=$2, description=$3, location=$4, date=$5, time=$6,
         reminder_minutes=$7, notify_app=$8, notify_whatsapp=$9,
-        whatsapp_phone=$10, done=$11
+        whatsapp_phone=$10, done=$11, notified_at=NULL
        WHERE id=$12`,
       [
         b.kind ?? 'meeting', b.title ?? '', b.description ?? '',
