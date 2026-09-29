@@ -23,7 +23,6 @@ router.get('/', async (req, res) => {
               smtp_user AS "smtpUser",
               smtp_pass AS "smtpPass",
               smtp_from AS "smtpFrom",
-              resend_api_key AS "resendApiKey",
               invoice_prefix AS "invoicePrefix",
               monthly_goal AS "monthlyGoal",
               tax_rate AS "taxRate",
@@ -34,8 +33,7 @@ router.get('/', async (req, res) => {
     )
     const s = rows[0] ?? {}
     // Never expose secrets to the frontend — only indicate if they are set
-    s.smtpPass    = s.smtpPass    ? MASKED : ''
-    s.resendApiKey = s.resendApiKey ? MASKED : ''
+    s.smtpPass = s.smtpPass ? MASKED : ''
     res.json(s)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -47,28 +45,26 @@ router.put('/', async (req, res) => {
     companyName, slogan, email, phone, address, currency, timezone, logo,
     bankName, bankKey, bankAccountType, bankAccountNumber, bankMessage,
     tiktok, whatsapp, instagram, instagramHandle,
-    smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, resendApiKey, invoicePrefix,
+    smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, invoicePrefix,
     monthlyGoal, taxRate, paymentMethods, taxRates, teamMembers,
   } = req.body
   try {
     const { rows: existing } = await pool.query(
-      `SELECT smtp_pass AS "smtpPass", resend_api_key AS "resendApiKey"
-       FROM settings WHERE id = 1`
+      `SELECT smtp_pass AS "smtpPass" FROM settings WHERE id = 1`
     )
     const prev = existing[0] || {}
-    // Preserve secrets when frontend sends the masked placeholder or empty string
-    const finalSmtpPass  = (smtpPass    && smtpPass    !== MASKED) ? smtpPass    : (prev.smtpPass    ?? '')
-    const finalResendApi = (resendApiKey && resendApiKey !== MASKED) ? resendApiKey : (prev.resendApiKey ?? '')
+    // Preserve the secret when the frontend sends the masked placeholder or empty string
+    const finalSmtpPass = (smtpPass && smtpPass !== MASKED) ? smtpPass : (prev.smtpPass ?? '')
 
     const { rows } = await pool.query(
       `INSERT INTO settings (
          id, company_name, slogan, email, phone, address, currency, timezone, logo,
          bank_name, bank_key, bank_account_type, bank_account_number, bank_message,
          tiktok, whatsapp, instagram, instagram_handle,
-         smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key, invoice_prefix,
+         smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, invoice_prefix,
          monthly_goal, tax_rate, payment_methods, tax_rates, team_members
        )
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
        ON CONFLICT (id) DO UPDATE SET
          company_name=$1, slogan=$2, email=$3, phone=$4, address=$5,
          currency=$6, timezone=$7, logo=$8,
@@ -76,8 +72,8 @@ router.put('/', async (req, res) => {
          bank_account_number=$12, bank_message=$13,
          tiktok=$14, whatsapp=$15, instagram=$16, instagram_handle=$17,
          smtp_host=$18, smtp_port=$19, smtp_user=$20, smtp_pass=$21, smtp_from=$22,
-         resend_api_key=$23, invoice_prefix=$24, monthly_goal=$25, tax_rate=$26,
-         payment_methods=$27, tax_rates=$28, team_members=$29
+         invoice_prefix=$23, monthly_goal=$24, tax_rate=$25,
+         payment_methods=$26, tax_rates=$27, team_members=$28
        RETURNING company_name AS "companyName", slogan, email, phone, address,
                 currency, timezone, logo,
                 bank_name AS "bankName", bank_key AS "bankKey",
@@ -88,7 +84,7 @@ router.put('/', async (req, res) => {
                 instagram_handle AS "instagramHandle",
                 smtp_host AS "smtpHost", smtp_port AS "smtpPort",
                 smtp_user AS "smtpUser", smtp_pass AS "smtpPass",
-                smtp_from AS "smtpFrom", resend_api_key AS "resendApiKey",
+                smtp_from AS "smtpFrom",
                 invoice_prefix AS "invoicePrefix",
                 monthly_goal AS "monthlyGoal",
                 tax_rate AS "taxRate",
@@ -101,7 +97,7 @@ router.put('/', async (req, res) => {
         bankAccountNumber ?? '', bankMessage ?? '',
         tiktok ?? '', whatsapp ?? '', instagram ?? '', instagramHandle ?? '',
         smtpHost ?? '', smtpPort ?? 587, smtpUser ?? '', finalSmtpPass, smtpFrom ?? '',
-        finalResendApi, invoicePrefix ?? 'VTA',
+        invoicePrefix ?? 'VTA',
         monthlyGoal ?? 0, taxRate ?? 0.19,
         JSON.stringify(paymentMethods ?? []),
         JSON.stringify(taxRates ?? []),
@@ -110,7 +106,6 @@ router.put('/', async (req, res) => {
     )
     const result = rows[0]
     result.smtpPass = result.smtpPass ? MASKED : ''
-    result.resendApiKey = result.resendApiKey ? MASKED : ''
     const u = getUser(req)
     await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Configuración', entityName: 'Datos de empresa' })
     res.json(result)

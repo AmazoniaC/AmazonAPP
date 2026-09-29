@@ -24,7 +24,6 @@ export const defaultCompanySettings: CompanySettings = {
   smtpUser: '',
   smtpPass: '',
   smtpFrom: '',
-  resendApiKey: '',
   invoicePrefix: 'VTA',
   monthlyGoal: 0,
   taxRate: 0.19,

@@ -5,9 +5,6 @@ import { log, getUser } from '../audit.js'
 
 const router = Router()
 
-// Free email providers that cannot be used as senders in Resend without verification
-const FREE_EMAIL_DOMAINS = ['gmail.com','hotmail.com','outlook.com','yahoo.com','icloud.com','live.com']
-
 // ── SMTP helpers (nodemailer) ────────────────────────────────────────────────
 function buildSmtpFromAddress(displayName, smtpFrom, smtpUser) {
   if (smtpFrom && smtpFrom.trim()) return smtpFrom.trim()
@@ -56,26 +53,6 @@ async function sendViaSmtp({ settings, to, subject, html, text, pdfBase64, pdfFi
       contentType: 'application/pdf',
     }] : undefined,
   })
-}
-
-/**
- * Build a safe "From" address for Resend.
- * - If customFrom contains a verified custom domain → use it as-is
- * - Otherwise fall back to "DisplayName <onboarding@resend.dev>"
- */
-function buildFromAddress(displayName, customFrom) {
-  if (customFrom) {
-    // Extract domain from "Name <email>" or plain "email"
-    const match = customFrom.match(/<([^>]+)>/) || customFrom.match(/(\S+@\S+)/)
-    const email  = match ? match[1] : null
-    const domain = email ? email.split('@')[1]?.toLowerCase() : null
-    if (domain && !FREE_EMAIL_DOMAINS.includes(domain)) {
-      // Custom (potentially verified) domain — use as provided
-      return customFrom
-    }
-  }
-  // Safe fallback: display name + Resend's shared domain (no verification needed)
-  return `${displayName} <onboarding@resend.dev>`
 }
 
 // ── Build HTML invoice ────────────────────────────────────────────────────────
@@ -228,8 +205,7 @@ router.post('/invoice', async (req, res) => {
               smtp_port AS "smtpPort",
               smtp_user AS "smtpUser",
               smtp_pass AS "smtpPass",
-              smtp_from AS "smtpFrom",
-              resend_api_key AS "resendApiKey"
+              smtp_from AS "smtpFrom"
        FROM settings WHERE id = 1`
     )
     settings = rows[0]
@@ -237,115 +213,45 @@ router.post('/invoice', async (req, res) => {
     return res.status(500).json({ error: 'Error leyendo configuración: ' + e.message })
   }
 
-  if (!isSmtpConfigured(settings) && !settings?.resendApiKey) {
+  if (!isSmtpConfigured(settings)) {
     return res.status(400).json({
-      error: 'Configura un servidor SMTP (recomendado) o una API Key de Resend en '
-           + 'Configuración → Empresa → Correo Electrónico.',
+      error: 'Configura un servidor SMTP en Configuración → Empresa → Correo Electrónico.',
     })
   }
 
   const html = buildInvoiceHtml({ order, customer, settings })
   const subject = `Factura ${order.orderNumber} — ${settings.companyName || 'Amazonia Concrete'}`
 
-  // ── 1) Try SMTP (nodemailer) first if configured ─────────────────────────
-  if (isSmtpConfigured(settings)) {
-    try {
-      await sendViaSmtp({
-        settings,
-        to: recipientEmail,
-        subject,
-        html,
-        pdfBase64,
-        pdfFilename: `Factura-${order.orderNumber}.pdf`,
-      })
-      const u = getUser(req)
-      await log({
-        userName: u.name, userEmail: u.email,
-        action: 'crear', entity: 'Factura',
-        entityId: order.id, entityName: `${order.orderNumber} → ${recipientEmail}`,
-        details: `Enviada por SMTP a ${recipientEmail}`,
-      })
-      return res.json({ ok: true, message: `Factura enviada a ${recipientEmail}`, provider: 'smtp' })
-    } catch (e) {
-      // Translate common SMTP errors so the user can fix them
-      const raw = e.message || String(e)
-      let friendly = raw
-      if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
-        friendly = `No se pudo conectar al servidor SMTP "${settings.smtpHost}". Verifica el host.`
-      else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
-        friendly = `Conexión rechazada por ${settings.smtpHost}:${settings.smtpPort}. Verifica puerto y firewall.`
-      else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
-        friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
-      else if (/self.signed certificate|unable to verify/i.test(raw))
-        friendly = 'Certificado SSL del servidor SMTP no válido.'
-      // If Resend is also configured, fall through and try it as backup
-      if (!settings.resendApiKey) {
-        return res.status(500).json({ error: `Error SMTP: ${friendly}` })
-      }
-      console.warn('SMTP falló, intentando Resend como respaldo:', friendly)
-    }
-  }
-
-  // Always use onboarding@resend.dev as the sending address (no domain verification needed).
-  // Only allow a custom domain if the user explicitly configured one (not gmail/hotmail/yahoo/etc.)
-  const displayName = settings.companyName || 'Amazonia Concrete'
-  const fromAddress = buildFromAddress(displayName, settings.smtpFrom)
-  // True when we had to fall back to Resend's shared testing domain (delivery
-  // is then limited to the account owner until a domain is verified).
-  const usingSharedDomain = fromAddress.includes('onboarding@resend.dev')
-
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromAddress,
-        to: [recipientEmail],
-        subject: `Factura ${order.orderNumber} — ${settings.companyName || 'Amazonia Concrete'}`,
-        html,
-        ...(pdfBase64 ? {
-          attachments: [{
-            filename: `Factura-${order.orderNumber}.pdf`,
-            content: pdfBase64,
-          }],
-        } : {}),
-      }),
+    await sendViaSmtp({
+      settings,
+      to: recipientEmail,
+      subject,
+      html,
+      pdfBase64,
+      pdfFilename: `Factura-${order.orderNumber}.pdf`,
     })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      const msg = data.message || JSON.stringify(data)
-      if (msg.includes('testing emails') || msg.includes('verify a domain') || msg.includes('own email address')) {
-        return res.status(500).json({
-          error: 'No se pudo enviar porque solo hay una cuenta de Resend en modo de pruebas. '
-               + 'Para enviar correos GRATIS y automáticamente a tus clientes, configura tu Gmail (SMTP) '
-               + 'en Configuración → Empresa → Correo. No necesitas Resend.',
-        })
-      }
-      return res.status(500).json({ error: `Error Resend: ${msg}` })
-    }
-
     const u = getUser(req)
     await log({
       userName: u.name, userEmail: u.email,
       action: 'crear', entity: 'Factura',
       entityId: order.id, entityName: `${order.orderNumber} → ${recipientEmail}`,
-      details: `Enviada a ${recipientEmail}`,
+      details: `Enviada por SMTP a ${recipientEmail}`,
     })
-
-    res.json({
-      ok: true,
-      provider: 'resend',
-      message: usingSharedDomain
-        ? `Factura enviada a ${recipientEmail} (vía Resend). Nota: para garantizar la entrega a cualquier cliente, verifica tu dominio en resend.com/domains.`
-        : `Factura enviada a ${recipientEmail}`,
-    })
+    return res.json({ ok: true, message: `Factura enviada a ${recipientEmail}`, provider: 'smtp' })
   } catch (e) {
-    res.status(500).json({ error: 'Error al enviar el correo: ' + e.message })
+    // Translate common SMTP errors so the user can fix them
+    const raw = e.message || String(e)
+    let friendly = raw
+    if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
+      friendly = `No se pudo conectar al servidor SMTP "${settings.smtpHost}". Verifica el host.`
+    else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
+      friendly = `Conexión rechazada por ${settings.smtpHost}:${settings.smtpPort}. Verifica puerto y firewall.`
+    else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
+      friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
+    else if (/self.signed certificate|unable to verify/i.test(raw))
+      friendly = 'Certificado SSL del servidor SMTP no válido.'
+    return res.status(500).json({ error: `Error SMTP: ${friendly}` })
   }
 })
 
@@ -437,8 +343,8 @@ function buildQuotationHtml({ quotation, customer, settings }) {
 </div></body></html>`
 }
 
-// Shared: load email settings, then deliver via SMTP (preferred) or Resend.
-// Returns { provider, usingSharedDomain }. Throws with a friendly message.
+// Shared: load email settings, then deliver via SMTP.
+// Returns { provider }. Throws with a friendly message.
 async function loadEmailSettings() {
   const { rows } = await pool.query(
     `SELECT company_name AS "companyName", slogan, email,
@@ -450,42 +356,18 @@ async function loadEmailSettings() {
             instagram_handle AS "instagramHandle", logo,
             smtp_host AS "smtpHost", smtp_port AS "smtpPort",
             smtp_user AS "smtpUser", smtp_pass AS "smtpPass",
-            smtp_from AS "smtpFrom", resend_api_key AS "resendApiKey"
+            smtp_from AS "smtpFrom"
      FROM settings WHERE id = 1`
   )
   return rows[0]
 }
 
 async function deliverEmail({ settings, to, subject, html, pdfBase64, pdfFilename }) {
-  // 1) SMTP first
-  if (isSmtpConfigured(settings)) {
-    await sendViaSmtp({ settings, to, subject, html, pdfBase64, pdfFilename })
-    return { provider: 'smtp', usingSharedDomain: false }
+  if (!isSmtpConfigured(settings)) {
+    throw new Error('Configura un servidor SMTP en Configuración → Empresa → Correo Electrónico.')
   }
-  // 2) Resend fallback
-  if (!settings?.resendApiKey) {
-    throw new Error('Configura un servidor SMTP o un API Key de Resend en Configuración → Empresa → Correo Electrónico.')
-  }
-  const displayName = settings.companyName || 'Amazonia Concrete'
-  const fromAddress = buildFromAddress(displayName, settings.smtpFrom)
-  const usingSharedDomain = fromAddress.includes('onboarding@resend.dev')
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${settings.resendApiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: fromAddress, to: [to], subject, html,
-      ...(pdfBase64 ? { attachments: [{ filename: pdfFilename || 'documento.pdf', content: pdfBase64 }] } : {}),
-    }),
-  })
-  const data = await response.json()
-  if (!response.ok) {
-    const msg = data.message || JSON.stringify(data)
-    if (msg.includes('testing emails') || msg.includes('verify a domain') || msg.includes('own email address')) {
-      throw new Error('No se pudo enviar porque solo hay una cuenta de Resend en modo de pruebas. Para enviar correos GRATIS y automáticamente a tus clientes, configura tu Gmail (SMTP) en Configuración → Empresa → Correo. No necesitas Resend.')
-    }
-    throw new Error(`Error Resend: ${msg}`)
-  }
-  return { provider: 'resend', usingSharedDomain }
+  await sendViaSmtp({ settings, to, subject, html, pdfBase64, pdfFilename })
+  return { provider: 'smtp' }
 }
 
 // ── POST /api/email/quotation ─────────────────────────────────────────────────
@@ -498,9 +380,9 @@ router.post('/quotation', async (req, res) => {
   try { settings = await loadEmailSettings() }
   catch (e) { return res.status(500).json({ error: 'Error leyendo configuración: ' + e.message }) }
 
-  if (!isSmtpConfigured(settings) && !settings?.resendApiKey) {
+  if (!isSmtpConfigured(settings)) {
     return res.status(400).json({
-      error: 'Configura un servidor SMTP (recomendado) o una API Key de Resend en Configuración → Empresa → Correo Electrónico.',
+      error: 'Configura un servidor SMTP en Configuración → Empresa → Correo Electrónico.',
     })
   }
 
@@ -509,7 +391,7 @@ router.post('/quotation', async (req, res) => {
   const subject = `Cotización ${quotation.quoteNumber} — ${settings.companyName || 'Amazonia Concrete'}`
 
   try {
-    const { provider, usingSharedDomain } = await deliverEmail({
+    const { provider } = await deliverEmail({
       settings, to: recipientEmail, subject, html,
       pdfBase64, pdfFilename: `Cotizacion-${quotation.quoteNumber}.pdf`,
     })
@@ -519,12 +401,7 @@ router.post('/quotation', async (req, res) => {
       entityId: quotation.id, entityName: `${quotation.quoteNumber} → ${recipientEmail}`,
       details: `Enviada por ${provider} a ${recipientEmail}`,
     })
-    res.json({
-      ok: true, provider,
-      message: usingSharedDomain
-        ? `Cotización enviada a ${recipientEmail} (vía Resend). Nota: verifica tu dominio en resend.com/domains para garantizar la entrega a cualquier cliente.`
-        : `Cotización enviada a ${recipientEmail}`,
-    })
+    res.json({ ok: true, provider, message: `Cotización enviada a ${recipientEmail}` })
   } catch (e) {
     // Translate common SMTP auth errors for clarity
     const raw = e.message || String(e)
@@ -538,83 +415,53 @@ router.post('/quotation', async (req, res) => {
 })
 
 // ── POST /api/email/test ──────────────────────────────────────────────────────
-// Accepts either SMTP credentials (preferred) or a Resend API key. Tries SMTP
-// first if provided, then falls back to Resend.
 const MASKED = '••••••••'
 
 router.post('/test', async (req, res) => {
   const { smtpHost, smtpPort, smtpUser, smtpFrom, testEmail } = req.body
-  let { smtpPass, resendApiKey } = req.body
+  let { smtpPass } = req.body
 
   if (!testEmail) {
     return res.status(400).json({ error: 'Se requiere el correo de destino para la prueba' })
   }
 
-  // The frontend receives secrets masked ("••••••••") from GET /api/settings and
-  // sends them back verbatim. Resolve those (and empty values) from the DB so the
-  // test uses the real stored credentials instead of the mask.
-  if (!smtpPass || smtpPass === MASKED || !resendApiKey || resendApiKey === MASKED) {
+  // The frontend receives the password masked ("••••••••") from GET /api/settings
+  // and sends it back verbatim. Resolve that (and an empty value) from the DB so
+  // the test uses the real stored credential instead of the mask.
+  if (!smtpPass || smtpPass === MASKED) {
     try {
-      const { rows } = await pool.query(
-        `SELECT smtp_pass AS "smtpPass", resend_api_key AS "resendApiKey" FROM settings WHERE id = 1`
-      )
-      const stored = rows[0] || {}
-      if (!smtpPass || smtpPass === MASKED) smtpPass = stored.smtpPass || ''
-      if (!resendApiKey || resendApiKey === MASKED) resendApiKey = stored.resendApiKey || ''
+      const { rows } = await pool.query(`SELECT smtp_pass AS "smtpPass" FROM settings WHERE id = 1`)
+      smtpPass = rows[0]?.smtpPass || ''
     } catch { /* fall through — validation below will report a clear error */ }
+  }
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    return res.status(400).json({ error: 'Configura SMTP (host + usuario + contraseña) antes de probar.' })
   }
 
   const subject = 'Prueba de configuración — Amazonia ERP'
   const text = '¡La configuración de correo está funcionando correctamente! Ya puedes enviar facturas por correo.'
   const html = `<p>${text}</p>`
 
-  // ── 1) SMTP path ─────────────────────────────────────────────────────────
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      await sendViaSmtp({
-        settings: { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, companyName: 'Amazonia ERP' },
-        to: testEmail,
-        subject,
-        html,
-        text,
-      })
-      return res.json({ ok: true, provider: 'smtp' })
-    } catch (e) {
-      const raw = e.message || String(e)
-      let friendly = raw
-      if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
-        friendly = `No se pudo conectar al servidor SMTP "${smtpHost}". Verifica el host.`
-      else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
-        friendly = `Conexión rechazada por ${smtpHost}:${smtpPort || 587}. Verifica puerto y firewall.`
-      else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
-        friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
-      return res.status(500).json({ error: `Error SMTP: ${friendly}` })
-    }
-  }
-
-  // ── 2) Resend fallback ───────────────────────────────────────────────────
-  if (!resendApiKey) {
-    return res.status(400).json({
-      error: 'Configura SMTP (host + usuario + contraseña) o un API Key de Resend antes de probar.',
-    })
-  }
   try {
-    const fromAddress = buildFromAddress('Amazonia ERP', smtpFrom)
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ from: fromAddress, to: [testEmail], subject, text }),
+    await sendViaSmtp({
+      settings: { smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, companyName: 'Amazonia ERP' },
+      to: testEmail,
+      subject,
+      html,
+      text,
     })
-    const data = await response.json()
-    if (!response.ok) {
-      return res.status(500).json({ error: `Error Resend: ${data.message || JSON.stringify(data)}` })
-    }
-    res.json({ ok: true, provider: 'resend' })
+    res.json({ ok: true, provider: 'smtp' })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    const raw = e.message || String(e)
+    let friendly = raw
+    if (/ENOTFOUND|EAI_AGAIN/i.test(raw))
+      friendly = `No se pudo conectar al servidor SMTP "${smtpHost}". Verifica el host.`
+    else if (/ECONNREFUSED|ETIMEDOUT/i.test(raw))
+      friendly = `Conexión rechazada por ${smtpHost}:${smtpPort || 587}. Verifica puerto y firewall.`
+    else if (/Invalid login|535|EAUTH|Username and Password not accepted/i.test(raw))
+      friendly = 'Usuario o contraseña SMTP incorrectos. Si usas Gmail, debes generar una "Contraseña de aplicación" en https://myaccount.google.com/apppasswords (no funciona tu contraseña normal).'
+    res.status(500).json({ error: `Error SMTP: ${friendly}` })
   }
 })
 

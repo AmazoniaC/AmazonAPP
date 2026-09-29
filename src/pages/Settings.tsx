@@ -259,7 +259,6 @@ export default function Settings() {
     smtpUser:          companySettings.smtpUser,
     smtpPass:          companySettings.smtpPass,
     smtpFrom:          companySettings.smtpFrom,
-    resendApiKey:      companySettings.resendApiKey,
     invoicePrefix:     companySettings.invoicePrefix,
     taxRate:           companySettings.taxRate,
   })
@@ -291,7 +290,6 @@ export default function Settings() {
       smtpUser:          companySettings.smtpUser,
       smtpPass:          companySettings.smtpPass,
       smtpFrom:          companySettings.smtpFrom,
-      resendApiKey:      companySettings.resendApiKey,
       invoicePrefix:     companySettings.invoicePrefix,
       taxRate:           companySettings.taxRate,
     })
@@ -336,7 +334,6 @@ export default function Settings() {
         smtpUser:           company.smtpUser,
         smtpPass:           company.smtpPass,
         smtpFrom:           company.smtpFrom,
-        resendApiKey:       company.resendApiKey,
         invoicePrefix:      company.invoicePrefix,
         monthlyGoal:        companySettings.monthlyGoal ?? 0,
         taxRate:            company.taxRate ?? 0.19,
@@ -624,30 +621,27 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* ── Correo electrónico — SMTP (recomendado) + Resend (alternativa) ── */}
+              {/* ── Correo electrónico — SMTP ── */}
               <div className="border-t border-slate-100 dark:border-gray-700 pt-5">
                 <h3 className="text-sm font-semibold text-slate-600 dark:text-gray-300 mb-1 flex items-center gap-2">
                   📧 Correo electrónico — envío de facturas
                 </h3>
                 <p className="text-xs text-slate-400 dark:text-gray-500 mb-3">
-                  Configura tu servidor SMTP (recomendado) para enviar desde tu propio correo. Como alternativa puedes usar Resend.
+                  Configura tu servidor SMTP para enviar desde tu propio correo.
                 </p>
 
                 {/* SMTP block */}
                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg mb-5">
                   <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">✉️ Servidor SMTP <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">(recomendado — gratis, envía desde tu correo real)</span></p>
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">✉️ Servidor SMTP <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400">(gratis, envía desde tu correo real)</span></p>
                     <button
                       type="button"
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
                       onClick={() => {
-                        // Pre-fill Gmail SMTP and clear any leftover Resend key so
-                        // email uses the free, automatic Gmail path.
                         setCompany({
                           ...company,
                           smtpHost: 'smtp.gmail.com',
                           smtpPort: 587,
-                          resendApiKey: '',
                         })
                         setSmtpTestMsg({ ok: true, text: '✅ Gmail precargado. Escribe tu correo y la contraseña de aplicación abajo, luego Guardar.' })
                       }}
@@ -698,43 +692,19 @@ export default function Settings() {
                 {/* Active-provider hint */}
                 {company.smtpHost && company.smtpUser && company.smtpPass ? (
                   <div className="mb-4 text-xs px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                    ✅ Se enviará por tu SMTP ({company.smtpHost}). Resend queda ignorado.
+                    ✅ Se enviará por tu SMTP ({company.smtpHost}).
                   </div>
-                ) : company.resendApiKey ? (
+                ) : (
                   <div className="mb-4 text-xs px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                    ⚠️ Solo hay una clave de Resend configurada. Sin un dominio verificado, Resend solo te deja enviar correos a ti mismo. Configura tu Gmail arriba (gratis) o quita la clave de Resend abajo.
+                    ⚠️ Sin SMTP configurado no se pueden enviar facturas por correo. Usa "⚡ Usar mi Gmail" arriba o completa los campos manualmente.
                   </div>
-                ) : null}
-
-                {/* Resend block */}
-                <div className="p-4 bg-slate-50 dark:bg-gray-900/30 border border-slate-200 dark:border-gray-700 rounded-lg">
-                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">🔄 Resend API <span className="text-xs font-normal text-slate-500">(alternativa avanzada — requiere dominio propio)</span></p>
-                    {company.resendApiKey && (
-                      <button
-                        type="button"
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-gray-700 hover:bg-slate-300 dark:hover:bg-gray-600 text-slate-700 dark:text-gray-200"
-                        onClick={() => setCompany({ ...company, resendApiKey: '' })}
-                        title="Borra la clave de Resend"
-                      >
-                        Quitar Resend
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-gray-400 mb-3">
-                    Si no tienes Resend, <strong>déjalo vacío</strong> y usa tu Gmail (SMTP) arriba — es gratis y envía automáticamente.
-                    Resend solo entrega a cualquier cliente si verificas tu dominio en <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline">resend.com/domains</a>.
-                  </p>
-                  <label className="label">API Key de Resend</label>
-                  <input className="input font-mono" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx" value={company.resendApiKey}
-                    onChange={(e) => setCompany({ ...company, resendApiKey: e.target.value })} />
-                </div>
+                )}
 
                 {/* Test button */}
                 <div className="mt-4 flex items-center gap-3">
                   <button
                     type="button"
-                    disabled={smtpTesting || (!company.smtpHost && !company.resendApiKey)}
+                    disabled={smtpTesting || !company.smtpHost}
                     className="btn btn-secondary text-xs flex items-center gap-2 disabled:opacity-50"
                     onClick={async () => {
                       const testEmail = window.prompt('¿A qué correo enviar el correo de prueba?')
@@ -754,7 +724,6 @@ export default function Settings() {
                             smtpUser: company.smtpUser,
                             smtpPass: company.smtpPass,
                             smtpFrom: company.smtpFrom,
-                            resendApiKey: company.resendApiKey,
                             testEmail,
                           }),
                         })

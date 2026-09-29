@@ -66,7 +66,6 @@ export interface CompanySettings {
   smtpUser: string
   smtpPass: string
   smtpFrom: string
-  resendApiKey: string
   invoicePrefix: string
   monthlyGoal: number
   taxRate: number  // IVA rate as decimal (0.19 = 19%)
