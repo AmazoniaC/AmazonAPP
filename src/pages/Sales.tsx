@@ -16,7 +16,8 @@ import { nextOrderNumber } from '../utils/orderNumber'
 import { toast } from '../components/Toast'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
-import { openWhatsApp, buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
+import { buildOrderConfirmation, buildPaymentReminder, getBankInfo } from '../utils/whatsapp'
+import { sendWhatsAppAuto } from '../utils/whatsappSend'
 import { PaymentModal } from './Payments'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -116,7 +117,7 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
   }).filter(Boolean) as { idx: number; product: string; qty: number; stock: number }[]
   const hasOverSold = overSold.length > 0
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const customer = customers.find((c) => c.id === customerId)
     if (!customer || items.length === 0) return
     if (hasOverSold) {
@@ -139,7 +140,25 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
       notes: notes || undefined,
       priceListId: customer.priceListId || undefined,
     }
-    addSaleOrder(order)
+    await addSaleOrder(order)
+    if (customer.phone) {
+      sendWhatsAppAuto({
+        phone: customer.phone,
+        message: buildOrderConfirmation({
+          companyName: companySettings.companyName,
+          customer: customer.name,
+          phone: customer.phone,
+          orderNumber: order.orderNumber,
+          date: order.date,
+          total: order.total,
+          paymentMethod: order.paymentMethod,
+          items: order.items,
+          deliveryDate: order.deliveryDate,
+          bankInfo: getBankInfo(companySettings),
+        }),
+        successLabel: 'Confirmación de pedido enviada por WhatsApp',
+      })
+    }
     onClose()
   }
 
@@ -405,32 +424,40 @@ function OrderDetail({ order, onClose, onInvoice }: { order: SaleOrder; onClose:
             <div className="flex gap-2">
               <button
                 className="flex-1 btn flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
-                onClick={() => openWhatsApp(customer.phone, buildOrderConfirmation({
-                  companyName: companySettings.companyName,
-                  customer: localOrder.customer,
+                onClick={() => sendWhatsAppAuto({
                   phone: customer.phone,
-                  orderNumber: localOrder.orderNumber,
-                  date: localOrder.date,
-                  total: localOrder.total,
-                  paymentMethod: localOrder.paymentMethod,
-                  items: localOrder.items,
-                  deliveryDate: localOrder.deliveryDate,
-                  bankInfo: getBankInfo(companySettings),
-                }))}>
-                <MessageCircle size={15} /> Confirmar pedido
+                  message: buildOrderConfirmation({
+                    companyName: companySettings.companyName,
+                    customer: localOrder.customer,
+                    phone: customer.phone,
+                    orderNumber: localOrder.orderNumber,
+                    date: localOrder.date,
+                    total: localOrder.total,
+                    paymentMethod: localOrder.paymentMethod,
+                    items: localOrder.items,
+                    deliveryDate: localOrder.deliveryDate,
+                    bankInfo: getBankInfo(companySettings),
+                  }),
+                  successLabel: 'Confirmación de pedido enviada por WhatsApp',
+                })}>
+                <MessageCircle size={15} /> Reenviar confirmación
               </button>
               {localOrder.paymentStatus !== 'paid' && (
                 <button
                   className="flex-1 btn flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                  onClick={() => openWhatsApp(customer.phone, buildPaymentReminder({
-                    companyName: companySettings.companyName,
-                    customer: localOrder.customer,
-                    orderNumber: localOrder.orderNumber,
-                    date: localOrder.date,
-                    total: localOrder.total,
-                    paymentStatus: localOrder.paymentStatus,
-                    bankInfo: getBankInfo(companySettings),
-                  }))}>
+                  onClick={() => sendWhatsAppAuto({
+                    phone: customer.phone,
+                    message: buildPaymentReminder({
+                      companyName: companySettings.companyName,
+                      customer: localOrder.customer,
+                      orderNumber: localOrder.orderNumber,
+                      date: localOrder.date,
+                      total: localOrder.total,
+                      paymentStatus: localOrder.paymentStatus,
+                      bankInfo: getBankInfo(companySettings),
+                    }),
+                    successLabel: 'Recordatorio de pago enviado por WhatsApp',
+                  })}>
                   <DollarSign size={15} /> Cobrar pago
                 </button>
               )}
@@ -1036,9 +1063,9 @@ export default function Sales() {
                           cust?.phone && {
                             label: unpaid ? 'Cobrar por WhatsApp' : 'Enviar confirmación',
                             icon: MessageCircle,
-                            onClick: () => openWhatsApp(
-                              cust.phone,
-                              unpaid
+                            onClick: () => sendWhatsAppAuto({
+                              phone: cust.phone,
+                              message: unpaid
                                 ? buildPaymentReminder({
                                     companyName: companySettings.companyName, customer: o.customer,
                                     orderNumber: o.orderNumber, date: o.date, total: o.total,
@@ -1050,7 +1077,8 @@ export default function Sales() {
                                     total: o.total, paymentMethod: o.paymentMethod, items: o.items,
                                     deliveryDate: o.deliveryDate, bankInfo: getBankInfo(companySettings),
                                   }),
-                            ),
+                              successLabel: unpaid ? 'Recordatorio de pago enviado por WhatsApp' : 'Confirmación de pedido enviada por WhatsApp',
+                            }),
                           },
                           { label: 'Duplicar orden', icon: Copy, onClick: () => handleDuplicate(o) },
                           canDelete('sales') && {

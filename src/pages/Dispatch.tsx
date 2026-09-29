@@ -14,52 +14,16 @@ import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
-import { toast } from '../components/Toast'
-import { getAuthHeader as authHeader } from '../utils/auth'
+import { sendWhatsAppAuto } from '../utils/whatsappSend'
 
-/**
- * Send the delivery confirmation automatically via the server's linked
- * WhatsApp (photo evidence attached as an image, if captured) so the driver
- * doesn't have to open WhatsApp by hand right after finishing a delivery.
- * Falls back to the manual wa.me flow when the server isn't connected —
- * downloading the photo first, since wa.me links can't attach files.
- */
-async function sendDeliveryConfirmationWhatsApp({
+function sendDeliveryConfirmationWhatsApp({
   phone, message, photo, dispatchNumber,
 }: { phone: string; message: string; photo?: string; dispatchNumber: string }) {
-  try {
-    const res = photo
-      ? await fetch('/api/whatsapp/send-document', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({
-            phone, base64: photo, fileName: `Entrega-${dispatchNumber}.jpg`,
-            mimetype: 'image/jpeg', caption: message,
-          }),
-        })
-      : await fetch('/api/whatsapp/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ phone, text: message }),
-        })
-    if (res.ok) {
-      toast.success(photo ? 'Confirmación y foto enviadas por WhatsApp' : 'Confirmación enviada por WhatsApp')
-      return
-    }
-  } catch { /* server unreachable — fall through to the manual flow below */ }
-
-  if (photo) {
-    const a = document.createElement('a')
-    a.href = photo
-    a.download = `Entrega-${dispatchNumber}.jpg`
-    a.click()
-  }
-  openWhatsApp(phone, message)
-  toast.info(
-    photo
-      ? 'WhatsApp no está conectado en el servidor. Descargamos la foto — adjúntala en el chat que se abrió. (Conéctalo en Configuración → WhatsApp para enviarla automático la próxima vez)'
-      : 'WhatsApp no está conectado en el servidor — se abrió el chat para enviar manualmente. (Conéctalo en Configuración → WhatsApp para envío automático)'
-  )
+  return sendWhatsAppAuto({
+    phone, message, photo,
+    fileName: `Entrega-${dispatchNumber}.jpg`,
+    successLabel: photo ? 'Confirmación y foto enviadas por WhatsApp' : 'Confirmación enviada por WhatsApp',
+  })
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
