@@ -255,11 +255,21 @@ export async function sendWhatsAppDocument(phone, { base64, fileName, mimetype, 
   const cleanB64 = String(base64).includes(',') ? String(base64).split(',').pop() : base64
   const buffer = Buffer.from(cleanB64, 'base64')
 
-  await sock.sendMessage(jid, {
-    document: buffer,
-    mimetype: mimetype || 'application/pdf',
-    fileName: fileName || 'documento.pdf',
-    caption: caption || undefined,
-  })
+  // An image sent as a generic "document" shows up as a bare file attachment
+  // (no thumbnail, no inline preview) instead of a normal WhatsApp photo —
+  // send it as an image message instead so it reads like one.
+  if (mimetype && mimetype.startsWith('image/')) {
+    await sock.sendMessage(jid, {
+      image: buffer,
+      caption: caption || undefined,
+    })
+  } else {
+    await sock.sendMessage(jid, {
+      document: buffer,
+      mimetype: mimetype || 'application/pdf',
+      fileName: fileName || 'documento.pdf',
+      caption: caption || undefined,
+    })
+  }
   return true
 }

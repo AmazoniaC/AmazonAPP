@@ -14,6 +14,64 @@ import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
+import { toast } from '../components/Toast'
+
+// Small helper: read the JWT for authenticated fetches (same pattern as
+// Quotations.tsx / Settings.tsx — apiFetch in the store isn't reused here
+// because this call must never throw on a non-2xx, it needs to fall back).
+function authHeader(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('erp_auth')
+    if (!raw) return {}
+    const user = JSON.parse(raw)
+    return user.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+  } catch { return {} }
+}
+
+/**
+ * Send the delivery confirmation automatically via the server's linked
+ * WhatsApp (photo evidence attached as an image, if captured) so the driver
+ * doesn't have to open WhatsApp by hand right after finishing a delivery.
+ * Falls back to the manual wa.me flow when the server isn't connected —
+ * downloading the photo first, since wa.me links can't attach files.
+ */
+async function sendDeliveryConfirmationWhatsApp({
+  phone, message, photo, dispatchNumber,
+}: { phone: string; message: string; photo?: string; dispatchNumber: string }) {
+  try {
+    const res = photo
+      ? await fetch('/api/whatsapp/send-document', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({
+            phone, base64: photo, fileName: `Entrega-${dispatchNumber}.jpg`,
+            mimetype: 'image/jpeg', caption: message,
+          }),
+        })
+      : await fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ phone, text: message }),
+        })
+    if (res.ok) {
+      toast.success(photo ? 'Confirmación y foto enviadas por WhatsApp' : 'Confirmación enviada por WhatsApp')
+      return
+    }
+  } catch { /* server unreachable — fall through to the manual flow below */ }
+
+  if (photo) {
+    const a = document.createElement('a')
+    a.href = photo
+    a.download = `Entrega-${dispatchNumber}.jpg`
+    a.click()
+  }
+  openWhatsApp(phone, message)
+  toast.info(
+    photo
+      ? 'WhatsApp no está conectado en el servidor. Descargamos la foto — adjúntala en el chat que se abrió. (Conéctalo en Configuración → WhatsApp para enviarla automático la próxima vez)'
+      : 'WhatsApp no está conectado en el servidor — se abrió el chat para enviar manualmente. (Conéctalo en Configuración → WhatsApp para envío automático)'
+  )
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_LABEL: Record<string, string> = {
@@ -610,6 +668,18 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
     await updateDispatch(updated)
     setDelivering(false)
 
+    if (customer?.phone) {
+      await sendDeliveryConfirmationWhatsApp({
+        phone: customer.phone,
+        message: buildDeliveryConfirmation({
+          companyName: companySettings.companyName, customer: d.customer,
+          dispatchNumber: d.dispatchNumber, deliveredAt: today,
+        }),
+        photo: proof?.photo,
+        dispatchNumber: d.dispatchNumber,
+      })
+    }
+
     if (linkedOrder && orderRemaining > 0) {
       setCodPrefill({
         saleOrderId:     linkedOrder.id,
@@ -886,16 +956,22 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
           </div>
         )}
 
-        {/* WhatsApp delivery confirmation */}
+        {/* WhatsApp delivery confirmation — sent automatically on confirm; this
+            is a manual resend (e.g. if WhatsApp wasn't connected at the time). */}
         {customer?.phone && d.status === 'delivered' && (
           <div className="px-6 pb-6">
             <button
               className="w-full btn flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
-              onClick={() => openWhatsApp(customer.phone, buildDeliveryConfirmation({
-                companyName: companySettings.companyName, customer: d.customer,
-                dispatchNumber: d.dispatchNumber, deliveredAt: d.deliveredAt || d.scheduledDate,
-              }))}>
-              <MessageCircle size={14} /> Confirmar entrega por WhatsApp
+              onClick={() => sendDeliveryConfirmationWhatsApp({
+                phone: customer.phone!,
+                message: buildDeliveryConfirmation({
+                  companyName: companySettings.companyName, customer: d.customer,
+                  dispatchNumber: d.dispatchNumber, deliveredAt: d.deliveredAt || d.scheduledDate,
+                }),
+                photo: d.deliveryProof?.photo,
+                dispatchNumber: d.dispatchNumber,
+              })}>
+              <MessageCircle size={14} /> Reenviar confirmación por WhatsApp
             </button>
           </div>
         )}
