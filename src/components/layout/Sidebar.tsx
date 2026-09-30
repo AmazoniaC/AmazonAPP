@@ -3,7 +3,7 @@
 // primary way to switch modules. Collapsible to an icon-only rail; hidden on
 // phones, which keep their own bottom tab bar (MobileTabBar).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, ChevronDown, Leaf } from 'lucide-react'
 import { useStore } from '../../store/useStore'
@@ -13,8 +13,7 @@ export default function Sidebar() {
   const { user, sidebarOpen, setSidebarOpen, companySettings } = useStore()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  // Which groups the user manually collapsed. A group with the current page
-  // still expands regardless, so navigating never hides where you are.
+  // Which groups the user manually collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<ModuleGroup>>(new Set())
   const toggleGroup = (group: ModuleGroup) =>
     setCollapsedGroups((prev) => {
@@ -26,6 +25,22 @@ export default function Sidebar() {
   const allowed = modulesForRole(user?.role)
   const current = moduleForPath(pathname)
   const logo = companySettings.logo
+
+  // Auto-expand the group you navigate into, just once per navigation, so a
+  // link never lands you inside a group you can't see — but a later manual
+  // collapse on that same group sticks (this used to re-force it open on
+  // every render via `hasActive`, so whichever group held the current page —
+  // almost always "Operación", since "/" lands on the Dashboard — looked
+  // stuck and wouldn't collapse no matter how many times you clicked it).
+  useEffect(() => {
+    if (!current) return
+    setCollapsedGroups((prev) => {
+      if (!prev.has(current.group)) return prev
+      const next = new Set(prev)
+      next.delete(current.group)
+      return next
+    })
+  }, [current?.to])
 
   return (
     <aside
@@ -57,8 +72,7 @@ export default function Sidebar() {
         {MODULE_GROUPS.map((group) => {
           const items = allowed.filter((m) => m.group === group)
           if (items.length === 0) return null
-          const hasActive = items.some((m) => m.to === current?.to)
-          const expanded = !sidebarOpen || !collapsedGroups.has(group) || hasActive
+          const expanded = !sidebarOpen || !collapsedGroups.has(group)
           return (
             <div key={group} className="mb-4 last:mb-0">
               {sidebarOpen && (

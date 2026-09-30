@@ -815,57 +815,13 @@ export default function CRM() {
 
   const totalPending = Object.values(pendingActivitiesPerCustomer).reduce((s, n) => s + n, 0)
 
-  const filtered = customers.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
-                        (c.company ?? '').toLowerCase().includes(search.toLowerCase()) ||
-                        c.email.toLowerCase().includes(search.toLowerCase())
-    const matchSeg = segFilter === 'all' || c.segment === segFilter
-    const matchRfm = rfmFilter === 'all' || rfm.customerSegment[c.id] === rfmFilter
-    return matchSearch && matchSeg && matchRfm && c.isActive
-  })
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  const totalRevenue = Object.values(customerStats).reduce((a, s) => a + s.total, 0)
-  const vipCount     = customers.filter((c) => c.segment === 'vip').length
-
-  // ── Customer Health & CLV Metrics ─────────────────────────────────────
-  const clvMetrics = useMemo(() => {
-    const today = new Date()
-    const activeCustomers = customers.filter(c => c.isActive)
-    // CLV = avg revenue per customer
-    const avgCLV = activeCustomers.length > 0
-      ? Object.values(customerStats).reduce((a, s) => a + s.total, 0) / activeCustomers.length
-      : 0
-
-    // Repeat purchase rate: customers with 2+ orders / total customers
-    const orderCountByCustomer: Record<string, number> = {}
-    saleOrders.forEach(o => { orderCountByCustomer[o.customerId] = (orderCountByCustomer[o.customerId] ?? 0) + 1 })
-    const repeatBuyers = Object.values(orderCountByCustomer).filter(c => c >= 2).length
-    const totalBuyers  = Object.keys(orderCountByCustomer).length
-    const repeatRate   = totalBuyers > 0 ? (repeatBuyers / totalBuyers * 100) : 0
-
-    // At-risk customers: active, had purchases but no activity/purchase in 30+ days
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000).toISOString().split('T')[0]
-    const atRisk = activeCustomers.filter(c => {
-      const stats = customerStats[c.id]
-      if (!stats || !stats.lastDate) return false
-      return stats.lastDate < thirtyDaysAgo && stats.total > 0
-    })
-
-    // Avg order value
-    const avgOrderValue = saleOrders.length > 0
-      ? saleOrders.reduce((a, o) => a + o.total, 0) / saleOrders.length
-      : 0
-
-    // Avg orders per customer
-    const avgOrdersPerCustomer = totalBuyers > 0
-      ? saleOrders.length / totalBuyers
-      : 0
-
-    return { avgCLV, repeatRate, repeatBuyers, totalBuyers, atRisk, avgOrderValue, avgOrdersPerCustomer }
-  }, [customers, saleOrders, customerStats])
-
   // ── RFM Segmentation ──────────────────────────────────────────────────
+  // Declared before `filtered` below, which reads rfm.customerSegment: as a
+  // plain const (not memoized), `filtered` runs immediately during render,
+  // so if this came after it in source order it would reference `rfm`
+  // while that binding was still in its temporal dead zone — a guaranteed
+  // "Cannot access 'rfm' before initialization" crash the moment rfmFilter
+  // was ever set away from 'all' (i.e. as soon as someone used the filter).
   const rfm = useMemo(() => {
     const today = new Date()
     const todayIso = today.toISOString().split('T')[0]
@@ -927,6 +883,59 @@ export default function CRM() {
     const total = raws.length
     return { bySegment, customerSegment, total }
   }, [customers, saleOrders])
+
+  const filtered = customers.filter((c) => {
+    const q = search.toLowerCase()
+    const matchSearch = c.name.toLowerCase().includes(q) ||
+                        (c.company ?? '').toLowerCase().includes(q) ||
+                        c.email.toLowerCase().includes(q) ||
+                        (c.code ?? '').toLowerCase().includes(q) ||
+                        (c.phone ?? '').toLowerCase().includes(q)
+    const matchSeg = segFilter === 'all' || c.segment === segFilter
+    const matchRfm = rfmFilter === 'all' || rfm.customerSegment[c.id] === rfmFilter
+    return matchSearch && matchSeg && matchRfm && c.isActive
+  })
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const totalRevenue = Object.values(customerStats).reduce((a, s) => a + s.total, 0)
+  const vipCount     = customers.filter((c) => c.segment === 'vip').length
+
+  // ── Customer Health & CLV Metrics ─────────────────────────────────────
+  const clvMetrics = useMemo(() => {
+    const today = new Date()
+    const activeCustomers = customers.filter(c => c.isActive)
+    // CLV = avg revenue per customer
+    const avgCLV = activeCustomers.length > 0
+      ? Object.values(customerStats).reduce((a, s) => a + s.total, 0) / activeCustomers.length
+      : 0
+
+    // Repeat purchase rate: customers with 2+ orders / total customers
+    const orderCountByCustomer: Record<string, number> = {}
+    saleOrders.forEach(o => { orderCountByCustomer[o.customerId] = (orderCountByCustomer[o.customerId] ?? 0) + 1 })
+    const repeatBuyers = Object.values(orderCountByCustomer).filter(c => c >= 2).length
+    const totalBuyers  = Object.keys(orderCountByCustomer).length
+    const repeatRate   = totalBuyers > 0 ? (repeatBuyers / totalBuyers * 100) : 0
+
+    // At-risk customers: active, had purchases but no activity/purchase in 30+ days
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000).toISOString().split('T')[0]
+    const atRisk = activeCustomers.filter(c => {
+      const stats = customerStats[c.id]
+      if (!stats || !stats.lastDate) return false
+      return stats.lastDate < thirtyDaysAgo && stats.total > 0
+    })
+
+    // Avg order value
+    const avgOrderValue = saleOrders.length > 0
+      ? saleOrders.reduce((a, o) => a + o.total, 0) / saleOrders.length
+      : 0
+
+    // Avg orders per customer
+    const avgOrdersPerCustomer = totalBuyers > 0
+      ? saleOrders.length / totalBuyers
+      : 0
+
+    return { avgCLV, repeatRate, repeatBuyers, totalBuyers, atRisk, avgOrderValue, avgOrdersPerCustomer }
+  }, [customers, saleOrders, customerStats])
 
   const handleExportExcel = () => {
     const data = filtered.map((c) => ({

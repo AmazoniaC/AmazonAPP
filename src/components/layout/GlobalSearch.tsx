@@ -79,7 +79,7 @@ export default function GlobalSearch() {
     count = 0
     for (const c of customers) {
       if (count >= limit) break
-      if (c.name.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)) {
+      if (c.name.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q)) {
         r.push({ id: c.id, type: 'customer', title: c.name, subtitle: `${c.code} · ${c.city}`, link: `/crm/${c.id}` })
         count++
       }
