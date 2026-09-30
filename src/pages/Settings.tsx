@@ -334,6 +334,8 @@ export default function Settings() {
         teamMembers:        companySettings.teamMembers,
         carteraAutoReminders: companySettings.carteraAutoReminders,
         carteraReminderDays:  companySettings.carteraReminderDays,
+        quoteAutoFollowup: companySettings.quoteAutoFollowup,
+        quoteFollowupDays: companySettings.quoteFollowupDays,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -350,6 +352,14 @@ export default function Settings() {
   }
   const updateCarteraReminderDays = async (days: number) => {
     await saveCompanySettings({ ...companySettings, carteraReminderDays: days })
+  }
+
+  // ── Quotation auto-followup (persisted in companySettings) ────────────
+  const toggleQuoteAutoFollowup = async () => {
+    await saveCompanySettings({ ...companySettings, quoteAutoFollowup: !companySettings.quoteAutoFollowup })
+  }
+  const updateQuoteFollowupDays = async (days: number) => {
+    await saveCompanySettings({ ...companySettings, quoteFollowupDays: days })
   }
 
   // ── Payment methods & tax rates (persisted in companySettings) ────────
@@ -1376,6 +1386,41 @@ export default function Settings() {
                       onChange={(e) => updateCarteraReminderDays(Math.max(0, parseInt(e.target.value) || 0))}
                     />
                     <span className="text-xs text-slate-500 dark:text-gray-400">día(s) vencida</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Seguimiento automático de cotizaciones</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Envía por WhatsApp, sin intervención manual, un único mensaje de seguimiento cuando una cotización enviada está por vencer y el cliente aún no responde.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.quoteAutoFollowup}
+                    onClick={toggleQuoteAutoFollowup}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.quoteAutoFollowup ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.quoteAutoFollowup ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                {companySettings.quoteAutoFollowup && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-slate-500 dark:text-gray-400">Enviar cuando falten</label>
+                    <input
+                      type="number" min={0} max={30} step={1}
+                      className="input w-20 text-center"
+                      value={companySettings.quoteFollowupDays}
+                      onChange={(e) => updateQuoteFollowupDays(Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                    <span className="text-xs text-slate-500 dark:text-gray-400">día(s) o menos para que venza</span>
                   </div>
                 )}
               </div>

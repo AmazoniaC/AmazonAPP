@@ -318,6 +318,9 @@ async function migrate() {
       ALTER TABLE settings     ADD COLUMN IF NOT EXISTS cartera_auto_reminders BOOLEAN DEFAULT TRUE;
       ALTER TABLE settings     ADD COLUMN IF NOT EXISTS cartera_reminder_days  INTEGER DEFAULT 3;
       ALTER TABLE sale_orders  ADD COLUMN IF NOT EXISTS cartera_reminder_sent_at TIMESTAMP;
+      ALTER TABLE settings     ADD COLUMN IF NOT EXISTS quote_auto_followup BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings     ADD COLUMN IF NOT EXISTS quote_followup_days INTEGER DEFAULT 2;
+      ALTER TABLE quotations  ADD COLUMN IF NOT EXISTS follow_up_sent_at TIMESTAMP;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

@@ -199,6 +199,97 @@ async function tickCartera() {
   }
 }
 
+function buildQuoteFollowUpMessage({ companyName, customer, quoteNumber, daysLeft }) {
+  const urgency = daysLeft <= 1
+    ? `\n\n⏳ Recuerda que la cotización vence ${daysLeft === 0 ? 'hoy' : 'mañana'}.`
+    : `\n\n⏳ Recuerda que la cotización vence en *${daysLeft} días*.`
+  return `Hola ${(customer || '').split(' ')[0]} 👋
+
+Te escribo desde *${companyName}* para hacer seguimiento a la cotización *${quoteNumber}*.${urgency}
+
+¿Pudiste revisarla? Cualquier duda o ajuste, con gusto te ayudo. 🌿`
+}
+
+// Throttle the quote follow-up "not connected" warning the same way as the others
+let lastQuoteNotConnectedWarn = 0
+
+// Sends a one-time WhatsApp nudge for quotations still "sent" (awaiting the
+// customer's response) that are within `quote_followup_days` of their
+// validUntil date and haven't expired yet. Mirrors tickCartera: marks
+// follow_up_sent_at only on a confirmed send, so a disconnected WhatsApp
+// just retries on the next tick instead of silently missing the window.
+async function tickQuoteFollowUp() {
+  let settings
+  try {
+    const { rows } = await pool.query(
+      `SELECT quote_auto_followup AS "auto", quote_followup_days AS "days",
+              company_name AS "companyName"
+       FROM settings WHERE id = 1`
+    )
+    settings = rows[0]
+  } catch {
+    return // settings table may not exist yet
+  }
+  if (!settings || settings.auto === false) return
+  const followupDays = settings.days ?? 2
+
+  let due
+  try {
+    const { rows } = await pool.query(`
+      SELECT q.id, q.quote_number, q.customer, q.valid_until,
+             c.phone
+      FROM quotations q
+      LEFT JOIN customers c ON c.id = q.customer_id
+      WHERE q.status = 'sent'
+        AND q.follow_up_sent_at IS NULL
+        AND q.valid_until IS NOT NULL
+        AND c.phone IS NOT NULL AND c.phone <> ''
+    `)
+    due = rows
+  } catch (e) {
+    console.error('scheduler: error consultando seguimiento de cotizaciones', e.message)
+    return
+  }
+  if (due.length === 0) return
+
+  const upcoming = due
+    .map((r) => {
+      const validUntilStr = String(r.valid_until).split('T')[0]
+      const daysLeft = Math.ceil((new Date(`${validUntilStr}T12:00:00`).getTime() - Date.now()) / 86400000)
+      return { ...r, daysLeft }
+    })
+    // Only while still pending, not yet expired, and inside the reminder window
+    .filter((r) => r.daysLeft >= 0 && r.daysLeft <= followupDays)
+  if (upcoming.length === 0) return
+
+  const wa = getWhatsAppStatus()
+  if (wa.status !== 'connected') {
+    const now = Date.now()
+    if (now - lastQuoteNotConnectedWarn > NOT_CONNECTED_WARN_INTERVAL_MS) {
+      lastQuoteNotConnectedWarn = now
+      console.warn(
+        `⚠️  scheduler: ${upcoming.length} seguimiento(s) de cotización pendiente(s) pero WhatsApp está "${wa.status}". ` +
+        `Conecta WhatsApp en Configuración → WhatsApp para enviarlos.`
+      )
+    }
+    return
+  }
+
+  for (const r of upcoming) {
+    const message = buildQuoteFollowUpMessage({
+      companyName: settings.companyName || 'Nuestra empresa',
+      customer: r.customer, quoteNumber: r.quote_number, daysLeft: r.daysLeft,
+    })
+    try {
+      await sendWhatsAppMessage(r.phone, message)
+      await pool.query('UPDATE quotations SET follow_up_sent_at = NOW() WHERE id = $1', [r.id])
+      console.log(`📤 Seguimiento de cotización enviado: ${r.quote_number} → ${r.phone}`)
+    } catch (e) {
+      console.error(`scheduler: fallo al enviar seguimiento de cotización a ${r.phone}:`, e.message)
+    }
+  }
+}
+
 async function tick() {
   await loadTimezone()
   let due
@@ -272,11 +363,13 @@ export function startScheduler() {
   setInterval(() => {
     tick().catch((e) => console.error('scheduler tick error:', e.message))
     tickCartera().catch((e) => console.error('scheduler cartera tick error:', e.message))
+    tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up tick error:', e.message))
   }, TICK_MS)
   // first tick after a short delay so Baileys has time to connect
   setTimeout(() => {
     tick().catch((e) => console.error('scheduler initial tick error:', e.message))
     tickCartera().catch((e) => console.error('scheduler cartera initial tick error:', e.message))
+    tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up initial tick error:', e.message))
   }, 10_000)
   console.log('⏰ Scheduler de recordatorios iniciado (cada 60s)')
 }

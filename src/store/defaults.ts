@@ -57,4 +57,6 @@ export const defaultCompanySettings: CompanySettings = {
   ],
   carteraAutoReminders: true,
   carteraReminderDays: 3,
+  quoteAutoFollowup: true,
+  quoteFollowupDays: 2,
 }

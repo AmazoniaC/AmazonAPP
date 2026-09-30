@@ -80,6 +80,8 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         teamMembers:        settings.teamMembers        ?? defaultCompanySettings.teamMembers,
         carteraAutoReminders: settings.carteraAutoReminders ?? defaultCompanySettings.carteraAutoReminders,
         carteraReminderDays:  settings.carteraReminderDays  ?? defaultCompanySettings.carteraReminderDays,
+        quoteAutoFollowup: settings.quoteAutoFollowup ?? defaultCompanySettings.quoteAutoFollowup,
+        quoteFollowupDays: settings.quoteFollowupDays ?? defaultCompanySettings.quoteFollowupDays,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })

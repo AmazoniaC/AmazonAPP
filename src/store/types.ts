@@ -76,6 +76,9 @@ export interface CompanySettings {
   // Recordatorios automáticos de cartera (cuentas por cobrar vencidas)
   carteraAutoReminders: boolean
   carteraReminderDays: number
+  // Seguimiento automático de cotizaciones por vencer
+  quoteAutoFollowup: boolean
+  quoteFollowupDays: number
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,
