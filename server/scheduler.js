@@ -78,6 +78,127 @@ function buildMessage(item) {
   return lines.join('\n')
 }
 
+/** Add N days to a YYYY-MM-DD string, return YYYY-MM-DD (mirrors Cartera.tsx's addDaysISO) */
+function addDaysISO(d, days) {
+  const dt = new Date(`${d}T12:00:00`)
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().split('T')[0]
+}
+
+function formatCOP(amount) {
+  return `$ ${Math.round(amount).toLocaleString('es-CO')}`
+}
+
+function buildBankInfo({ bankName, bankAccountType, bankAccountNumber, bankMessage }) {
+  if (!bankName && !bankAccountNumber) return ''
+  const parts = []
+  if (bankName) parts.push(`Banco: ${bankName}`)
+  if (bankAccountType) parts.push(`Tipo: ${bankAccountType}`)
+  if (bankAccountNumber) parts.push(`Cuenta: ${bankAccountNumber}`)
+  if (bankMessage) parts.push(bankMessage)
+  return parts.join('\n')
+}
+
+function buildCarteraReminderMessage({ companyName, customer, orderNumber, dueDate, remaining, bankInfo }) {
+  const lines = [
+    `Hola ${(customer || '').split(' ')[0]} 👋`,
+    '',
+    `Te escribimos de ${companyName} para recordarte que tienes un saldo pendiente:`,
+    '',
+    `📦 *Orden:* ${orderNumber}`,
+    `📅 *Vencimiento:* ${dueDate}`,
+    `💰 *Saldo pendiente:* ${formatCOP(remaining)}`,
+  ]
+  if (bankInfo) lines.push('', bankInfo)
+  lines.push('', '¿Ya realizaste el pago? Envíanos el comprobante por este medio. ¡Gracias! 🙏')
+  return lines.join('\n')
+}
+
+// Throttle the cartera "not connected" warning the same way as calendar reminders
+let lastCarteraNotConnectedWarn = 0
+
+// Sends a one-time WhatsApp payment reminder for sale orders whose due date
+// (order date + customer payment terms, same formula Cartera.tsx uses to show
+// "días de mora") is at least `cartera_reminder_days` days in the past. Marks
+// cartera_reminder_sent_at only on a confirmed send, so it's safe to leave
+// unmarked when WhatsApp isn't connected — it will simply retry next tick.
+async function tickCartera() {
+  let settings
+  try {
+    const { rows } = await pool.query(
+      `SELECT cartera_auto_reminders AS "auto", cartera_reminder_days AS "days",
+              company_name AS "companyName", bank_name AS "bankName",
+              bank_account_type AS "bankAccountType", bank_account_number AS "bankAccountNumber",
+              bank_message AS "bankMessage"
+       FROM settings WHERE id = 1`
+    )
+    settings = rows[0]
+  } catch {
+    return // settings table may not exist yet
+  }
+  if (!settings || settings.auto === false) return
+  const reminderDays = settings.days ?? 3
+
+  let due
+  try {
+    const { rows } = await pool.query(`
+      SELECT so.id, so.order_number, so.customer_name AS customer, so.total, so.date,
+             c.phone, c.payment_terms,
+             COALESCE((SELECT SUM(amount) FROM payments p WHERE p.sale_order_id = so.id), 0) AS paid_amount
+      FROM sale_orders so
+      LEFT JOIN customers c ON c.id = so.customer_id
+      WHERE so.payment_status <> 'paid'
+        AND so.status <> 'cancelled'
+        AND so.cartera_reminder_sent_at IS NULL
+        AND c.phone IS NOT NULL AND c.phone <> ''
+    `)
+    due = rows
+  } catch (e) {
+    console.error('scheduler: error consultando cartera', e.message)
+    return
+  }
+  if (due.length === 0) return
+
+  const overdue = due
+    .map((r) => {
+      const remaining = Number(r.total) - Number(r.paid_amount)
+      const dueDateStr = addDaysISO(String(r.date).split('T')[0], r.payment_terms ?? 0)
+      const daysPastDue = Math.floor((Date.now() - new Date(`${dueDateStr}T12:00:00`).getTime()) / 86400000)
+      return { ...r, remaining, dueDateStr, daysPastDue }
+    })
+    .filter((r) => r.remaining > 0 && r.daysPastDue >= reminderDays)
+  if (overdue.length === 0) return
+
+  const wa = getWhatsAppStatus()
+  if (wa.status !== 'connected') {
+    const now = Date.now()
+    if (now - lastCarteraNotConnectedWarn > NOT_CONNECTED_WARN_INTERVAL_MS) {
+      lastCarteraNotConnectedWarn = now
+      console.warn(
+        `⚠️  scheduler: ${overdue.length} recordatorio(s) de cartera pendiente(s) pero WhatsApp está "${wa.status}". ` +
+        `Conecta WhatsApp en Configuración → WhatsApp para enviarlos.`
+      )
+    }
+    return
+  }
+
+  const bankInfo = buildBankInfo(settings)
+  for (const r of overdue) {
+    const message = buildCarteraReminderMessage({
+      companyName: settings.companyName || 'Nuestra empresa',
+      customer: r.customer, orderNumber: r.order_number,
+      dueDate: r.dueDateStr, remaining: r.remaining, bankInfo,
+    })
+    try {
+      await sendWhatsAppMessage(r.phone, message)
+      await pool.query('UPDATE sale_orders SET cartera_reminder_sent_at = NOW() WHERE id = $1', [r.id])
+      console.log(`📤 Recordatorio de cartera enviado: ${r.order_number} → ${r.phone}`)
+    } catch (e) {
+      console.error(`scheduler: fallo al enviar recordatorio de cartera a ${r.phone}:`, e.message)
+    }
+  }
+}
+
 async function tick() {
   await loadTimezone()
   let due
@@ -150,10 +271,12 @@ async function tick() {
 export function startScheduler() {
   setInterval(() => {
     tick().catch((e) => console.error('scheduler tick error:', e.message))
+    tickCartera().catch((e) => console.error('scheduler cartera tick error:', e.message))
   }, TICK_MS)
   // first tick after a short delay so Baileys has time to connect
   setTimeout(() => {
     tick().catch((e) => console.error('scheduler initial tick error:', e.message))
+    tickCartera().catch((e) => console.error('scheduler cartera initial tick error:', e.message))
   }, 10_000)
   console.log('⏰ Scheduler de recordatorios iniciado (cada 60s)')
 }

@@ -78,6 +78,8 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         paymentMethods:     settings.paymentMethods     ?? defaultCompanySettings.paymentMethods,
         taxRates:           settings.taxRates           ?? defaultCompanySettings.taxRates,
         teamMembers:        settings.teamMembers        ?? defaultCompanySettings.teamMembers,
+        carteraAutoReminders: settings.carteraAutoReminders ?? defaultCompanySettings.carteraAutoReminders,
+        carteraReminderDays:  settings.carteraReminderDays  ?? defaultCompanySettings.carteraReminderDays,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })

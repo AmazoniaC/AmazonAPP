@@ -73,6 +73,9 @@ export interface CompanySettings {
   taxRates: { id: string; name: string; rate: number; isDefault: boolean; isActive: boolean }[]
   // Equipo de trabajo — nombres editables de vendedores, producción y conductores
   teamMembers: TeamMember[]
+  // Recordatorios automáticos de cartera (cuentas por cobrar vencidas)
+  carteraAutoReminders: boolean
+  carteraReminderDays: number
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,

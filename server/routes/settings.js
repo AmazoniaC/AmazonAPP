@@ -28,7 +28,9 @@ router.get('/', async (req, res) => {
               tax_rate AS "taxRate",
               payment_methods AS "paymentMethods",
               tax_rates AS "taxRates",
-              team_members AS "teamMembers"
+              team_members AS "teamMembers",
+              cartera_auto_reminders AS "carteraAutoReminders",
+              cartera_reminder_days  AS "carteraReminderDays"
        FROM settings WHERE id = 1`
     )
     const s = rows[0] ?? {}
@@ -47,6 +49,7 @@ router.put('/', async (req, res) => {
     tiktok, whatsapp, instagram, instagramHandle,
     smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, invoicePrefix,
     monthlyGoal, taxRate, paymentMethods, taxRates, teamMembers,
+    carteraAutoReminders, carteraReminderDays,
   } = req.body
   try {
     const { rows: existing } = await pool.query(
@@ -62,9 +65,10 @@ router.put('/', async (req, res) => {
          bank_name, bank_key, bank_account_type, bank_account_number, bank_message,
          tiktok, whatsapp, instagram, instagram_handle,
          smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, invoice_prefix,
-         monthly_goal, tax_rate, payment_methods, tax_rates, team_members
+         monthly_goal, tax_rate, payment_methods, tax_rates, team_members,
+         cartera_auto_reminders, cartera_reminder_days
        )
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
        ON CONFLICT (id) DO UPDATE SET
          company_name=$1, slogan=$2, email=$3, phone=$4, address=$5,
          currency=$6, timezone=$7, logo=$8,
@@ -73,7 +77,8 @@ router.put('/', async (req, res) => {
          tiktok=$14, whatsapp=$15, instagram=$16, instagram_handle=$17,
          smtp_host=$18, smtp_port=$19, smtp_user=$20, smtp_pass=$21, smtp_from=$22,
          invoice_prefix=$23, monthly_goal=$24, tax_rate=$25,
-         payment_methods=$26, tax_rates=$27, team_members=$28
+         payment_methods=$26, tax_rates=$27, team_members=$28,
+         cartera_auto_reminders=$29, cartera_reminder_days=$30
        RETURNING company_name AS "companyName", slogan, email, phone, address,
                 currency, timezone, logo,
                 bank_name AS "bankName", bank_key AS "bankKey",
@@ -90,7 +95,9 @@ router.put('/', async (req, res) => {
                 tax_rate AS "taxRate",
                 payment_methods AS "paymentMethods",
                 tax_rates AS "taxRates",
-                team_members AS "teamMembers"`,
+                team_members AS "teamMembers",
+                cartera_auto_reminders AS "carteraAutoReminders",
+                cartera_reminder_days  AS "carteraReminderDays"`,
       [
         companyName, slogan, email, phone, address, currency, timezone, logo ?? null,
         bankName ?? '', bankKey ?? '', bankAccountType ?? '',
@@ -102,6 +109,7 @@ router.put('/', async (req, res) => {
         JSON.stringify(paymentMethods ?? []),
         JSON.stringify(taxRates ?? []),
         JSON.stringify(teamMembers ?? []),
+        carteraAutoReminders ?? true, carteraReminderDays ?? 3,
       ]
     )
     const result = rows[0]

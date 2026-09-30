@@ -55,4 +55,6 @@ export const defaultCompanySettings: CompanySettings = {
     { id: 'tm_d4', name: 'Pedro Díaz',     role: 'driver',     isActive: true },
     { id: 'tm_d5', name: 'Juan Martínez',  role: 'driver',     isActive: true },
   ],
+  carteraAutoReminders: true,
+  carteraReminderDays: 3,
 }

@@ -315,6 +315,9 @@ async function migrate() {
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS sku TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS recipe_id TEXT DEFAULT '';
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]';
+      ALTER TABLE settings     ADD COLUMN IF NOT EXISTS cartera_auto_reminders BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings     ADD COLUMN IF NOT EXISTS cartera_reminder_days  INTEGER DEFAULT 3;
+      ALTER TABLE sale_orders  ADD COLUMN IF NOT EXISTS cartera_reminder_sent_at TIMESTAMP;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

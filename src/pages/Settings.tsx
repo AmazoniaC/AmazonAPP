@@ -332,6 +332,8 @@ export default function Settings() {
         paymentMethods:     companySettings.paymentMethods,
         taxRates:           companySettings.taxRates,
         teamMembers:        companySettings.teamMembers,
+        carteraAutoReminders: companySettings.carteraAutoReminders,
+        carteraReminderDays:  companySettings.carteraReminderDays,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -340,6 +342,14 @@ export default function Settings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // ── Cartera auto-reminders (persisted in companySettings) ─────────────
+  const toggleCarteraAutoReminders = async () => {
+    await saveCompanySettings({ ...companySettings, carteraAutoReminders: !companySettings.carteraAutoReminders })
+  }
+  const updateCarteraReminderDays = async (days: number) => {
+    await saveCompanySettings({ ...companySettings, carteraReminderDays: days })
   }
 
   // ── Payment methods & tax rates (persisted in companySettings) ────────
@@ -1334,6 +1344,42 @@ export default function Settings() {
           {activeTab === 'whatsapp' && (
             <div className="space-y-5">
               <WhatsAppConnectionPanel />
+
+              <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Recordatorios automáticos de cartera</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Envía por WhatsApp, sin intervención manual, un único recordatorio de pago por cada orden vencida (una vez que pasa a estar en mora se envía y no se repite).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.carteraAutoReminders}
+                    onClick={toggleCarteraAutoReminders}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.carteraAutoReminders ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.carteraAutoReminders ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                {companySettings.carteraAutoReminders && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-slate-500 dark:text-gray-400">Enviar cuando la orden lleve</label>
+                    <input
+                      type="number" min={0} max={90} step={1}
+                      className="input w-20 text-center"
+                      value={companySettings.carteraReminderDays}
+                      onChange={(e) => updateCarteraReminderDays(Math.max(0, parseInt(e.target.value) || 0))}
+                    />
+                    <span className="text-xs text-slate-500 dark:text-gray-400">día(s) vencida</span>
+                  </div>
+                )}
+              </div>
+
               <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><MessageCircle size={18} className="text-green-600" /> Plantillas de WhatsApp</h2>
               <p className="text-sm text-slate-500 dark:text-gray-400">
                 Estas plantillas se usan para enviar mensajes automáticos por WhatsApp. Los textos entre <code className="px-1 py-0.5 bg-slate-100 dark:bg-gray-700 rounded text-xs">{'{placeholder}'}</code> se reemplazan automáticamente con datos reales.
