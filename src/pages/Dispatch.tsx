@@ -13,8 +13,9 @@ import ConfirmDelete from '../components/ConfirmDelete'
 import Pagination from '../components/Pagination'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
-import { openWhatsApp, buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
+import { buildDispatchNotification, buildDeliveryConfirmation } from '../utils/whatsapp'
 import { sendWhatsAppAuto } from '../utils/whatsappSend'
+import { nextOrderNumber } from '../utils/orderNumber'
 
 function sendDeliveryConfirmationWhatsApp({
   phone, message, photo, dispatchNumber,
@@ -56,7 +57,7 @@ function fmt(d?: string) {
 
 // ── Create/Edit Modal ─────────────────────────────────────────────────────────
 function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () => void }) {
-  const { saleOrders, dispatches, addDispatch, updateDispatch, companySettings } = useStore()
+  const { saleOrders, dispatches, customers, addDispatch, updateDispatch, companySettings } = useStore()
   const today = new Date().toISOString().split('T')[0]
 
   // Conductores configurables (Configuración → Equipo de trabajo).
@@ -103,10 +104,9 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
     setSaving(true)
     try {
       const year = new Date().getFullYear()
-      const num  = String(dispatches.length + 1).padStart(4, '0')
       const d: Dispatch = {
         id:              initial?.id ?? `dsp${Date.now()}`,
-        dispatchNumber:  initial?.dispatchNumber ?? `DSP-${year}-${num}`,
+        dispatchNumber:  initial?.dispatchNumber ?? nextOrderNumber(dispatches.map((x) => x.dispatchNumber), `DSP-${year}-`),
         saleOrderId:     form.saleOrderId     ?? '',
         saleOrderNumber: form.saleOrderNumber ?? '',
         customer:        form.customer        ?? '',
@@ -127,8 +127,27 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
         total:           form.total           ?? 0,
         date:            form.date            ?? today,
       }
-      if (initial) await updateDispatch(d)
-      else         await addDispatch(d)
+      if (initial) {
+        await updateDispatch(d)
+      } else {
+        await addDispatch(d)
+        // Auto-notify the customer the moment a dispatch is scheduled — same
+        // pattern as the order-confirmation and delivery-confirmation sends,
+        // instead of requiring a manual "Notificar despacho" click.
+        const cust = customers.find((c) => c.id === d.customerId)
+        if (d.status === 'scheduled' && cust?.phone) {
+          sendWhatsAppAuto({
+            phone: cust.phone,
+            message: buildDispatchNotification({
+              companyName: companySettings.companyName, customer: d.customer,
+              dispatchNumber: d.dispatchNumber, orderNumber: d.saleOrderNumber,
+              scheduledDate: d.scheduledDate, scheduledTime: d.scheduledTime,
+              driver: d.driver, address: d.address, items: d.items,
+            }),
+            successLabel: 'Notificación de despacho enviada por WhatsApp',
+          })
+        }
+      }
       onClose()
     } finally {
       setSaving(false)
@@ -897,13 +916,17 @@ function DispatchDrawer({ d, onClose, onEdit }: { d: Dispatch; onClose: () => vo
             {customer?.phone && d.status === 'scheduled' && (
               <button
                 className="w-full btn flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
-                onClick={() => openWhatsApp(customer.phone, buildDispatchNotification({
-                  companyName: companySettings.companyName, customer: d.customer,
-                  dispatchNumber: d.dispatchNumber, orderNumber: d.saleOrderNumber,
-                  scheduledDate: d.scheduledDate, scheduledTime: d.scheduledTime,
-                  driver: d.driver, address: d.address, items: d.items,
-                }))}>
-                <MessageCircle size={14} /> Notificar despacho por WhatsApp
+                onClick={() => sendWhatsAppAuto({
+                  phone: customer.phone,
+                  message: buildDispatchNotification({
+                    companyName: companySettings.companyName, customer: d.customer,
+                    dispatchNumber: d.dispatchNumber, orderNumber: d.saleOrderNumber,
+                    scheduledDate: d.scheduledDate, scheduledTime: d.scheduledTime,
+                    driver: d.driver, address: d.address, items: d.items,
+                  }),
+                  successLabel: 'Notificación de despacho enviada por WhatsApp',
+                })}>
+                <MessageCircle size={14} /> Reenviar notificación por WhatsApp
               </button>
             )}
           </div>
@@ -1128,12 +1151,16 @@ export default function DispatchPage() {
                           if (!cust?.phone || !['scheduled','in_transit'].includes(d.status)) return null
                           return (
                             <button className="btn btn-sm flex items-center gap-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 border border-green-200 dark:border-green-800"
-                              onClick={() => openWhatsApp(cust.phone, buildDispatchNotification({
-                                companyName: companySettings.companyName, customer: d.customer,
-                                dispatchNumber: d.dispatchNumber, orderNumber: d.saleOrderNumber,
-                                scheduledDate: d.scheduledDate, scheduledTime: d.scheduledTime,
-                                driver: d.driver, address: d.address, items: d.items,
-                              }))} title="Notificar por WhatsApp">
+                              onClick={() => sendWhatsAppAuto({
+                                phone: cust.phone,
+                                message: buildDispatchNotification({
+                                  companyName: companySettings.companyName, customer: d.customer,
+                                  dispatchNumber: d.dispatchNumber, orderNumber: d.saleOrderNumber,
+                                  scheduledDate: d.scheduledDate, scheduledTime: d.scheduledTime,
+                                  driver: d.driver, address: d.address, items: d.items,
+                                }),
+                                successLabel: 'Notificación de despacho enviada por WhatsApp',
+                              })} title="Notificar por WhatsApp">
                               <MessageCircle size={12} />
                             </button>
                           )
