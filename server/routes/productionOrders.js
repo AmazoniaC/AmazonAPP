@@ -9,9 +9,13 @@ const router = Router()
 router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, product_id AS "productId", product_name AS "productName",
-              quantity::float, unit, status, start_date AS "startDate",
-              end_date AS "endDate", notes
+      `SELECT id, order_number AS "orderNumber", recipe, recipe_id AS "recipeId",
+              product, planned_qty::float AS "plannedQty", actual_qty::float AS "actualQty",
+              rejected_qty::float AS "rejectedQty", status, priority,
+              planned_start AS "plannedStart", planned_end AS "plannedEnd",
+              estimated_cost::float AS "estimatedCost", actual_cost::float AS "actualCost",
+              assigned_to AS "assignedTo", finished_at AS "finishedAt",
+              actual_ingredients AS "actualIngredients", notes
        FROM production_orders ORDER BY created_at DESC`
     )
     res.json(rows)
@@ -21,15 +25,24 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', validate(createProductionOrderSchema), async (req, res) => {
-  const { id, productId, productName, quantity, unit, status, startDate, endDate, notes } = req.body
+  const {
+    id, orderNumber, recipe, recipeId, product, plannedQty,
+    status, priority, plannedStart, plannedEnd, estimatedCost, assignedTo, notes,
+  } = req.body
   try {
     const { rows } = await pool.query(
-      `INSERT INTO production_orders (id, product_id, product_name, quantity, unit, status, start_date, end_date, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [id, productId, productName, quantity, unit, status ?? 'pending', startDate, endDate, notes]
+      `INSERT INTO production_orders
+         (id, order_number, recipe, recipe_id, product, planned_qty,
+          status, priority, planned_start, planned_end, estimated_cost, assigned_to, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [
+        id, orderNumber, recipe, recipeId ?? null, product, plannedQty,
+        status ?? 'pending', priority ?? 3, plannedStart ?? null, plannedEnd ?? null,
+        estimatedCost ?? 0, assignedTo ?? '', notes ?? '',
+      ]
     )
     const u = getUser(req)
-    await log({ userName: u.name, userEmail: u.email, action: 'crear', entity: 'Orden de producción', entityId: id, entityName: productName })
+    await log({ userName: u.name, userEmail: u.email, action: 'crear', entity: 'Orden de producción', entityId: id, entityName: product })
     res.status(201).json(rows[0])
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -45,7 +58,7 @@ router.put('/:id/status', validate(updateProductionOrderStatusSchema), async (re
     )
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
     const u = getUser(req)
-    await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Orden de producción', entityId: req.params.id, entityName: rows[0].product_name, details: `estado → ${status}` })
+    await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Orden de producción', entityId: req.params.id, entityName: rows[0].product, details: `estado → ${status}` })
     res.json(rows[0])
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -81,7 +94,7 @@ router.put('/:id/finish', async (req, res) => {
     const u = getUser(req)
     await log({
       userName: u.name, userEmail: u.email, action: 'editar', entity: 'Orden de producción',
-      entityId: req.params.id, entityName: rows[0].product_name,
+      entityId: req.params.id, entityName: rows[0].product,
       details: `finalizada · producidas ${actualQty}, rechazadas ${rejectedQty}, costo real ${actualCost}`,
     })
     res.json(rows[0])
@@ -92,10 +105,10 @@ router.put('/:id/finish', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const { rows } = await pool.query('DELETE FROM production_orders WHERE id=$1 RETURNING product_name AS "productName"', [req.params.id])
+    const { rows } = await pool.query('DELETE FROM production_orders WHERE id=$1 RETURNING product', [req.params.id])
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
     const u = getUser(req)
-    await log({ userName: u.name, userEmail: u.email, action: 'eliminar', entity: 'Orden de producción', entityId: req.params.id, entityName: rows[0].productName })
+    await log({ userName: u.name, userEmail: u.email, action: 'eliminar', entity: 'Orden de producción', entityId: req.params.id, entityName: rows[0].product })
     res.json({ ok: true })
   } catch (e) {
     res.status(500).json({ error: e.message })

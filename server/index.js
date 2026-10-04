@@ -321,6 +321,40 @@ async function migrate() {
       ALTER TABLE settings     ADD COLUMN IF NOT EXISTS quote_auto_followup BOOLEAN DEFAULT TRUE;
       ALTER TABLE settings     ADD COLUMN IF NOT EXISTS quote_followup_days INTEGER DEFAULT 2;
       ALTER TABLE quotations  ADD COLUMN IF NOT EXISTS follow_up_sent_at TIMESTAMP;
+      -- production_orders was created against an older, much simpler shape
+      -- (product_id/product_name/quantity/unit) than what the UI has sent for
+      -- a long time (orderNumber/recipe/recipeId/product/plannedQty/priority/
+      -- plannedStart/plannedEnd/estimatedCost/assignedTo) — every "Nueva orden"
+      -- submission was silently rejected by Zod validation (missing required
+      -- productId/productName/quantity/unit), and /finish referenced
+      -- actual_qty/actual_cost columns that never existed, so finalizing an
+      -- order failed outright. Relaxing the legacy NOT NULLs (kept, unused,
+      -- harmless) and adding the columns the app actually uses.
+      ALTER TABLE production_orders ALTER COLUMN product_id   DROP NOT NULL;
+      ALTER TABLE production_orders ALTER COLUMN product_name DROP NOT NULL;
+      ALTER TABLE production_orders ALTER COLUMN quantity     DROP NOT NULL;
+      ALTER TABLE production_orders ALTER COLUMN unit         DROP NOT NULL;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS order_number   TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS recipe         TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS recipe_id      TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS product        TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS planned_qty    NUMERIC;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS actual_qty     NUMERIC;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS priority       INTEGER DEFAULT 3;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS planned_start  TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS planned_end    TEXT;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS estimated_cost NUMERIC DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS actual_cost    NUMERIC DEFAULT 0;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS assigned_to    TEXT DEFAULT '';
+      -- sale_orders/sale_order_items: deliveryDate, invoiceNumber, invoiceDate
+      -- and a sold item's variantId were all accepted from the UI and then
+      -- silently dropped (Zod stripped unknown keys / the column didn't
+      -- exist) — generating an invoice looked like it worked but the number
+      -- vanished on reload.
+      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS delivery_date  DATE;
+      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+      ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS invoice_date   DATE;
+      ALTER TABLE sale_order_items ADD COLUMN IF NOT EXISTS variant_id TEXT;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

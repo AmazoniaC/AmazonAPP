@@ -4,42 +4,52 @@ import { createProductionOrderSchema, updateProductionOrderStatusSchema } from '
 describe('createProductionOrderSchema', () => {
   const valid = {
     id: 'po1',
-    productId: 'p1',
-    productName: 'Bloque 15cm',
-    quantity: 500,
-    unit: 'unidad',
+    orderNumber: 'OP-2026-0001',
+    recipe: 'Bloque 15cm',
+    product: 'Bloque 15cm',
+    plannedQty: 500,
   }
 
   it('accepts valid production order', () => {
     const result = createProductionOrderSchema.safeParse(valid)
     expect(result.success).toBe(true)
     expect(result.data.status).toBe('pending')
+    expect(result.data.priority).toBe(3)
   })
 
   it('accepts full order with all fields', () => {
     const result = createProductionOrderSchema.safeParse({
       ...valid,
+      recipeId: 'rec1',
       status: 'in_progress',
-      startDate: '2024-06-15',
-      endDate: '2024-06-20',
+      priority: 1,
+      plannedStart: '2024-06-15 08:00',
+      plannedEnd: '2024-06-20 16:00',
+      estimatedCost: 150000,
+      assignedTo: 'Carlos Mendez',
       notes: 'Producción urgente',
     })
     expect(result.success).toBe(true)
   })
 
-  it('rejects zero quantity', () => {
-    const result = createProductionOrderSchema.safeParse({ ...valid, quantity: 0 })
+  it('rejects zero plannedQty', () => {
+    const result = createProductionOrderSchema.safeParse({ ...valid, plannedQty: 0 })
     expect(result.success).toBe(false)
   })
 
-  it('rejects missing productId', () => {
-    const { productId, ...noProd } = valid
-    const result = createProductionOrderSchema.safeParse(noProd)
+  it('rejects missing product', () => {
+    const { product, ...noProduct } = valid
+    const result = createProductionOrderSchema.safeParse(noProduct)
     expect(result.success).toBe(false)
   })
 
   it('rejects invalid status', () => {
     const result = createProductionOrderSchema.safeParse({ ...valid, status: 'ready' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects priority out of range', () => {
+    const result = createProductionOrderSchema.safeParse({ ...valid, priority: 6 })
     expect(result.success).toBe(false)
   })
 })

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const saleOrderItemSchema = z.object({
   productId: z.string().default(''),
+  variantId: z.string().nullish(),
   product: z.string().optional(),
   productName: z.string().optional(),
   qty: z.number().min(0).optional(),
@@ -28,10 +29,17 @@ export const createSaleOrderSchema = z.object({
   notes: z.string().max(2000).nullish(),
   items: z.array(saleOrderItemSchema).default([]),
   priceListId: z.string().nullish(),
+  deliveryDate: z.string().nullish(),
+  invoiceNumber: z.string().nullish(),
+  invoiceDate: z.string().nullish(),
 })
 
 export const updateSaleOrderSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'processing', 'completed', 'cancelled']).nullish(),
   paymentMethod: z.string().nullish(),
   paymentStatus: z.enum(['pending', 'partial', 'paid', 'refunded']).nullish(),
+  deliveryDate: z.string().nullish(),
+  invoiceNumber: z.string().nullish(),
+  invoiceDate: z.string().nullish(),
+  notes: z.string().max(2000).nullish(),
 })

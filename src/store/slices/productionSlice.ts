@@ -118,6 +118,7 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
   addProductionOrder: async (order) => {
     await apiFetch('/api/production-orders', { method: 'POST', body: JSON.stringify(order) })
     set((s) => ({ productionOrders: [...s.productionOrders, order] }))
+    toast.success('Orden de producción creada')
   },
   deleteProductionOrder: async (id) => {
     await apiFetch(`/api/production-orders/${id}`, { method: 'DELETE' })

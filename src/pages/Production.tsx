@@ -355,6 +355,7 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
   const [qty, setQty]           = useState('')
   const [date, setDate]         = useState(new Date().toISOString().split('T')[0])
   const [assigned, setAssigned] = useState(staff[0] ?? '')
+  const [saving, setSaving]     = useState(false)
 
   const recipe = recipes.find((r) => r.id === recipeId)
 
@@ -376,7 +377,7 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
     return shortfalls
   })()
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!recipe || !qty) return
     const n = parseFloat(qty)
     const order: ProductionOrder = {
@@ -387,8 +388,13 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
       estimatedCost: parseFloat((recipe.costPerUnit * n).toFixed(2)),
       assignedTo: assigned,
     }
-    addProductionOrder(order)
-    onClose()
+    setSaving(true)
+    try {
+      await addProductionOrder(order)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -458,8 +464,10 @@ function NewOrderModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="flex gap-3 px-6 pb-5">
-          <button className="btn btn-secondary flex-1" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary flex-1" onClick={handleSave}>Crear orden</button>
+          <button className="btn btn-secondary flex-1" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="btn btn-primary flex-1" onClick={handleSave} disabled={saving || !recipe || !qty}>
+            {saving ? 'Creando...' : 'Crear orden'}
+          </button>
         </div>
       </div>
     </div>
