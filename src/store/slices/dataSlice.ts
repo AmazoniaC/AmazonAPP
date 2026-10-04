@@ -89,6 +89,7 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         opsAlertProductionPriority: settings.opsAlertProductionPriority ?? defaultCompanySettings.opsAlertProductionPriority,
         opsAlertQuoteExpiring: settings.opsAlertQuoteExpiring ?? defaultCompanySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: settings.opsAlertCrmStale ?? defaultCompanySettings.opsAlertCrmStale,
+        rolePermissions: settings.rolePermissions ?? defaultCompanySettings.rolePermissions,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })

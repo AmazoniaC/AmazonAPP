@@ -75,7 +75,7 @@ function OppCard({
             className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
             <Edit2 size={12} />
           </button>
-          {canDelete('crm') && (
+          {canDelete('pipeline') && (
             <button onClick={() => onDelete(opp)}
               className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
               <Trash2 size={12} />

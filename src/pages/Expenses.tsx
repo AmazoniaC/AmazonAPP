@@ -412,7 +412,7 @@ export default function ExpensesPage() {
                           onClick={() => setEdit(e)}>
                           <Edit2 size={12} />
                         </button>
-                        {canDelete('sales') && (
+                        {canDelete('expenses') && (
                           <button className="btn btn-sm flex items-center gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
                             onClick={() => setDelete(e)}>
                             <Trash2 size={12} />

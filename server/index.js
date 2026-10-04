@@ -379,6 +379,19 @@ async function migrate() {
       -- stock, so editing an already-restocked return again (e.g. just to
       -- fix a note) never double-counts the restock.
       ALTER TABLE returns ADD COLUMN IF NOT EXISTS restocked_at TIMESTAMP;
+      -- Role -> module edit/delete matrix, now configurable from
+      -- Configuración → Seguridad instead of hardcoded in usePermissions.ts.
+      -- Default mirrors each role's existing effective permissions (edit
+      -- defaults to whichever modules that role can already see in the
+      -- sidebar per config/modules.ts; delete defaults to Administrador-only,
+      -- matching the policy note the old static table already stated).
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS role_permissions JSONB DEFAULT '{
+        "Administrador": {"edit": ["supplies","products","customers","sales","production","crm","dispatch","quotations","purchases","expenses","pipeline"], "delete": ["supplies","products","customers","sales","production","crm","dispatch","quotations","purchases","expenses","pipeline"]},
+        "Producción":    {"edit": ["production","supplies","dispatch"], "delete": []},
+        "Ventas":        {"edit": ["sales","customers","crm","dispatch","quotations","pipeline"], "delete": ["crm"]},
+        "Inventario":    {"edit": ["supplies","products","purchases"], "delete": []},
+        "Contabilidad":  {"edit": ["purchases","expenses"], "delete": []}
+      }';
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

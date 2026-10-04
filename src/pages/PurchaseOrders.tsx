@@ -478,7 +478,7 @@ export default function PurchaseOrders() {
       <div className="space-y-3">
         {paginated.map((o) => (
           <POCard key={o.id} order={o}
-            canEdit={canEdit('supplies')} canDelete={canDelete('supplies')}
+            canEdit={canEdit('purchases')} canDelete={canDelete('purchases')}
             onEdit={() => { setEditOrder(o); setShowModal(true) }}
             onDelete={() => setDeleteTarget(o)}
             onReceive={() => setReceive(o)}

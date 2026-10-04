@@ -8,6 +8,7 @@ import Pagination from '../components/Pagination'
 import UserManual from '../components/UserManual'
 import { WA_TEMPLATES, WaTemplateKey } from '../utils/whatsapp'
 import { getAuthHeader } from '../utils/auth'
+import { ALL_MODULES, MODULE_LABELS, DEFAULT_ROLE_PERMS, type AppModule } from '../hooks/usePermissions'
 
 const TAB_ICONS: Record<string, any> = {
   empresa: Building, usuarios: Users, equipo: Users, pagos: CreditCard, precios: Tag,
@@ -343,6 +344,7 @@ export default function Settings() {
         opsAlertProductionPriority: companySettings.opsAlertProductionPriority,
         opsAlertQuoteExpiring: companySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: companySettings.opsAlertCrmStale,
+        rolePermissions: companySettings.rolePermissions,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -374,6 +376,20 @@ export default function Settings() {
     | 'opsAlertDeliveryOverdue' | 'opsAlertProductionPriority' | 'opsAlertQuoteExpiring' | 'opsAlertCrmStale'
   const toggleOpsAlert = async (field: OpsAlertField) => {
     await saveCompanySettings({ ...companySettings, [field]: !companySettings[field] })
+  }
+
+  // ── Role permissions matrix (persisted in companySettings) ────────────
+  const rolePermissions = companySettings.rolePermissions ?? DEFAULT_ROLE_PERMS
+  const updateRolePermission = async (role: string, module: AppModule, level: 'none' | 'edit' | 'full') => {
+    const prev = rolePermissions[role] ?? { edit: [], delete: [] }
+    const edit = prev.edit.filter((m) => m !== module)
+    const del = prev.delete.filter((m) => m !== module)
+    if (level === 'edit' || level === 'full') edit.push(module)
+    if (level === 'full') del.push(module)
+    await saveCompanySettings({
+      ...companySettings,
+      rolePermissions: { ...rolePermissions, [role]: { edit, delete: del } },
+    })
   }
 
   // ── Payment methods & tax rates (persisted in companySettings) ────────
@@ -869,37 +885,55 @@ export default function Settings() {
                     <thead>
                       <tr className="bg-slate-50 dark:bg-gray-700/50 border-b border-slate-200 dark:border-gray-700">
                         <th className="text-left px-4 py-2.5 text-slate-500 dark:text-gray-400 font-semibold">Rol</th>
-                        {['Inventario','Catálogo','Clientes','Ventas','Producción'].map((m) => (
-                          <th key={m} className="text-center px-3 py-2.5 text-slate-500 dark:text-gray-400 font-semibold">{m}</th>
+                        {ALL_MODULES.map((m) => (
+                          <th key={m} className="text-center px-2 py-2.5 text-slate-500 dark:text-gray-400 font-semibold whitespace-nowrap">{MODULE_LABELS[m]}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { role:'Administrador', perms:['✏️ Editar / 🗑️ Eliminar','✏️ Editar / 🗑️ Eliminar','✏️ Editar / 🗑️ Eliminar','✏️ Editar / 🗑️ Eliminar','✏️ Editar / 🗑️ Eliminar'] },
-                        { role:'Producción',    perms:['✏️ Editar','Solo lectura','Solo lectura','Solo lectura','✏️ Editar'] },
-                        { role:'Ventas',        perms:['Solo lectura','Solo lectura','✏️ Editar','✏️ Editar','Solo lectura'] },
-                        { role:'Inventario',    perms:['✏️ Editar','✏️ Editar','Solo lectura','Solo lectura','Solo lectura'] },
-                        { role:'Contabilidad',  perms:['Solo lectura','Solo lectura','Solo lectura','Solo lectura','Solo lectura'] },
-                      ].map((row) => (
-                        <tr key={row.role} className="border-b border-slate-100 dark:border-gray-700">
-                          <td className="px-4 py-2.5">
-                            <span className={`badge ${ROLE_COLOR[row.role]}`}>{row.role}</span>
-                          </td>
-                          {row.perms.map((p, i) => (
-                            <td key={i} className={`px-3 py-2.5 text-center ${
-                              p.includes('Eliminar') ? 'text-red-600 dark:text-red-400 font-medium' :
-                              p.includes('Editar')   ? 'text-blue-600 dark:text-blue-400' :
-                              'text-slate-400 dark:text-gray-500'
-                            }`}>{p}</td>
-                          ))}
-                        </tr>
-                      ))}
+                      <tr className="border-b border-slate-100 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-700/20">
+                        <td className="px-4 py-2.5">
+                          <span className={`badge ${ROLE_COLOR['Administrador']}`}>Administrador</span>
+                        </td>
+                        {ALL_MODULES.map((m) => (
+                          <td key={m} className="px-2 py-2.5 text-center text-emerald-600 dark:text-emerald-400 font-medium">Todo</td>
+                        ))}
+                      </tr>
+                      {(['Producción','Ventas','Inventario','Contabilidad'] as const).map((role) => {
+                        const perms = rolePermissions[role] ?? { edit: [], delete: [] }
+                        return (
+                          <tr key={role} className="border-b border-slate-100 dark:border-gray-700">
+                            <td className="px-4 py-2.5">
+                              <span className={`badge ${ROLE_COLOR[role]}`}>{role}</span>
+                            </td>
+                            {ALL_MODULES.map((m) => {
+                              const level = perms.delete.includes(m) ? 'full' : perms.edit.includes(m) ? 'edit' : 'none'
+                              return (
+                                <td key={m} className="px-1 py-1.5 text-center">
+                                  <select
+                                    className={`text-[11px] rounded border px-1 py-1 bg-white dark:bg-gray-800 ${
+                                      level === 'full' ? 'border-red-300 dark:border-red-800 text-red-600 dark:text-red-400' :
+                                      level === 'edit' ? 'border-blue-300 dark:border-blue-800 text-blue-600 dark:text-blue-400' :
+                                      'border-slate-200 dark:border-gray-600 text-slate-400 dark:text-gray-500'
+                                    }`}
+                                    value={level}
+                                    onChange={(e) => updateRolePermission(role, m, e.target.value as 'none' | 'edit' | 'full')}
+                                  >
+                                    <option value="none">—</option>
+                                    <option value="edit">Editar</option>
+                                    <option value="full">Edit.+Elim.</option>
+                                  </select>
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
                 <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">
-                  Solo el rol <strong>Administrador</strong> puede eliminar registros en cualquier módulo.
+                  <strong>Administrador</strong> siempre tiene acceso completo. Los cambios de los demás roles se guardan automáticamente al elegirlos.
                 </p>
               </div>
 

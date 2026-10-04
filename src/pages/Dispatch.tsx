@@ -1165,7 +1165,7 @@ export default function DispatchPage() {
                             </button>
                           )
                         })()}
-                        {canDelete('sales') && (
+                        {canDelete('dispatch') && (
                           <button className="btn btn-sm flex items-center gap-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
                             onClick={() => setDeleteTarget(d)}>
                             <Trash2 size={12} />

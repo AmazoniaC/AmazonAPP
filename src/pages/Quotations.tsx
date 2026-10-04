@@ -883,7 +883,7 @@ export default function Quotations() {
         title="Cotizaciones"
         subtitle="Propuestas comerciales y seguimiento"
         accent="rgba(139, 92, 246, 0.20)"
-        actions={canEdit('sales') ? (
+        actions={canEdit('quotations') ? (
           <button className="btn btn-sm btn-primary" onClick={() => { setEditTarget(undefined); setShowModal(true) }}>
             <Plus size={14} /> Nueva cotización
           </button>
@@ -974,7 +974,7 @@ export default function Quotations() {
                       <button className="btn btn-sm btn-secondary p-1.5" title="Ver detalle" onClick={() => setDrawer(q)}>
                         <Eye size={12} />
                       </button>
-                      {canEdit('sales') && (
+                      {canEdit('quotations') && (
                         <button className="btn btn-sm btn-secondary p-1.5" title="Editar" onClick={() => { setEditTarget(q); setShowModal(true) }}>
                           <Pencil size={12} />
                         </button>
@@ -988,7 +988,7 @@ export default function Quotations() {
                           <ShoppingCart size={12} />
                         </button>
                       )}
-                      {canDelete('sales') && (
+                      {canDelete('quotations') && (
                         <button className="btn btn-sm p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800"
                           onClick={() => setDelTarget(q)}>
                           <Trash2 size={12} />
@@ -1007,7 +1007,7 @@ export default function Quotations() {
           <div className="text-center py-14 text-slate-400 dark:text-gray-600">
             <FileText size={36} className="mx-auto mb-3 opacity-30" />
             <p>No se encontraron cotizaciones</p>
-            {canEdit('sales') && (
+            {canEdit('quotations') && (
               <button className="btn btn-primary mt-4" onClick={() => { setEditTarget(undefined); setShowModal(true) }}>
                 <Plus size={14} /> Crear primera cotización
               </button>

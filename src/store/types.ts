@@ -88,6 +88,12 @@ export interface CompanySettings {
   opsAlertProductionPriority: boolean
   opsAlertQuoteExpiring: boolean
   opsAlertCrmStale: boolean
+  // Role → module edit/delete matrix shown and edited in Configuración →
+  // Seguridad. Loosely typed here (not AppModule[]) to avoid a circular
+  // import between this file and hooks/usePermissions.ts, which is the
+  // source of truth for what a module key means and falls back to its own
+  // DEFAULT_ROLE_PERMS when this is absent (e.g. before this field existed).
+  rolePermissions?: Record<string, { edit: string[]; delete: string[] }>
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,
