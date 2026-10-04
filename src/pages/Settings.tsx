@@ -344,6 +344,7 @@ export default function Settings() {
         opsAlertProductionPriority: companySettings.opsAlertProductionPriority,
         opsAlertQuoteExpiring: companySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: companySettings.opsAlertCrmStale,
+        opsAlertPipelineAction: companySettings.opsAlertPipelineAction,
         rolePermissions: companySettings.rolePermissions,
       })
       setSaved(true)
@@ -374,6 +375,7 @@ export default function Settings() {
   // ── Operational alerts bridge to WhatsApp (persisted in companySettings) ──
   type OpsAlertField = 'opsAlertsEnabled' | 'opsAlertLowStock' | 'opsAlertPoOverdue'
     | 'opsAlertDeliveryOverdue' | 'opsAlertProductionPriority' | 'opsAlertQuoteExpiring' | 'opsAlertCrmStale'
+    | 'opsAlertPipelineAction'
   const toggleOpsAlert = async (field: OpsAlertField) => {
     await saveCompanySettings({ ...companySettings, [field]: !companySettings[field] })
   }
@@ -1503,6 +1505,7 @@ export default function Settings() {
                       ['opsAlertProductionPriority', 'Producción prioritaria sin iniciar'],
                       ['opsAlertQuoteExpiring', 'Cotizaciones por vencer'],
                       ['opsAlertCrmStale', 'Seguimientos CRM vencidos'],
+                      ['opsAlertPipelineAction', 'Seguimientos de pipeline vencidos'],
                     ] as [OpsAlertField, string][]).map(([field, label]) => (
                       <label key={field} className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300 cursor-pointer">
                         <input

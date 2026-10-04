@@ -89,6 +89,7 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         opsAlertProductionPriority: settings.opsAlertProductionPriority ?? defaultCompanySettings.opsAlertProductionPriority,
         opsAlertQuoteExpiring: settings.opsAlertQuoteExpiring ?? defaultCompanySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: settings.opsAlertCrmStale ?? defaultCompanySettings.opsAlertCrmStale,
+        opsAlertPipelineAction: settings.opsAlertPipelineAction ?? defaultCompanySettings.opsAlertPipelineAction,
         rolePermissions: settings.rolePermissions ?? defaultCompanySettings.rolePermissions,
       }
 

@@ -66,4 +66,5 @@ export const defaultCompanySettings: CompanySettings = {
   opsAlertProductionPriority: true,
   opsAlertQuoteExpiring: true,
   opsAlertCrmStale: true,
+  opsAlertPipelineAction: true,
 }

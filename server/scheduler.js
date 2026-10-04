@@ -311,7 +311,8 @@ async function tickOpsAlerts() {
               ops_alert_delivery_overdue    AS "deliveryOverdue",
               ops_alert_production_priority AS "productionPriority",
               ops_alert_quote_expiring      AS "quoteExpiring",
-              ops_alert_crm_stale           AS "crmStale"
+              ops_alert_crm_stale           AS "crmStale",
+              ops_alert_pipeline_action     AS "pipelineAction"
        FROM settings WHERE id = 1`
     )
     settings = rows[0]
@@ -331,6 +332,7 @@ async function tickOpsAlerts() {
     await pool.query(`UPDATE sale_orders SET delivery_overdue_alert_sent_at = NULL WHERE (status NOT IN ('confirmed','processing') OR delivery_date IS NULL OR delivery_date >= CURRENT_DATE) AND delivery_overdue_alert_sent_at IS NOT NULL`)
     await pool.query(`UPDATE production_orders SET priority_alert_sent_at = NULL WHERE (status <> 'pending' OR priority <> 1) AND priority_alert_sent_at IS NOT NULL`)
     await pool.query(`UPDATE quotations SET expiring_alert_sent_at = NULL WHERE status NOT IN ('draft','sent') AND expiring_alert_sent_at IS NOT NULL`)
+    await pool.query(`UPDATE opportunities SET next_action_alert_sent_at = NULL WHERE (stage IN ('won','lost') OR next_action_date IS NULL OR next_action_date >= CURRENT_DATE) AND next_action_alert_sent_at IS NOT NULL`)
   } catch (e) {
     console.error('scheduler: error limpiando alertas operativas resueltas', e.message)
   }
@@ -419,6 +421,20 @@ async function tickOpsAlerts() {
         mark: () => pool.query(`UPDATE settings SET crm_stale_alert_sent_at = NOW() WHERE id=1`),
       })
     }
+  }
+
+  if (settings.pipelineAction) {
+    const { rows } = await pool.query(
+      `SELECT id, title, customer, next_action_date, next_action_note
+       FROM opportunities
+       WHERE stage NOT IN ('won','lost') AND next_action_date IS NOT NULL
+         AND next_action_date < CURRENT_DATE AND next_action_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '🤝 *Seguimientos de pipeline vencidos*',
+      lines: rows.map((r) => `${r.title} — ${r.customer}${r.next_action_note ? ` (${r.next_action_note})` : ''} — debía el ${String(r.next_action_date).split('T')[0]}`),
+      mark: () => pool.query(`UPDATE opportunities SET next_action_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
   }
 
   if (categories.length === 0) return

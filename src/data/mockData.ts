@@ -93,6 +93,8 @@ export interface Opportunity {
   quotationId?:     string         // linked quotation
   notes?:           string
   lostReason?:      string
+  nextActionDate?:  string         // ISO date — próximo paso planeado
+  nextActionNote?:  string         // ej. "Llamar", "Enviar cotización"
   createdAt:        string         // ISO date
   updatedAt:        string
 }

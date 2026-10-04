@@ -13,6 +13,8 @@ export const createOpportunitySchema = z.object({
   quotationId: z.string().default(''),
   notes: z.string().max(2000).default(''),
   lostReason: z.string().max(500).default(''),
+  nextActionDate: z.string().nullish(),
+  nextActionNote: z.string().max(500).default(''),
   createdAt: z.string().nullish(),
   updatedAt: z.string().nullish(),
 })

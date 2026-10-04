@@ -392,6 +392,15 @@ async function migrate() {
         "Inventario":    {"edit": ["supplies","products","purchases"], "delete": []},
         "Contabilidad":  {"edit": ["purchases","expenses"], "delete": []}
       }';
+      -- Pipeline: seguimiento de "próxima acción" por oportunidad. Antes el
+      -- pipeline solo tenía expectedClose (fecha de cierre), sin forma de
+      -- planear/recordar el siguiente paso concreto (llamar, enviar cotización,
+      -- visitar), así que una oportunidad podía quedar "viva" en el kanban sin
+      -- que nadie supiera qué tocaba hacer ni cuándo.
+      ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS next_action_date DATE;
+      ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS next_action_note TEXT DEFAULT '';
+      ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS next_action_alert_sent_at TIMESTAMP;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_pipeline_action BOOLEAN DEFAULT TRUE;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

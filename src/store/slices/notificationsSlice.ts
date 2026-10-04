@@ -125,5 +125,15 @@ export const createNotificationsSlice: StateCreator<AppState, [], [], Notificati
         message: `${stale.length} seguimiento${stale.length > 1 ? 's' : ''} de CRM pendiente${stale.length > 1 ? 's' : ''} (más de 7 días)`,
       })
     }
+
+    // 7. Oportunidades de pipeline con próxima acción vencida
+    for (const o of s.opportunities) {
+      if (!['won', 'lost'].includes(o.stage) && o.nextActionDate && o.nextActionDate < today) {
+        push({
+          type: 'warning', category: 'crm', link: '/pipeline',
+          message: `Seguimiento vencido: ${o.title} — ${o.customer}${o.nextActionNote ? ` (${o.nextActionNote})` : ''}`,
+        })
+      }
+    }
   },
 })

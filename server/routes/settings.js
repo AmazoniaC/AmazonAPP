@@ -40,6 +40,7 @@ router.get('/', async (req, res) => {
               ops_alert_production_priority AS "opsAlertProductionPriority",
               ops_alert_quote_expiring      AS "opsAlertQuoteExpiring",
               ops_alert_crm_stale           AS "opsAlertCrmStale",
+              ops_alert_pipeline_action     AS "opsAlertPipelineAction",
               role_permissions AS "rolePermissions"
        FROM settings WHERE id = 1`
     )
@@ -62,7 +63,7 @@ router.put('/', async (req, res) => {
     carteraAutoReminders, carteraReminderDays,
     quoteAutoFollowup, quoteFollowupDays,
     opsAlertsEnabled, opsAlertLowStock, opsAlertPoOverdue, opsAlertDeliveryOverdue,
-    opsAlertProductionPriority, opsAlertQuoteExpiring, opsAlertCrmStale,
+    opsAlertProductionPriority, opsAlertQuoteExpiring, opsAlertCrmStale, opsAlertPipelineAction,
     rolePermissions,
   } = req.body
   try {
@@ -89,9 +90,10 @@ router.put('/', async (req, res) => {
          quote_auto_followup, quote_followup_days,
          ops_alerts_enabled, ops_alert_low_stock, ops_alert_po_overdue,
          ops_alert_delivery_overdue, ops_alert_production_priority,
-         ops_alert_quote_expiring, ops_alert_crm_stale, role_permissions
+         ops_alert_quote_expiring, ops_alert_crm_stale, role_permissions,
+         ops_alert_pipeline_action
        )
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41)
        ON CONFLICT (id) DO UPDATE SET
          company_name=$1, slogan=$2, email=$3, phone=$4, address=$5,
          currency=$6, timezone=$7, logo=$8,
@@ -106,7 +108,8 @@ router.put('/', async (req, res) => {
          ops_alerts_enabled=$33, ops_alert_low_stock=$34, ops_alert_po_overdue=$35,
          ops_alert_delivery_overdue=$36, ops_alert_production_priority=$37,
          ops_alert_quote_expiring=$38, ops_alert_crm_stale=$39,
-         role_permissions=COALESCE($40, settings.role_permissions)
+         role_permissions=COALESCE($40, settings.role_permissions),
+         ops_alert_pipeline_action=$41
        RETURNING company_name AS "companyName", slogan, email, phone, address,
                 currency, timezone, logo,
                 bank_name AS "bankName", bank_key AS "bankKey",
@@ -135,6 +138,7 @@ router.put('/', async (req, res) => {
                 ops_alert_production_priority AS "opsAlertProductionPriority",
                 ops_alert_quote_expiring      AS "opsAlertQuoteExpiring",
                 ops_alert_crm_stale           AS "opsAlertCrmStale",
+                ops_alert_pipeline_action     AS "opsAlertPipelineAction",
                 role_permissions AS "rolePermissions"`,
       [
         companyName, slogan, email, phone, address, currency, timezone, logo ?? null,
@@ -153,6 +157,7 @@ router.put('/', async (req, res) => {
         opsAlertDeliveryOverdue ?? true, opsAlertProductionPriority ?? true,
         opsAlertQuoteExpiring ?? true, opsAlertCrmStale ?? true,
         finalRolePermissions,
+        opsAlertPipelineAction ?? true,
       ]
     )
     const result = rows[0]

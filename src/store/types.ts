@@ -88,6 +88,7 @@ export interface CompanySettings {
   opsAlertProductionPriority: boolean
   opsAlertQuoteExpiring: boolean
   opsAlertCrmStale: boolean
+  opsAlertPipelineAction: boolean
   // Role → module edit/delete matrix shown and edited in Configuración →
   // Seguridad. Loosely typed here (not AppModule[]) to avoid a circular
   // import between this file and hooks/usePermissions.ts, which is the

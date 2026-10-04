@@ -56,6 +56,8 @@ function OppCard({
   const stageIdx  = STAGES.findIndex((s) => s.key === opp.stage)
   const nextStage = STAGES[stageIdx + 1]
   const { canDelete } = usePermissions()
+  const actionOverdue = opp.nextActionDate && opp.nextActionDate < today() && !['won','lost'].includes(opp.stage)
+  const actionToday    = opp.nextActionDate === today() && !['won','lost'].includes(opp.stage)
 
   return (
     <div
@@ -117,6 +119,21 @@ function OppCard({
           </span>
         )}
       </div>
+
+      {/* Next action reminder */}
+      {opp.nextActionDate && !['won','lost'].includes(opp.stage) && (
+        <div className={`flex items-center gap-1.5 text-xs rounded-lg px-2 py-1.5 mb-2 ${
+          actionOverdue ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold' :
+          actionToday   ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-semibold' :
+          'bg-slate-50 dark:bg-gray-700/40 text-slate-500 dark:text-gray-400'
+        }`}>
+          <Clock size={11} />
+          <span className="truncate">
+            {actionOverdue ? 'Vencido: ' : actionToday ? 'Hoy: ' : ''}
+            {opp.nextActionNote || 'Próxima acción'} · {fmt(opp.nextActionDate)}
+          </span>
+        </div>
+      )}
 
       {/* Next stage button */}
       {!['won','lost'].includes(opp.stage) && nextStage && (
@@ -203,6 +220,8 @@ function OppModal({ initial, onClose, defaultStage }: {
         quotationId:  form.quotationId ?? '',
         notes:        form.notes ?? '',
         lostReason:   form.lostReason ?? '',
+        nextActionDate: form.nextActionDate || undefined,
+        nextActionNote: form.nextActionNote ?? '',
         createdAt:    initial?.createdAt ?? today(),
         updatedAt:    today(),
       }
@@ -301,6 +320,20 @@ function OppModal({ initial, onClose, defaultStage }: {
                 <option value="">Sin asignar</option>
                 {sellers.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+            </div>
+          </div>
+
+          {/* Next action reminder */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Próxima acción (fecha)</label>
+              <input type="date" className="input" value={form.nextActionDate ?? ''}
+                onChange={(e) => set('nextActionDate', e.target.value || undefined)} />
+            </div>
+            <div>
+              <label className="label">Qué hay que hacer</label>
+              <input className="input" placeholder="Llamar, enviar cotización..."
+                value={form.nextActionNote ?? ''} onChange={(e) => set('nextActionNote', e.target.value)} />
             </div>
           </div>
 
@@ -421,6 +454,38 @@ export default function PipelinePage() {
 
   const allSellers = Array.from(new Set(opportunities.map((o) => o.assignedTo).filter(Boolean))) as string[]
 
+  // ── Conversion funnel + loss analytics ──────────────────────────────────────
+  // 'lost' doesn't reliably preserve which stage a deal was in when it was
+  // marked lost (the edit modal just overwrites the stage field), so the
+  // funnel only counts deals still live or won — it answers "of the deals
+  // that reached each stage, how many are still moving forward", not a true
+  // historical drop-off per stage.
+  const nonLost      = filtered.filter((o) => o.stage !== 'lost')
+  const funnelStages = STAGES.filter((s) => s.key !== 'lost')
+  const funnelCounts = funnelStages.map((s) => {
+    const idx = STAGES.findIndex((x) => x.key === s.key)
+    return { stage: s, count: nonLost.filter((o) => STAGES.findIndex((x) => x.key === o.stage) >= idx).length }
+  })
+  const leadCount  = funnelCounts[0]?.count ?? 0
+  const lostOpps   = filtered.filter((o) => o.stage === 'lost')
+  const closedN    = won.length + lostOpps.length
+  const lostRate   = closedN > 0 ? (lostOpps.length / closedN) * 100 : 0
+  const lostReasons = (() => {
+    const map = new Map<string, number>()
+    for (const o of lostOpps) {
+      const reason = o.lostReason?.trim() || 'Sin especificar'
+      map.set(reason, (map.get(reason) ?? 0) + 1)
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  })()
+  const avgDaysToWin = (() => {
+    const days = won
+      .filter((o) => o.createdAt && o.updatedAt)
+      .map((o) => (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime()) / 86400000)
+      .filter((d) => d >= 0)
+    return days.length > 0 ? days.reduce((a, b) => a + b, 0) / days.length : null
+  })()
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -454,6 +519,60 @@ export default function PipelinePage() {
         <StatCard icon={Target}     label="Tasa de conversión" value={`${convRate.toFixed(1)}%`}  accent="#8b5cf6" hint="Ganado / Total" />
         <StatCard icon={DollarSign} label="Ticket promedio"    value={formatCOP(avgDeal)}         accent="#f59e0b" hint="Por venta ganada" />
       </div>
+
+      {/* Conversion funnel + loss analytics */}
+      {filtered.length > 0 && (
+        <div className="card p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={15} className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">Embudo de conversión</h3>
+          </div>
+          <div className="space-y-2">
+            {funnelCounts.map(({ stage, count }) => {
+              const pct = leadCount > 0 ? (count / leadCount) * 100 : 0
+              return (
+                <div key={stage.key} className="flex items-center gap-3">
+                  <span className={`text-xs font-medium w-24 shrink-0 ${stage.color}`}>{stage.label}</span>
+                  <div className="flex-1 bg-slate-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
+                    <div
+                      className={`h-5 rounded-full flex items-center justify-end px-2 text-[10px] font-bold text-white transition-all ${
+                        stage.key === 'won' ? 'bg-emerald-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.max(pct, count > 0 ? 8 : 0)}%` }}
+                    >
+                      {count > 0 && count}
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-400 w-10 text-right shrink-0">{pct.toFixed(0)}%</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-100 dark:border-gray-700">
+            <div className="text-xs">
+              <span className="text-slate-400">Tasa de pérdida: </span>
+              <span className="font-semibold text-red-500">{closedN > 0 ? `${lostRate.toFixed(0)}%` : '—'}</span>
+              <span className="text-slate-400"> ({lostOpps.length} de {closedN} cerradas)</span>
+            </div>
+            {avgDaysToWin !== null && (
+              <div className="text-xs">
+                <span className="text-slate-400">Días promedio para ganar: </span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{avgDaysToWin.toFixed(0)}</span>
+              </div>
+            )}
+            {lostReasons.length > 0 && (
+              <div className="text-xs flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400">Motivos de pérdida:</span>
+                {lostReasons.map(([reason, n]) => (
+                  <span key={reason} className="px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-medium">
+                    {reason} ({n})
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       {allSellers.length > 0 && (
