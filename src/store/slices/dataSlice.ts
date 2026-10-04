@@ -82,6 +82,13 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         carteraReminderDays:  settings.carteraReminderDays  ?? defaultCompanySettings.carteraReminderDays,
         quoteAutoFollowup: settings.quoteAutoFollowup ?? defaultCompanySettings.quoteAutoFollowup,
         quoteFollowupDays: settings.quoteFollowupDays ?? defaultCompanySettings.quoteFollowupDays,
+        opsAlertsEnabled: settings.opsAlertsEnabled ?? defaultCompanySettings.opsAlertsEnabled,
+        opsAlertLowStock: settings.opsAlertLowStock ?? defaultCompanySettings.opsAlertLowStock,
+        opsAlertPoOverdue: settings.opsAlertPoOverdue ?? defaultCompanySettings.opsAlertPoOverdue,
+        opsAlertDeliveryOverdue: settings.opsAlertDeliveryOverdue ?? defaultCompanySettings.opsAlertDeliveryOverdue,
+        opsAlertProductionPriority: settings.opsAlertProductionPriority ?? defaultCompanySettings.opsAlertProductionPriority,
+        opsAlertQuoteExpiring: settings.opsAlertQuoteExpiring ?? defaultCompanySettings.opsAlertQuoteExpiring,
+        opsAlertCrmStale: settings.opsAlertCrmStale ?? defaultCompanySettings.opsAlertCrmStale,
       }
 
       set({ supplies, products, productionOrders, customers, saleOrders, recipes, quotations, activities, purchaseOrders, dispatches, expenses, opportunities, priceLists, suppliers, returns, payments, inventoryMovements, companySettings, dataLoaded: true })

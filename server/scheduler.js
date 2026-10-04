@@ -290,6 +290,167 @@ async function tickQuoteFollowUp() {
   }
 }
 
+// Throttle the ops-alerts "not connected" warning the same way as the others
+let lastOpsNotConnectedWarn = 0
+
+// Bridges the same conditions the in-app "smart alerts" bell already detects
+// (checkAlerts in src/store/slices/notificationsSlice.ts) out to the
+// company's own WhatsApp number, since those alerts otherwise only exist in
+// whoever's browser happens to be open. Each category sends at most one
+// digest message while its condition holds (tracked via a per-row or
+// per-settings "already alerted" timestamp, cleared once resolved so a
+// recurrence can alert again), batched into one message per category per
+// tick rather than one message per item.
+async function tickOpsAlerts() {
+  let settings
+  try {
+    const { rows } = await pool.query(
+      `SELECT ops_alerts_enabled AS "enabled", whatsapp,
+              ops_alert_low_stock           AS "lowStock",
+              ops_alert_po_overdue          AS "poOverdue",
+              ops_alert_delivery_overdue    AS "deliveryOverdue",
+              ops_alert_production_priority AS "productionPriority",
+              ops_alert_quote_expiring      AS "quoteExpiring",
+              ops_alert_crm_stale           AS "crmStale"
+       FROM settings WHERE id = 1`
+    )
+    settings = rows[0]
+  } catch {
+    return // settings table may not exist yet
+  }
+  if (!settings || settings.enabled === false) return
+  const phone = (settings.whatsapp || '').trim()
+  if (!phone) return
+
+  // Clear resolved conditions regardless of WhatsApp connectivity, so a
+  // condition that comes back later can alert again instead of staying
+  // permanently "already sent".
+  try {
+    await pool.query(`UPDATE supplies SET low_stock_alert_sent_at = NULL WHERE stock > min_stock AND low_stock_alert_sent_at IS NOT NULL`)
+    await pool.query(`UPDATE purchase_orders SET overdue_alert_sent_at = NULL WHERE (status NOT IN ('sent','partial') OR expected_date >= CURRENT_DATE) AND overdue_alert_sent_at IS NOT NULL`)
+    await pool.query(`UPDATE sale_orders SET delivery_overdue_alert_sent_at = NULL WHERE (status NOT IN ('confirmed','processing') OR delivery_date IS NULL OR delivery_date >= CURRENT_DATE) AND delivery_overdue_alert_sent_at IS NOT NULL`)
+    await pool.query(`UPDATE production_orders SET priority_alert_sent_at = NULL WHERE (status <> 'pending' OR priority <> 1) AND priority_alert_sent_at IS NOT NULL`)
+    await pool.query(`UPDATE quotations SET expiring_alert_sent_at = NULL WHERE status NOT IN ('draft','sent') AND expiring_alert_sent_at IS NOT NULL`)
+  } catch (e) {
+    console.error('scheduler: error limpiando alertas operativas resueltas', e.message)
+  }
+
+  const categories = []
+
+  if (settings.lowStock) {
+    const { rows } = await pool.query(
+      `SELECT id, name, stock::float, min_stock::float AS "minStock", unit
+       FROM supplies WHERE stock <= min_stock AND low_stock_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '⚠️ *Stock bajo*',
+      lines: rows.map((r) => `${r.name}: ${r.stock} ${r.unit} (mín. ${r.minStock})`),
+      mark: () => pool.query(`UPDATE supplies SET low_stock_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
+  }
+
+  if (settings.poOverdue) {
+    const { rows } = await pool.query(
+      `SELECT id, order_number, supplier, expected_date
+       FROM purchase_orders
+       WHERE status IN ('sent','partial') AND expected_date < CURRENT_DATE AND overdue_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '🚚 *Compras atrasadas*',
+      lines: rows.map((r) => `${r.order_number} — ${r.supplier} (esperada ${String(r.expected_date).split('T')[0]})`),
+      mark: () => pool.query(`UPDATE purchase_orders SET overdue_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
+  }
+
+  if (settings.deliveryOverdue) {
+    const { rows } = await pool.query(
+      `SELECT id, order_number, customer_name, delivery_date
+       FROM sale_orders
+       WHERE status IN ('confirmed','processing') AND delivery_date IS NOT NULL
+         AND delivery_date < CURRENT_DATE AND delivery_overdue_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '📦 *Entregas vencidas*',
+      lines: rows.map((r) => `${r.order_number} — ${r.customer_name} (debía ${String(r.delivery_date).split('T')[0]})`),
+      mark: () => pool.query(`UPDATE sale_orders SET delivery_overdue_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
+  }
+
+  if (settings.productionPriority) {
+    const { rows } = await pool.query(
+      `SELECT id, order_number, product
+       FROM production_orders
+       WHERE status = 'pending' AND priority = 1 AND priority_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '🏭 *Producción prioritaria sin iniciar*',
+      lines: rows.map((r) => `${r.order_number} — ${r.product}`),
+      mark: () => pool.query(`UPDATE production_orders SET priority_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
+  }
+
+  if (settings.quoteExpiring) {
+    const { rows } = await pool.query(
+      `SELECT id, quote_number, customer, valid_until
+       FROM quotations
+       WHERE status IN ('draft','sent') AND valid_until >= CURRENT_DATE
+         AND valid_until <= CURRENT_DATE + INTERVAL '3 days' AND expiring_alert_sent_at IS NULL`
+    )
+    if (rows.length > 0) categories.push({
+      header: '📋 *Cotizaciones por vencer*',
+      lines: rows.map((r) => `${r.quote_number} — ${r.customer} (vence ${String(r.valid_until).split('T')[0]})`),
+      mark: () => pool.query(`UPDATE quotations SET expiring_alert_sent_at = NOW() WHERE id = ANY($1)`, [rows.map((r) => r.id)]),
+    })
+  }
+
+  if (settings.crmStale) {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS cnt FROM customer_activities WHERE done = FALSE AND date < CURRENT_DATE - INTERVAL '7 days'`
+    )
+    const cnt = rows[0]?.cnt ?? 0
+    const { rows: s2 } = await pool.query(`SELECT crm_stale_alert_sent_at AS "sentAt" FROM settings WHERE id=1`)
+    const alreadySent = !!s2[0]?.sentAt
+    if (cnt === 0 && alreadySent) {
+      await pool.query(`UPDATE settings SET crm_stale_alert_sent_at = NULL WHERE id=1`)
+    } else if (cnt > 0 && !alreadySent) {
+      categories.push({
+        header: '👥 *Seguimientos CRM pendientes*',
+        lines: [`${cnt} seguimiento${cnt > 1 ? 's' : ''} de clientes sin completar desde hace más de 7 días.`],
+        mark: () => pool.query(`UPDATE settings SET crm_stale_alert_sent_at = NOW() WHERE id=1`),
+      })
+    }
+  }
+
+  if (categories.length === 0) return
+
+  const wa = getWhatsAppStatus()
+  if (wa.status !== 'connected') {
+    const now = Date.now()
+    if (now - lastOpsNotConnectedWarn > NOT_CONNECTED_WARN_INTERVAL_MS) {
+      lastOpsNotConnectedWarn = now
+      console.warn(
+        `⚠️  scheduler: ${categories.length} alerta(s) operativa(s) pendiente(s) pero WhatsApp está "${wa.status}". ` +
+        `Conecta WhatsApp en Configuración → WhatsApp para enviarlas.`
+      )
+    }
+    return
+  }
+
+  for (const cat of categories) {
+    const MAX_ITEMS = 15
+    const shown = cat.lines.slice(0, MAX_ITEMS)
+    const extra = cat.lines.length - shown.length
+    const message = `${cat.header}\n\n${shown.map((l) => `• ${l}`).join('\n')}` + (extra > 0 ? `\n\n...y ${extra} más.` : '')
+    try {
+      await sendWhatsAppMessage(phone, message)
+      await cat.mark()
+      console.log(`📤 Alerta operativa enviada: ${cat.header.replace(/\*/g, '')}`)
+    } catch (e) {
+      console.error(`scheduler: fallo al enviar alerta operativa (${cat.header}):`, e.message)
+    }
+  }
+}
+
 async function tick() {
   await loadTimezone()
   let due
@@ -364,12 +525,14 @@ export function startScheduler() {
     tick().catch((e) => console.error('scheduler tick error:', e.message))
     tickCartera().catch((e) => console.error('scheduler cartera tick error:', e.message))
     tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up tick error:', e.message))
+    tickOpsAlerts().catch((e) => console.error('scheduler ops alerts tick error:', e.message))
   }, TICK_MS)
   // first tick after a short delay so Baileys has time to connect
   setTimeout(() => {
     tick().catch((e) => console.error('scheduler initial tick error:', e.message))
     tickCartera().catch((e) => console.error('scheduler cartera initial tick error:', e.message))
     tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up initial tick error:', e.message))
+    tickOpsAlerts().catch((e) => console.error('scheduler ops alerts initial tick error:', e.message))
   }, 10_000)
   console.log('⏰ Scheduler de recordatorios iniciado (cada 60s)')
 }

@@ -79,6 +79,15 @@ export interface CompanySettings {
   // Seguimiento automático de cotizaciones por vencer
   quoteAutoFollowup: boolean
   quoteFollowupDays: number
+  // Alertas operativas (stock bajo, compras atrasadas, etc.) por WhatsApp
+  // al número de la empresa — puente del motor de alertas en la campanita.
+  opsAlertsEnabled: boolean
+  opsAlertLowStock: boolean
+  opsAlertPoOverdue: boolean
+  opsAlertDeliveryOverdue: boolean
+  opsAlertProductionPriority: boolean
+  opsAlertQuoteExpiring: boolean
+  opsAlertCrmStale: boolean
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,

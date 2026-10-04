@@ -32,7 +32,14 @@ router.get('/', async (req, res) => {
               cartera_auto_reminders AS "carteraAutoReminders",
               cartera_reminder_days  AS "carteraReminderDays",
               quote_auto_followup AS "quoteAutoFollowup",
-              quote_followup_days AS "quoteFollowupDays"
+              quote_followup_days AS "quoteFollowupDays",
+              ops_alerts_enabled            AS "opsAlertsEnabled",
+              ops_alert_low_stock           AS "opsAlertLowStock",
+              ops_alert_po_overdue          AS "opsAlertPoOverdue",
+              ops_alert_delivery_overdue    AS "opsAlertDeliveryOverdue",
+              ops_alert_production_priority AS "opsAlertProductionPriority",
+              ops_alert_quote_expiring      AS "opsAlertQuoteExpiring",
+              ops_alert_crm_stale           AS "opsAlertCrmStale"
        FROM settings WHERE id = 1`
     )
     const s = rows[0] ?? {}
@@ -53,6 +60,8 @@ router.put('/', async (req, res) => {
     monthlyGoal, taxRate, paymentMethods, taxRates, teamMembers,
     carteraAutoReminders, carteraReminderDays,
     quoteAutoFollowup, quoteFollowupDays,
+    opsAlertsEnabled, opsAlertLowStock, opsAlertPoOverdue, opsAlertDeliveryOverdue,
+    opsAlertProductionPriority, opsAlertQuoteExpiring, opsAlertCrmStale,
   } = req.body
   try {
     const { rows: existing } = await pool.query(
@@ -70,9 +79,12 @@ router.put('/', async (req, res) => {
          smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, invoice_prefix,
          monthly_goal, tax_rate, payment_methods, tax_rates, team_members,
          cartera_auto_reminders, cartera_reminder_days,
-         quote_auto_followup, quote_followup_days
+         quote_auto_followup, quote_followup_days,
+         ops_alerts_enabled, ops_alert_low_stock, ops_alert_po_overdue,
+         ops_alert_delivery_overdue, ops_alert_production_priority,
+         ops_alert_quote_expiring, ops_alert_crm_stale
        )
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39)
        ON CONFLICT (id) DO UPDATE SET
          company_name=$1, slogan=$2, email=$3, phone=$4, address=$5,
          currency=$6, timezone=$7, logo=$8,
@@ -83,7 +95,10 @@ router.put('/', async (req, res) => {
          invoice_prefix=$23, monthly_goal=$24, tax_rate=$25,
          payment_methods=$26, tax_rates=$27, team_members=$28,
          cartera_auto_reminders=$29, cartera_reminder_days=$30,
-         quote_auto_followup=$31, quote_followup_days=$32
+         quote_auto_followup=$31, quote_followup_days=$32,
+         ops_alerts_enabled=$33, ops_alert_low_stock=$34, ops_alert_po_overdue=$35,
+         ops_alert_delivery_overdue=$36, ops_alert_production_priority=$37,
+         ops_alert_quote_expiring=$38, ops_alert_crm_stale=$39
        RETURNING company_name AS "companyName", slogan, email, phone, address,
                 currency, timezone, logo,
                 bank_name AS "bankName", bank_key AS "bankKey",
@@ -104,7 +119,14 @@ router.put('/', async (req, res) => {
                 cartera_auto_reminders AS "carteraAutoReminders",
                 cartera_reminder_days  AS "carteraReminderDays",
                 quote_auto_followup AS "quoteAutoFollowup",
-                quote_followup_days AS "quoteFollowupDays"`,
+                quote_followup_days AS "quoteFollowupDays",
+                ops_alerts_enabled            AS "opsAlertsEnabled",
+                ops_alert_low_stock           AS "opsAlertLowStock",
+                ops_alert_po_overdue          AS "opsAlertPoOverdue",
+                ops_alert_delivery_overdue    AS "opsAlertDeliveryOverdue",
+                ops_alert_production_priority AS "opsAlertProductionPriority",
+                ops_alert_quote_expiring      AS "opsAlertQuoteExpiring",
+                ops_alert_crm_stale           AS "opsAlertCrmStale"`,
       [
         companyName, slogan, email, phone, address, currency, timezone, logo ?? null,
         bankName ?? '', bankKey ?? '', bankAccountType ?? '',
@@ -118,6 +140,9 @@ router.put('/', async (req, res) => {
         JSON.stringify(teamMembers ?? []),
         carteraAutoReminders ?? true, carteraReminderDays ?? 3,
         quoteAutoFollowup ?? true, quoteFollowupDays ?? 2,
+        opsAlertsEnabled ?? true, opsAlertLowStock ?? true, opsAlertPoOverdue ?? true,
+        opsAlertDeliveryOverdue ?? true, opsAlertProductionPriority ?? true,
+        opsAlertQuoteExpiring ?? true, opsAlertCrmStale ?? true,
       ]
     )
     const result = rows[0]

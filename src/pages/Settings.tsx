@@ -336,6 +336,13 @@ export default function Settings() {
         carteraReminderDays:  companySettings.carteraReminderDays,
         quoteAutoFollowup: companySettings.quoteAutoFollowup,
         quoteFollowupDays: companySettings.quoteFollowupDays,
+        opsAlertsEnabled: companySettings.opsAlertsEnabled,
+        opsAlertLowStock: companySettings.opsAlertLowStock,
+        opsAlertPoOverdue: companySettings.opsAlertPoOverdue,
+        opsAlertDeliveryOverdue: companySettings.opsAlertDeliveryOverdue,
+        opsAlertProductionPriority: companySettings.opsAlertProductionPriority,
+        opsAlertQuoteExpiring: companySettings.opsAlertQuoteExpiring,
+        opsAlertCrmStale: companySettings.opsAlertCrmStale,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -360,6 +367,13 @@ export default function Settings() {
   }
   const updateQuoteFollowupDays = async (days: number) => {
     await saveCompanySettings({ ...companySettings, quoteFollowupDays: days })
+  }
+
+  // ── Operational alerts bridge to WhatsApp (persisted in companySettings) ──
+  type OpsAlertField = 'opsAlertsEnabled' | 'opsAlertLowStock' | 'opsAlertPoOverdue'
+    | 'opsAlertDeliveryOverdue' | 'opsAlertProductionPriority' | 'opsAlertQuoteExpiring' | 'opsAlertCrmStale'
+  const toggleOpsAlert = async (field: OpsAlertField) => {
+    await saveCompanySettings({ ...companySettings, [field]: !companySettings[field] })
   }
 
   // ── Payment methods & tax rates (persisted in companySettings) ────────
@@ -1421,6 +1435,51 @@ export default function Settings() {
                       onChange={(e) => updateQuoteFollowupDays(Math.max(0, parseInt(e.target.value) || 0))}
                     />
                     <span className="text-xs text-slate-500 dark:text-gray-400">día(s) o menos para que venza</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Alertas operativas por WhatsApp</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Envía al WhatsApp de la empresa ({companySettings.whatsapp || 'configúralo arriba en Empresa'}) las mismas alertas que ya ves en la campanita — útil cuando nadie tiene la app abierta. Cada una se envía una sola vez mientras la condición siga activa.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.opsAlertsEnabled}
+                    onClick={() => toggleOpsAlert('opsAlertsEnabled')}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.opsAlertsEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.opsAlertsEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                {companySettings.opsAlertsEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {([
+                      ['opsAlertLowStock', 'Stock bajo'],
+                      ['opsAlertPoOverdue', 'Compras atrasadas'],
+                      ['opsAlertDeliveryOverdue', 'Entregas vencidas'],
+                      ['opsAlertProductionPriority', 'Producción prioritaria sin iniciar'],
+                      ['opsAlertQuoteExpiring', 'Cotizaciones por vencer'],
+                      ['opsAlertCrmStale', 'Seguimientos CRM vencidos'],
+                    ] as [OpsAlertField, string][]).map(([field, label]) => (
+                      <label key={field} className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={companySettings[field]}
+                          onChange={() => toggleOpsAlert(field)}
+                        />
+                        {label}
+                      </label>
+                    ))}
                   </div>
                 )}
               </div>

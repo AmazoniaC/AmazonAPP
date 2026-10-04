@@ -355,6 +355,26 @@ async function migrate() {
       ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS invoice_number TEXT;
       ALTER TABLE sale_orders ADD COLUMN IF NOT EXISTS invoice_date   DATE;
       ALTER TABLE sale_order_items ADD COLUMN IF NOT EXISTS variant_id TEXT;
+      -- Operational alerts bridge: sends the same conditions the in-app
+      -- "smart alerts" bell already detects (checkAlerts in
+      -- notificationsSlice.ts) out to the company's own WhatsApp, since
+      -- those alerts otherwise only exist in whoever's browser happens to
+      -- be open. One master switch + one switch per category, each with
+      -- its own "already alerted" timestamp so a condition that stays true
+      -- only triggers one message instead of one every tick.
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alerts_enabled           BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_low_stock          BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_po_overdue         BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_delivery_overdue   BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_production_priority BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_quote_expiring     BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_crm_stale         BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS crm_stale_alert_sent_at      TIMESTAMP;
+      ALTER TABLE supplies          ADD COLUMN IF NOT EXISTS low_stock_alert_sent_at TIMESTAMP;
+      ALTER TABLE purchase_orders   ADD COLUMN IF NOT EXISTS overdue_alert_sent_at   TIMESTAMP;
+      ALTER TABLE sale_orders       ADD COLUMN IF NOT EXISTS delivery_overdue_alert_sent_at TIMESTAMP;
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS priority_alert_sent_at  TIMESTAMP;
+      ALTER TABLE quotations        ADD COLUMN IF NOT EXISTS expiring_alert_sent_at  TIMESTAMP;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')

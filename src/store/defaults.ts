@@ -59,4 +59,11 @@ export const defaultCompanySettings: CompanySettings = {
   carteraReminderDays: 3,
   quoteAutoFollowup: true,
   quoteFollowupDays: 2,
+  opsAlertsEnabled: true,
+  opsAlertLowStock: true,
+  opsAlertPoOverdue: true,
+  opsAlertDeliveryOverdue: true,
+  opsAlertProductionPriority: true,
+  opsAlertQuoteExpiring: true,
+  opsAlertCrmStale: true,
 }
