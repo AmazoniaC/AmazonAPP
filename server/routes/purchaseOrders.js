@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { pool }   from '../db.js'
+import { log, getUser } from '../audit.js'
+import { applyStockDelta } from '../inventory.js'
 
 const router = Router()
 
@@ -52,6 +54,65 @@ router.put('/:id', async (req, res) => {
     )
     res.json({ id: req.params.id })
   } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Receive goods against a PO: merges received quantities into the items,
+// recomputes status (partial/received), and — unlike the old client-side
+// loop this replaces — atomically credits each supply's stock AND logs an
+// inventory movement for it in the same transaction, so a failure partway
+// through never leaves stock updated with no record of why.
+router.put('/:id/receive', async (req, res) => {
+  const { receivedQtyMap } = req.body
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows } = await client.query('SELECT * FROM purchase_orders WHERE id=$1 FOR UPDATE', [req.params.id])
+    if (rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Not found' })
+    }
+    const order = rows[0]
+    const items = order.items ?? []
+    const updatedItems = items.map((item) => ({
+      ...item,
+      receivedQty: (item.receivedQty ?? 0) + (receivedQtyMap?.[item.supplyId] ?? 0),
+    }))
+    const allReceived = updatedItems.every((i) => (i.receivedQty ?? 0) >= i.qty)
+    const anyReceived = updatedItems.some((i) => (i.receivedQty ?? 0) > 0)
+    const newStatus = allReceived ? 'received' : anyReceived ? 'partial' : order.status
+    const receivedDate = newStatus === 'received' ? new Date().toISOString().split('T')[0] : order.received_date
+
+    await client.query(
+      `UPDATE purchase_orders SET items=$1, status=$2, received_date=$3 WHERE id=$4`,
+      [JSON.stringify(updatedItems), newStatus, receivedDate, req.params.id]
+    )
+
+    const u = getUser(req)
+    let seq = 0
+    for (const [supplyId, qty] of Object.entries(receivedQtyMap ?? {})) {
+      if (!qty) continue
+      await applyStockDelta(client, {
+        id: `im_${req.params.id}_${supplyId}_${Date.now()}_${seq++}`,
+        itemId: supplyId,
+        itemType: 'supply',
+        delta: qty,
+        movementType: 'entry',
+        reference: order.order_number,
+        notes: `Recepción OC ${order.order_number} — ${order.supplier}`,
+        createdBy: u.name,
+      })
+    }
+
+    await client.query('COMMIT')
+    await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Orden de compra', entityId: req.params.id, entityName: order.order_number, details: `recepción → ${newStatus}` })
+    const { rows: fresh } = await pool.query('SELECT * FROM purchase_orders WHERE id=$1', [req.params.id])
+    res.json(toRow(fresh[0]))
+  } catch (e) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: e.message })
+  } finally {
+    client.release()
+  }
 })
 
 router.delete('/:id', async (req, res) => {

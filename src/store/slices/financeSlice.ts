@@ -114,14 +114,42 @@ export const createFinanceSlice: StateCreator<AppState, [], [], FinanceSlice> = 
   },
 
   // ── Returns ─────────────────────────────────────────────────────────────
+  // A return landing on 'approved'/'refunded' puts its items back into
+  // product stock — done atomically server-side (one transaction, one
+  // inventory_movements row per item, 'restocked' flag returned so it only
+  // ever happens once). These helpers just mirror that into local state.
   addReturn: async (r) => {
-    await apiFetch('/api/returns', { method: 'POST', body: JSON.stringify(r) })
-    set((st) => ({ returns: [r, ...st.returns] }))
+    const res = await apiFetch<{ id: string; restocked?: boolean }>('/api/returns', {
+      method: 'POST', body: JSON.stringify(r),
+    })
+    const stored: Return = res.restocked ? { ...r, restockedAt: new Date().toISOString() } : r
+    set((st) => ({
+      returns: [stored, ...st.returns],
+      products: res.restocked
+        ? st.products.map((p) => {
+            const item = r.items.find((i) => i.productId === p.id)
+            return item ? { ...p, stock: p.stock + item.qty } : p
+          })
+        : st.products,
+    }))
     toast.success('Devolución registrada')
   },
   updateReturn: async (r) => {
-    await apiFetch(`/api/returns/${r.id}`, { method: 'PUT', body: JSON.stringify(r) })
-    set((st) => ({ returns: st.returns.map((x) => x.id === r.id ? r : x) }))
+    const prev = get().returns.find((x) => x.id === r.id)
+    const willRestock = !prev?.restockedAt && ['approved', 'refunded'].includes(r.status)
+    const res = await apiFetch<{ id: string; customer: string; restockedAt?: string }>(`/api/returns/${r.id}`, {
+      method: 'PUT', body: JSON.stringify(r),
+    })
+    const updated: Return = { ...r, restockedAt: res.restockedAt ?? r.restockedAt }
+    set((st) => ({
+      returns: st.returns.map((x) => x.id === r.id ? updated : x),
+      products: willRestock
+        ? st.products.map((p) => {
+            const item = r.items.find((i) => i.productId === p.id)
+            return item ? { ...p, stock: p.stock + item.qty } : p
+          })
+        : st.products,
+    }))
     toast.success('Devolución actualizada')
   },
   deleteReturn: async (id) => {

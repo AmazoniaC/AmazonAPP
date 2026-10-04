@@ -42,35 +42,24 @@ export const createPurchasingSlice: StateCreator<AppState, [], [], PurchasingSli
     toast.success('Orden de compra eliminada')
   },
   receivePurchaseOrder: async (id, receivedQtyMap) => {
-    const s = get()
-    const order = s.purchaseOrders.find((x) => x.id === id)
-    if (!order) return
-
-    const updatedItems = order.items.map((item) => ({
-      ...item,
-      receivedQty: (item.receivedQty ?? 0) + (receivedQtyMap[item.supplyId] ?? 0),
-    }))
-    const allReceived = updatedItems.every((i) => (i.receivedQty ?? 0) >= i.qty)
-    const anyReceived = updatedItems.some((i) => (i.receivedQty ?? 0) > 0)
-    const newStatus: PurchaseOrder['status'] = allReceived ? 'received' : anyReceived ? 'partial' : order.status
-
-    const updated: PurchaseOrder = {
-      ...order, items: updatedItems, status: newStatus,
-      receivedDate: newStatus === 'received' ? new Date().toISOString().split('T')[0] : order.receivedDate,
-    }
-
-    await apiFetch(`/api/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(updated) })
-
-    // Update supply stock for received quantities
-    const updatedSupplies = s.supplies.map((sup) => {
-      const qty = receivedQtyMap[sup.id]
-      if (!qty) return sup
-      const newSup = { ...sup, stock: parseFloat((sup.stock + qty).toFixed(4)) }
-      apiFetch(`/api/supplies/${sup.id}`, { method: 'PUT', body: JSON.stringify(newSup) })
-      return newSup
+    // The server does this atomically in one transaction — merges received
+    // quantities into the items, recomputes status, credits each supply's
+    // stock, and logs an inventory movement for every item received, all or
+    // nothing. (It used to be a client-side loop of individual, unawaited
+    // PUTs with no movement logged at all — a failure partway through left
+    // stock half-updated with no audit trail of what happened.)
+    const updated = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${id}/receive`, {
+      method: 'PUT', body: JSON.stringify({ receivedQtyMap }),
     })
-
-    set((curr) => ({ purchaseOrders: curr.purchaseOrders.map((x) => x.id === id ? updated : x), supplies: updatedSupplies }))
+    set((s) => ({
+      purchaseOrders: s.purchaseOrders.map((x) => x.id === id ? updated : x),
+      supplies: s.supplies.map((sup) => {
+        const qty = receivedQtyMap[sup.id]
+        if (!qty) return sup
+        return { ...sup, stock: parseFloat((sup.stock + qty).toFixed(4)) }
+      }),
+    }))
+    toast.success('Mercancía recibida')
     // Re-run alerts: stock levels changed after receiving
     setTimeout(() => get().checkAlerts(), 0)
   },

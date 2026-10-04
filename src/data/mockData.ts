@@ -259,6 +259,7 @@ export interface Return {
   refundMethod: string
   notes: string
   createdAt?: string
+  restockedAt?: string   // set once the returned items are put back into stock
 }
 
 // ── Supplies ────────────────────────────────

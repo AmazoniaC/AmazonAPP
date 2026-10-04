@@ -41,6 +41,14 @@ describe('createInventoryMovementSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts production and return movement types', () => {
+    // These are in the frontend's InventoryMovement union and in
+    // InventoryMovements.tsx's MOVEMENT_META, but used to be missing here —
+    // every call logging one was silently rejected and swallowed.
+    expect(createInventoryMovementSchema.safeParse({ ...valid, movementType: 'production' }).success).toBe(true)
+    expect(createInventoryMovementSchema.safeParse({ ...valid, movementType: 'return' }).success).toBe(true)
+  })
+
   it('rejects negative quantity', () => {
     const result = createInventoryMovementSchema.safeParse({ ...valid, quantity: -10 })
     expect(result.success).toBe(false)

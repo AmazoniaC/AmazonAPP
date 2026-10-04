@@ -375,6 +375,10 @@ async function migrate() {
       ALTER TABLE sale_orders       ADD COLUMN IF NOT EXISTS delivery_overdue_alert_sent_at TIMESTAMP;
       ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS priority_alert_sent_at  TIMESTAMP;
       ALTER TABLE quotations        ADD COLUMN IF NOT EXISTS expiring_alert_sent_at  TIMESTAMP;
+      -- Marks the one time a return's accepted items were put back into
+      -- stock, so editing an already-restocked return again (e.g. just to
+      -- fix a note) never double-counts the restock.
+      ALTER TABLE returns ADD COLUMN IF NOT EXISTS restocked_at TIMESTAMP;
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')
