@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  Truck, Plus, Search, X, Trash2, Edit2, AlertCircle,
-  Phone, Mail, MapPin, CheckCircle, XCircle, Building2, Layers,
+  Truck, Plus, Search, X, Trash2, Edit2, AlertCircle, AlertTriangle,
+  Phone, Mail, MapPin, CheckCircle, XCircle, Building2, Layers, ArrowUpDown,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Supplier } from '../data/mockData'
@@ -13,6 +13,55 @@ import { formatCOP } from '../utils/currency'
 import * as XLSX from 'xlsx'
 
 const CATEGORIES = ['Cementos', 'Agregados', 'Pigmentos', 'Refuerzos', 'Acabados', 'Auxiliares', 'Sustratos', 'Otro']
+
+// Minimum number of received orders with known dates before a compliance
+// percentage is trusted enough to show/sort by — one sample isn't a track
+// record, just noise.
+const MIN_SAMPLES_FOR_COMPLIANCE = 2
+const RISK_THRESHOLD_PCT = 70
+
+// ── Shared performance calc — used by both the card grid (badge + sort/risk)
+// and the detail modal (full breakdown), so the two never drift apart. ──────
+function supplierPerformance(supplier: Supplier, purchaseOrders: any[]) {
+  const supplierPOs = purchaseOrders.filter(
+    (po: any) => (po.supplier || '').toLowerCase() === supplier.name.toLowerCase()
+  )
+  const activePOs   = supplierPOs.filter((po: any) => po.status !== 'cancelled')
+  const receivedPOs = supplierPOs.filter((po: any) => po.status === 'received')
+
+  const totalSpend = activePOs.reduce((sum: number, po: any) => sum + (po.total || 0), 0)
+  const orderCount = supplierPOs.length
+  const avgOrderValue = orderCount > 0 ? totalSpend / activePOs.length : 0
+
+  const leadTimes = receivedPOs
+    .filter((po: any) => po.date && po.receivedDate)
+    .map((po: any) => {
+      const start = new Date(po.date + 'T12:00:00').getTime()
+      const end   = new Date(po.receivedDate + 'T12:00:00').getTime()
+      return Math.round((end - start) / 86400000)
+    })
+    .filter((n: number) => !isNaN(n) && n >= 0)
+  const avgActualLead = leadTimes.length > 0
+    ? Math.round(leadTimes.reduce((a: number, b: number) => a + b, 0) / leadTimes.length)
+    : null
+
+  const onTimeStats = receivedPOs
+    .filter((po: any) => po.expectedDate && po.receivedDate)
+    .map((po: any) => po.receivedDate <= po.expectedDate)
+  const sampleSize = onTimeStats.length
+  const onTimePct = sampleSize > 0
+    ? (onTimeStats.filter(Boolean).length / sampleSize) * 100
+    : null
+  const isAtRisk = onTimePct !== null && sampleSize >= MIN_SAMPLES_FOR_COMPLIANCE && onTimePct < RISK_THRESHOLD_PCT
+
+  return {
+    supplierPOs, activePOs, receivedPOs,
+    totalSpend, orderCount, avgOrderValue,
+    avgActualLead, onTimePct, sampleSize, isAtRisk,
+  }
+}
+
+type SortKey = 'name' | 'onTimeDesc' | 'onTimeAsc' | 'spendDesc'
 
 // ── Modal ───────────────────────────────────────────────────────────────────
 function SupplierModal({ initial, onClose }: { initial?: Supplier; onClose: () => void }) {
@@ -159,13 +208,25 @@ export default function SuppliersPage() {
   const [deleting, setDeleting] = useState<Supplier | null>(null)
   const [detail, setDetail] = useState<Supplier | null>(null)
   const [page, setPage] = useState(1)
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [riskOnly, setRiskOnly] = useState(false)
+
+  const perf = new Map(suppliers.map(s => [s.id, supplierPerformance(s, purchaseOrders)]))
+  const atRiskSuppliers = suppliers.filter(s => perf.get(s.id)?.isAtRisk)
 
   const filtered = suppliers.filter(s => {
     const q = search.toLowerCase()
     const match = !q || s.name.toLowerCase().includes(q) || s.contactName?.toLowerCase().includes(q) || s.city?.toLowerCase().includes(q)
     const catMatch = !catFilter || s.category === catFilter
     const actMatch = activeFilter === '' || String(s.isActive) === activeFilter
-    return match && catMatch && actMatch
+    const riskMatch = !riskOnly || perf.get(s.id)?.isAtRisk
+    return match && catMatch && actMatch && riskMatch
+  }).sort((a, b) => {
+    const pa = perf.get(a.id)!, pb = perf.get(b.id)!
+    if (sortKey === 'onTimeDesc') return (pb.onTimePct ?? -1) - (pa.onTimePct ?? -1)
+    if (sortKey === 'onTimeAsc')  return (pa.onTimePct ?? 101) - (pb.onTimePct ?? 101)
+    if (sortKey === 'spendDesc')  return pb.totalSpend - pa.totalSpend
+    return a.name.localeCompare(b.name)
   })
 
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -208,10 +269,15 @@ export default function SuppliersPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
         <StatCard icon={Building2} label="Total proveedores" value={suppliers.length} accent="#0f766e" />
         <StatCard icon={CheckCircle} label="Activos" value={totalActive} accent="#2563eb" />
         <StatCard icon={Layers} label="Categorías" value={categories.length} accent="#8b5cf6" />
+        <button onClick={() => { setRiskOnly(r => !r); setPage(1) }} className="text-left">
+          <StatCard icon={AlertTriangle} label="En riesgo" value={atRiskSuppliers.length}
+            accent={atRiskSuppliers.length > 0 ? '#dc2626' : '#94a3b8'}
+            hint={`Cumplimiento < ${RISK_THRESHOLD_PCT}%`} />
+        </button>
       </div>
 
       {/* Toolbar */}
@@ -230,6 +296,21 @@ export default function SuppliersPage() {
             <option value="true">Activos</option>
             <option value="false">Inactivos</option>
           </select>
+          <div className="relative">
+            <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <select className="input w-48 pl-8" value={sortKey} onChange={e => { setSortKey(e.target.value as SortKey); setPage(1) }}>
+              <option value="name">Ordenar: Nombre</option>
+              <option value="onTimeDesc">Mejor cumplimiento</option>
+              <option value="onTimeAsc">Peor cumplimiento</option>
+              <option value="spendDesc">Mayor gasto</option>
+            </select>
+          </div>
+          {riskOnly && (
+            <button onClick={() => setRiskOnly(false)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
+              <AlertTriangle size={12} /> Solo en riesgo <X size={12} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -241,8 +322,10 @@ export default function SuppliersPage() {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paged.map(s => (
-            <div key={s.id} className="card p-5 hover:shadow-lg transition-shadow">
+          {paged.map(s => {
+            const p = perf.get(s.id)!
+            return (
+            <div key={s.id} className={`card p-5 hover:shadow-lg transition-shadow ${p.isAtRisk ? 'border-red-200 dark:border-red-900' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-bold text-slate-800 dark:text-white">{s.name}</h3>
@@ -255,6 +338,17 @@ export default function SuppliersPage() {
               </div>
               {s.category && (
                 <span className="inline-block mb-3 px-2 py-0.5 bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 rounded text-xs">{s.category}</span>
+              )}
+              {/* Performance badge — on-time compliance from received POs */}
+              {p.onTimePct !== null && (
+                <div className={`inline-flex items-center gap-1.5 mb-3 px-2 py-1 rounded-lg text-xs font-semibold ${
+                  p.isAtRisk ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
+                  p.onTimePct >= 80 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+                  'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                }`}>
+                  {p.isAtRisk && <AlertTriangle size={11} />}
+                  Cumplimiento {p.onTimePct.toFixed(0)}% ({p.sampleSize} entregas)
+                </div>
               )}
               <div className="space-y-1.5 text-xs text-slate-500 dark:text-gray-400">
                 {s.email && <div className="flex items-center gap-1.5"><Mail size={12} /> {s.email}</div>}
@@ -296,7 +390,8 @@ export default function SuppliersPage() {
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -317,37 +412,10 @@ function SupplierDetailModal({ supplier, purchaseOrders, onClose, onEdit }: {
   onClose: () => void
   onEdit: () => void
 }) {
-  // POs by this supplier (matched by name — loose)
-  const supplierPOs = purchaseOrders.filter(
-    (po: any) => (po.supplier || '').toLowerCase() === supplier.name.toLowerCase()
-  )
-  const activePOs   = supplierPOs.filter((po: any) => po.status !== 'cancelled')
-  const receivedPOs = supplierPOs.filter((po: any) => po.status === 'received')
-
-  const totalSpend = activePOs.reduce((sum: number, po: any) => sum + (po.total || 0), 0)
-  const orderCount = supplierPOs.length
-  const avgOrderValue = orderCount > 0 ? totalSpend / activePOs.length : 0
-
-  // Actual lead-time performance (only for received orders where we know both dates)
-  const leadTimes = receivedPOs
-    .filter((po: any) => po.date && po.receivedDate)
-    .map((po: any) => {
-      const start = new Date(po.date + 'T12:00:00').getTime()
-      const end   = new Date(po.receivedDate + 'T12:00:00').getTime()
-      return Math.round((end - start) / 86400000)
-    })
-    .filter((n: number) => !isNaN(n) && n >= 0)
-  const avgActualLead = leadTimes.length > 0
-    ? Math.round(leadTimes.reduce((a: number, b: number) => a + b, 0) / leadTimes.length)
-    : null
-
-  // On-time %: received on or before expectedDate
-  const onTimeStats = receivedPOs
-    .filter((po: any) => po.expectedDate && po.receivedDate)
-    .map((po: any) => po.receivedDate <= po.expectedDate)
-  const onTimePct = onTimeStats.length > 0
-    ? (onTimeStats.filter(Boolean).length / onTimeStats.length) * 100
-    : null
+  const {
+    supplierPOs, activePOs, totalSpend, orderCount, avgOrderValue,
+    avgActualLead, onTimePct, sampleSize, receivedPOs,
+  } = supplierPerformance(supplier, purchaseOrders)
 
   // Items supplied — flatten from PO line items, dedupe by supply name
   const items: Record<string, { qty: number; lastPrice: number; count: number; lastDate: string }> = {}
@@ -427,7 +495,7 @@ function SupplierDetailModal({ supplier, purchaseOrders, onClose, onEdit }: {
                 {onTimePct !== null ? `${onTimePct.toFixed(0)}%` : '—'}
               </p>
               <p className="text-[10px] text-slate-400 dark:text-gray-500">
-                {onTimeStats.length > 0 ? `${onTimeStats.length} muestras` : 'sin datos'}
+                {sampleSize > 0 ? `${sampleSize} muestras` : 'sin datos'}
               </p>
             </div>
           </div>
