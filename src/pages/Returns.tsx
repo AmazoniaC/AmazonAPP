@@ -22,6 +22,16 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Cl
 
 const REFUND_METHODS = ['Nota crédito', 'Transferencia', 'Efectivo', 'Otro']
 
+// Curated reasons so the analytics panel below can actually group them —
+// before this, "Motivo" was free text and every return had its own wording,
+// which made "why are we getting returns" impossible to answer in aggregate.
+const RETURN_REASONS = [
+  'Producto defectuoso', 'Producto incorrecto enviado', 'Dañado en transporte',
+  'No cumple especificaciones', 'Cliente cambió de opinión', 'Error en el pedido',
+  'Calidad insuficiente',
+]
+const OTHER_REASON = 'Otro (especificar)'
+
 function fmt(d?: string) {
   if (!d) return '—'
   return new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -36,6 +46,11 @@ function ReturnModal({ initial, onClose }: { initial?: Return; onClose: () => vo
   })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [reasonCategory, setReasonCategory] = useState(() => {
+    const r = initial?.reason ?? ''
+    if (!r) return ''
+    return RETURN_REASONS.includes(r) ? r : OTHER_REASON
+  })
 
   const validate = () => {
     const e: Record<string, string> = {}
@@ -120,7 +135,21 @@ function ReturnModal({ initial, onClose }: { initial?: Return; onClose: () => vo
           </div>
           <div>
             <label className="label">Motivo *</label>
-            <textarea className={`input ${errors.reason ? 'border-red-400' : ''}`} rows={2} value={form.reason ?? ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Razón de la devolución..." />
+            <select className={`input ${errors.reason ? 'border-red-400' : ''}`} value={reasonCategory}
+              onChange={e => {
+                const v = e.target.value
+                setReasonCategory(v)
+                setForm(f => ({ ...f, reason: v === OTHER_REASON ? '' : v }))
+              }}>
+              <option value="">— Seleccionar —</option>
+              {RETURN_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+              <option value={OTHER_REASON}>{OTHER_REASON}</option>
+            </select>
+            {reasonCategory === OTHER_REASON && (
+              <input className={`input mt-2 ${errors.reason ? 'border-red-400' : ''}`}
+                value={form.reason ?? ''} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="Especifica el motivo..." />
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -189,7 +218,7 @@ function ReturnModal({ initial, onClose }: { initial?: Return; onClose: () => vo
 const PAGE_SIZE = 10
 
 export default function ReturnsPage() {
-  const { returns, deleteReturn } = useStore()
+  const { returns, deleteReturn, saleOrders } = useStore()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [modal, setModal] = useState<Return | 'new' | null>(null)
@@ -220,6 +249,55 @@ export default function ReturnsPage() {
   const totalValue = returns.reduce((s, r) => s + (r.total ?? 0), 0)
   const pendingCount = returns.filter(r => r.status === 'pending').length
   const refundedCount = returns.filter(r => r.status === 'refunded').length
+  const returnRate = saleOrders.length > 0 ? (totalReturns / saleOrders.length) * 100 : null
+
+  // ── Analytics: non-rejected returns (a rejected return wasn't a real
+  // product/process failure — including it would blame products/customers
+  // for something that didn't actually happen) ────────────────────────────
+  const validReturns = returns.filter(r => r.status !== 'rejected')
+  const topN = <T,>(map: Map<string, T>, n = 6) => [...map.entries()].slice(0, n)
+
+  const reasonCounts = (() => {
+    const map = new Map<string, { count: number; value: number }>()
+    for (const r of validReturns) {
+      const key = r.reason?.trim() || 'Sin especificar'
+      const cur = map.get(key) ?? { count: 0, value: 0 }
+      cur.count += 1
+      cur.value += r.total ?? 0
+      map.set(key, cur)
+    }
+    return topN(new Map([...map.entries()].sort((a, b) => b[1].count - a[1].count)))
+  })()
+
+  const productCounts = (() => {
+    const map = new Map<string, { count: number; qty: number }>()
+    for (const r of validReturns) {
+      for (const item of r.items ?? []) {
+        const key = item.product || 'Sin nombre'
+        const cur = map.get(key) ?? { count: 0, qty: 0 }
+        cur.count += 1
+        cur.qty += item.qty || 0
+        map.set(key, cur)
+      }
+    }
+    return topN(new Map([...map.entries()].sort((a, b) => b[1].count - a[1].count)))
+  })()
+
+  const customerCounts = (() => {
+    const map = new Map<string, { count: number; value: number }>()
+    for (const r of validReturns) {
+      const key = r.customer || 'Sin nombre'
+      const cur = map.get(key) ?? { count: 0, value: 0 }
+      cur.count += 1
+      cur.value += r.total ?? 0
+      map.set(key, cur)
+    }
+    return topN(new Map([...map.entries()].sort((a, b) => b[1].count - a[1].count)))
+  })()
+
+  const maxReasonCount   = Math.max(1, ...reasonCounts.map(([, v]) => v.count))
+  const maxProductCount  = Math.max(1, ...productCounts.map(([, v]) => v.count))
+  const maxCustomerCount = Math.max(1, ...customerCounts.map(([, v]) => v.count))
 
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc)
@@ -270,12 +348,72 @@ export default function ReturnsPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 stagger-children">
         <StatCard icon={RotateCcw} label="Total devoluciones" value={totalReturns} accent="#f43f5e" />
         <StatCard icon={FileText} label="Valor total" value={formatCOP(totalValue)} accent="#f59e0b" />
         <StatCard icon={Clock} label="Pendientes" value={pendingCount} accent="#10b981" />
         <StatCard icon={CheckCircle} label="Reembolsadas" value={refundedCount} accent="#2563eb" />
+        <StatCard icon={AlertCircle} label="Tasa de devolución" value={returnRate !== null ? `${returnRate.toFixed(1)}%` : '—'}
+          accent={returnRate !== null && returnRate > 10 ? '#dc2626' : '#8b5cf6'} hint="vs. órdenes de venta" />
       </div>
+
+      {/* Analytics: reasons, products, customers driving returns */}
+      {validReturns.length > 0 && (
+        <div className="card p-4">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">Analítica de devoluciones</h3>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2">Motivos más frecuentes</p>
+              <div className="space-y-2">
+                {reasonCounts.map(([reason, d]) => (
+                  <div key={reason}>
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <span className="text-slate-600 dark:text-gray-300 truncate pr-2">{reason}</span>
+                      <span className="text-slate-400 shrink-0">{d.count}</span>
+                    </div>
+                    <div className="bg-slate-100 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className="bg-rose-400 h-1.5 rounded-full" style={{ width: `${(d.count / maxReasonCount) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2">Productos más devueltos</p>
+              <div className="space-y-2">
+                {productCounts.length === 0 && <p className="text-xs text-slate-400">Sin datos</p>}
+                {productCounts.map(([product, d]) => (
+                  <div key={product}>
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <span className="text-slate-600 dark:text-gray-300 truncate pr-2">{product}</span>
+                      <span className="text-slate-400 shrink-0">{d.qty}u · {d.count}×</span>
+                    </div>
+                    <div className="bg-slate-100 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className="bg-amber-400 h-1.5 rounded-full" style={{ width: `${(d.count / maxProductCount) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2">Clientes con más devoluciones</p>
+              <div className="space-y-2">
+                {customerCounts.map(([customer, d]) => (
+                  <div key={customer}>
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <span className="text-slate-600 dark:text-gray-300 truncate pr-2">{customer}</span>
+                      <span className="text-slate-400 shrink-0">{d.count}</span>
+                    </div>
+                    <div className="bg-slate-100 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${(d.count / maxCustomerCount) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="card p-4">
