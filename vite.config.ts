@@ -15,6 +15,13 @@ export default defineConfig({
     // Es lo que permite abrir la app desde el celular con la IP del computador
     // (por ejemplo http://192.168.1.20:3000) estando en el mismo WiFi.
     host: true,
+    // Por defecto Vite rechaza peticiones cuyo Host no sea localhost/la IP
+    // local (protección contra DNS rebinding). El subdominio que da
+    // "cloudflared tunnel" cambia cada vez que se abre el túnel, así que en
+    // vez de listar uno fijo se permite cualquier subdominio de
+    // trycloudflare.com — necesario para compartir el catálogo público sin
+    // pagar un dominio propio.
+    allowedHosts: ['.trycloudflare.com'],
     proxy: {
       '/api': {
         // 127.0.0.1 en vez de "localhost": en Windows "localhost" puede resolver
