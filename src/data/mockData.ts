@@ -194,6 +194,7 @@ export interface Quotation {
   deliveryEstimate?: string; notes?: string; internalNotes?: string
   convertedToOrderId?: string
   priceListId?: string
+  source?: 'internal' | 'web'   // 'web' = creada por un cliente desde el catálogo público
 }
 
 export interface Supplier {

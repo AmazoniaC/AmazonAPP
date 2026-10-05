@@ -23,7 +23,11 @@ export function authMiddleware(req, res, next) {
   const isPublic = publicPaths.some(
     (r) => req.method === r.method && req.path === r.path
   )
-  if (isPublic) return next()
+  // Everything under /api/public/* is the public catalog's own surface
+  // (branding-only settings, order requests) — deliberately unauthenticated,
+  // scoped to just that prefix, and never the full /api/settings or any
+  // write route that isn't this one.
+  if (isPublic || req.path.startsWith('/api/public/')) return next()
 
   // JWT from Authorization header
   const authHeader = req.headers['authorization']

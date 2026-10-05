@@ -21,6 +21,7 @@ import settingsRouter       from './routes/settings.js'
 import resetRouter          from './routes/reset.js'
 import auditLogRouter       from './routes/auditLog.js'
 import quotationsRouter          from './routes/quotations.js'
+import publicRouter               from './routes/public.js'
 import customerActivitiesRouter  from './routes/customerActivities.js'
 import purchaseOrdersRouter      from './routes/purchaseOrders.js'
 import dispatchesRouter          from './routes/dispatches.js'
@@ -401,6 +402,11 @@ async function migrate() {
       ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS next_action_note TEXT DEFAULT '';
       ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS next_action_alert_sent_at TIMESTAMP;
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS ops_alert_pipeline_action BOOLEAN DEFAULT TRUE;
+      -- Marks a quotation created by a visitor through the public catalog's
+      -- "request an order" flow, so the Cotizaciones UI can flag it and
+      -- staff know it still needs a human review before anything is
+      -- promoted to a real sale.
+      ALTER TABLE quotations ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'internal';
     `)
     // Seed default admin if no users exist
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')
@@ -486,6 +492,18 @@ app.use('/api/', readLimiter)
 app.use('/api/', writeLimiter)
 app.use('/api/users/login', loginLimiter)
 
+// The only write endpoint reachable with no login at all — a much tighter
+// cap than the general writeLimiter so a bot can't flood Cotizaciones with
+// fake draft quotes (and spam WhatsApp notifications) from a single IP.
+const publicOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes, intente de nuevo más tarde' },
+})
+app.use('/api/public/order-requests', publicOrderLimiter)
+
 // ── Authentication middleware ───────────────────────────────────────────────
 app.use(authMiddleware)
 
@@ -501,6 +519,7 @@ app.use('/api/settings',          settingsRouter)
 app.use('/api/reset',             resetRouter)
 app.use('/api/audit',             auditLogRouter)
 app.use('/api/quotations',        quotationsRouter)
+app.use('/api/public',            publicRouter)
 app.use('/api/customer-activities', customerActivitiesRouter)
 app.use('/api/purchase-orders',    purchaseOrdersRouter)
 app.use('/api/dispatches',         dispatchesRouter)

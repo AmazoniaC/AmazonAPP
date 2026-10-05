@@ -12,7 +12,8 @@ router.get('/', async (req, res) => {
       `SELECT id, quote_number AS "quoteNumber", customer, customer_id AS "customerId",
               items, subtotal::float, tax::float, total::float, status,
               valid_until AS "validUntil", date, delivery_estimate AS "deliveryEstimate",
-              notes, internal_notes AS "internalNotes", converted_to_order_id AS "convertedToOrderId"
+              notes, internal_notes AS "internalNotes", converted_to_order_id AS "convertedToOrderId",
+              COALESCE(source, 'internal') AS "source"
        FROM quotations ORDER BY created_at DESC`
     )
     res.json(rows)

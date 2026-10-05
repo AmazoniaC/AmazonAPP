@@ -942,7 +942,14 @@ export default function Quotations() {
               return (
                 <tr key={q.id} className="table-row cursor-pointer" onClick={() => setDrawer(q)}>
                   <td className="px-4 py-3">
-                    <p className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">{q.quoteNumber}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">{q.quoteNumber}</p>
+                      {q.source === 'web' && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" title="Pedido recibido desde el catálogo público">
+                          Web
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-400 dark:text-gray-500">{q.date}</p>
                   </td>
                   <td className="px-4 py-3">

@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, ShoppingBag, MessageCircle, Share2, Check, Phone, Mail, MapPin, ChevronDown } from 'lucide-react'
+import {
+  Search, ShoppingBag, MessageCircle, Share2, Check, Phone, Mail, MapPin, ChevronDown,
+  ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2,
+} from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProductVariant {
@@ -59,6 +62,63 @@ const variantLabel = (v: ProductVariant) =>
 
 const cleanWA = (raw: string) => raw.replace(/\D/g, '')
 
+// ─── Cart ────────────────────────────────────────────────────────────────────
+interface CartItem {
+  productId: string
+  variantId?: string
+  name: string
+  price: number
+  unit: string
+  qty: number
+}
+
+const CART_KEY = 'public_cart'
+const cartItemKey = (productId: string, variantId?: string) => `${productId}::${variantId ?? ''}`
+
+function loadCart(): CartItem[] {
+  try {
+    const raw = sessionStorage.getItem(CART_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+function saveCart(items: CartItem[]) {
+  try { sessionStorage.setItem(CART_KEY, JSON.stringify(items)) } catch { /* private mode, etc. */ }
+}
+
+function useCart() {
+  const [items, setItems] = useState<CartItem[]>(() => loadCart())
+
+  const persist = (next: CartItem[]) => { setItems(next); saveCart(next) }
+
+  const addItem = (item: CartItem) => {
+    const key = cartItemKey(item.productId, item.variantId)
+    const existing = items.find((i) => cartItemKey(i.productId, i.variantId) === key)
+    const next = existing
+      ? items.map((i) => cartItemKey(i.productId, i.variantId) === key ? { ...i, qty: i.qty + item.qty } : i)
+      : [...items, item]
+    persist(next)
+  }
+  const updateQty = (productId: string, variantId: string | undefined, qty: number) => {
+    const key = cartItemKey(productId, variantId)
+    if (qty <= 0) {
+      persist(items.filter((i) => cartItemKey(i.productId, i.variantId) !== key))
+      return
+    }
+    persist(items.map((i) => cartItemKey(i.productId, i.variantId) === key ? { ...i, qty } : i))
+  }
+  const remove = (productId: string, variantId: string | undefined) => {
+    const key = cartItemKey(productId, variantId)
+    persist(items.filter((i) => cartItemKey(i.productId, i.variantId) !== key))
+  }
+  const clear = () => persist([])
+
+  const count = items.reduce((s, i) => s + i.qty, 0)
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0)
+
+  return { items, addItem, updateQty, remove, clear, count, total }
+}
+type UseCartReturn = ReturnType<typeof useCart>
+
 function buildWALink(product: Product, variant: ProductVariant | null, settings: Settings) {
   const varStr = variant ? ` — ${variantLabel(variant)}` : ''
   const price = (variant?.price ?? product.price)
@@ -73,17 +133,32 @@ function buildWALink(product: Product, variant: ProductVariant | null, settings:
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ product, settings, idx }: {
+function ProductCard({ product, settings, idx, cart }: {
   product: Product
   settings: Settings
   idx: number
+  cart: UseCartReturn
 }) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product.variants?.length ? product.variants[0] : null
   )
+  const [justAdded, setJustAdded] = useState(false)
 
   const price = selectedVariant?.price ?? product.price
   const waLink = buildWALink(product, selectedVariant, settings)
+
+  const handleAdd = () => {
+    cart.addItem({
+      productId: product.id,
+      variantId: selectedVariant?.id,
+      name: selectedVariant ? `${product.name} — ${variantLabel(selectedVariant)}` : product.name,
+      price,
+      unit: product.unit,
+      qty: 1,
+    })
+    setJustAdded(true)
+    setTimeout(() => setJustAdded(false), 1500)
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
@@ -135,20 +210,205 @@ function ProductCard({ product, settings, idx }: {
         )}
 
         {/* Price + CTA */}
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <div>
-            <p className="text-xl font-bold text-emerald-700">{formatCOP(price)}</p>
-            <p className="text-xs text-slate-400">por {product.unit}</p>
+        <div className="mt-auto">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div>
+              <p className="text-xl font-bold text-emerald-700">{formatCOP(price)}</p>
+              <p className="text-xs text-slate-400">por {product.unit}</p>
+            </div>
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Preguntar por WhatsApp"
+              className="flex items-center justify-center w-9 h-9 bg-green-50 hover:bg-green-100 text-green-600 rounded-xl transition-colors border border-green-200 shrink-0"
+            >
+              <MessageCircle size={16} />
+            </a>
           </div>
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors shadow-sm"
+          <button
+            onClick={handleAdd}
+            className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl transition-colors shadow-sm ${
+              justAdded ? 'bg-emerald-600 text-white' : 'bg-[#1B4332] hover:bg-[#2D6A4F] text-white'
+            }`}
           >
-            <MessageCircle size={15} />
-            Pedir
-          </a>
+            {justAdded ? <><Check size={15} /> Agregado</> : <><ShoppingCart size={15} /> Agregar al pedido</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Cart Drawer ──────────────────────────────────────────────────────────────
+function CartDrawer({ cart, onClose, onCheckout }: {
+  cart: UseCartReturn
+  onClose: () => void
+  onCheckout: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col animate-fadeIn">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} /> Tu pedido</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {cart.items.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <ShoppingCart size={36} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Tu carrito está vacío</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cart.items.map((item) => (
+                <div key={cartItemKey(item.productId, item.variantId)} className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
+                    <p className="text-xs text-slate-400">{formatCOP(item.price)} / {item.unit}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <button onClick={() => cart.updateQty(item.productId, item.variantId, item.qty - 1)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600">
+                        <Minus size={12} />
+                      </button>
+                      <span className="text-sm font-medium w-6 text-center">{item.qty}</span>
+                      <button onClick={() => cart.updateQty(item.productId, item.variantId, item.qty + 1)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600">
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-slate-800">{formatCOP(item.price * item.qty)}</p>
+                    <button onClick={() => cart.remove(item.productId, item.variantId)}
+                      className="text-red-400 hover:text-red-600 mt-1">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {cart.items.length > 0 && (
+          <div className="px-5 py-4 border-t border-slate-100 space-y-3">
+            <div className="flex items-center justify-between font-bold text-slate-800">
+              <span>Total</span>
+              <span>{formatCOP(cart.total)}</span>
+            </div>
+            <button onClick={onCheckout}
+              className="w-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold py-3 rounded-xl transition-colors">
+              Continuar pedido
+            </button>
+            <p className="text-[11px] text-slate-400 text-center">
+              Esto envía una solicitud de pedido — nuestro equipo la confirma antes de despachar.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Checkout Modal ───────────────────────────────────────────────────────────
+function CheckoutModal({ cart, onClose, onSuccess }: {
+  cart: UseCartReturn
+  onClose: () => void
+  onSuccess: (quoteNumber: string) => void
+}) {
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [notes, setNotes] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !phone.trim()) {
+      setError('Nombre y teléfono son requeridos')
+      return
+    }
+    setError('')
+    setSending(true)
+    try {
+      const res = await fetch('/api/public/order-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          customerEmail: email.trim() || undefined,
+          notes: notes.trim() || undefined,
+          items: cart.items.map((i) => ({ productId: i.productId, variantId: i.variantId, qty: i.qty })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'No se pudo enviar el pedido')
+      cart.clear()
+      onSuccess(data.quoteNumber)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo enviar el pedido')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+          <h2 className="font-bold text-slate-800">Confirmar pedido</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Nombre *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              placeholder="Tu nombre" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Teléfono / WhatsApp *</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              placeholder="300 123 4567" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Email (opcional)</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              placeholder="tu@email.com" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Notas de entrega (opcional)</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              placeholder="Dirección, horario preferido, etc." />
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-3 space-y-1">
+            {cart.items.map((item) => (
+              <div key={cartItemKey(item.productId, item.variantId)} className="flex justify-between text-xs text-slate-600">
+                <span>{item.name} × {item.qty}</span>
+                <span>{formatCOP(item.price * item.qty)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-sm font-bold text-slate-800 pt-1.5 mt-1.5 border-t border-slate-200">
+              <span>Total</span>
+              <span>{formatCOP(cart.total)}</span>
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+          <button onClick={handleSubmit} disabled={sending}
+            className="w-full bg-[#1B4332] hover:bg-[#2D6A4F] disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors">
+            {sending ? 'Enviando...' : 'Enviar pedido'}
+          </button>
         </div>
       </div>
     </div>
@@ -163,11 +423,15 @@ export default function PublicCatalog() {
   const [search, setSearch]       = useState('')
   const [category, setCategory]   = useState('Todos')
   const [copied, setCopied]       = useState(false)
+  const cart = useCart()
+  const [showCart, setShowCart]       = useState(false)
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
       fetch('/api/products').then(r => r.json()),
-      fetch('/api/settings').then(r => r.json()),
+      fetch('/api/public/settings').then(r => r.json()),
     ])
       .then(([prods, cfg]) => {
         setProducts(Array.isArray(prods) ? prods : [])
@@ -328,7 +592,7 @@ export default function PublicCatalog() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {co && filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} settings={co} idx={i} />
+              <ProductCard key={product.id} product={product} settings={co} idx={i} cart={cart} />
             ))}
           </div>
         )}
@@ -352,6 +616,54 @@ export default function PublicCatalog() {
           {co?.email && <span>{co.email}</span>}
         </div>
       </footer>
+
+      {/* ── Floating cart button ── */}
+      {cart.count > 0 && !showCart && !showCheckout && !confirmedQuote && (
+        <button
+          onClick={() => setShowCart(true)}
+          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold px-4 py-3 rounded-full shadow-lg transition-colors"
+        >
+          <ShoppingCart size={18} />
+          {cart.count} · {formatCOP(cart.total)}
+        </button>
+      )}
+
+      {showCart && (
+        <CartDrawer
+          cart={cart}
+          onClose={() => setShowCart(false)}
+          onCheckout={() => { setShowCart(false); setShowCheckout(true) }}
+        />
+      )}
+
+      {showCheckout && (
+        <CheckoutModal
+          cart={cart}
+          onClose={() => setShowCheckout(false)}
+          onSuccess={(quoteNumber) => { setShowCheckout(false); setConfirmedQuote(quoteNumber) }}
+        />
+      )}
+
+      {confirmedQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={32} className="text-emerald-600" />
+            </div>
+            <h2 className="font-bold text-slate-800 text-lg mb-1">¡Pedido recibido!</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Tu solicitud <span className="font-mono font-semibold">{confirmedQuote}</span> fue enviada.
+              Nuestro equipo te contactará pronto para confirmarla.
+            </p>
+            <button
+              onClick={() => setConfirmedQuote(null)}
+              className="w-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold py-2.5 rounded-xl transition-colors"
+            >
+              Seguir viendo el catálogo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
