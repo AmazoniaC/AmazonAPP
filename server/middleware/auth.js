@@ -27,7 +27,14 @@ export function authMiddleware(req, res, next) {
   // (branding-only settings, order requests) — deliberately unauthenticated,
   // scoped to just that prefix, and never the full /api/settings or any
   // write route that isn't this one.
-  if (isPublic || req.path.startsWith('/api/public/')) return next()
+  //
+  // Anything NOT under /api/* at all is the built frontend (static JS/CSS)
+  // or a client-side route (e.g. /catalogo, /dashboard) served via the SPA
+  // fallback when this Express process also serves the frontend (single-
+  // process deploys with no separate Vite server). The React app handles
+  // its own login screen and route guards; the server only needs to gate
+  // actual /api/* calls.
+  if (isPublic || req.path.startsWith('/api/public/') || !req.path.startsWith('/api/')) return next()
 
   // JWT from Authorization header
   const authHeader = req.headers['authorization']

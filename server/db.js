@@ -17,10 +17,22 @@ const { Pool, types } = pg
 // instead of letting `pg` convert it to a Date.
 types.setTypeParser(1082, (val) => val)
 
-export const pool = new Pool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     parseInt(process.env.DB_PORT || '5432'),
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD || 'erp123',
-  database: process.env.DB_NAME     || 'erp_amazonia',
-})
+// DATABASE_URL (a single connection string, as Neon/Supabase/Render give you)
+// takes priority over the individual DB_* vars used in local dev. Managed
+// Postgres providers require SSL and typically present a certificate that
+// isn't in Node's default trust store, so `rejectUnauthorized: false` is
+// needed — this still encrypts the connection, it just doesn't verify the
+// certificate chain, which is the standard trade-off for these providers
+// (the alternative, importing each provider's CA bundle, is overkill here).
+export const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
+  : new Pool({
+      host:     process.env.DB_HOST     || 'localhost',
+      port:     parseInt(process.env.DB_PORT || '5432'),
+      user:     process.env.DB_USER     || 'postgres',
+      password: process.env.DB_PASSWORD || 'erp123',
+      database: process.env.DB_NAME     || 'erp_amazonia',
+    })

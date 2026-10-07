@@ -3,7 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -536,6 +536,23 @@ app.use('/api/whatsapp',           whatsappRouter)
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 
+// In local dev, the frontend is served by Vite's own dev server (port 3000)
+// — nobody ever hits this. In a one-process deploy (e.g. Render free tier),
+// there's no separate Vite server, so this Express process also serves the
+// already-built frontend (`npm run build` → dist/) and falls back to
+// index.html for any non-API route, so client-side routes like /catalogo
+// work on a hard refresh instead of 404ing.
+const distPath = join(__dirname, '../dist')
+if (existsSync(distPath)) {
+  app.use(express.static(distPath))
+  // Express 5 (path-to-regexp v8+) requires a named wildcard — a bare '*'
+  // throws "Missing parameter name" at startup.
+  app.get('/*splat', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next()
+    res.sendFile(join(distPath, 'index.html'))
+  })
+}
+
 app.use((err, req, res, _next) => {
   console.error(`[${req.method} ${req.path}]`, err.message)
   const status = err.status || err.statusCode || 500
@@ -553,9 +570,11 @@ async function checkDatabase() {
     console.log(`✅ PostgreSQL conectado (${process.env.DB_NAME || 'erp_amazonia'})`)
     return true
   } catch (e) {
-    const host = process.env.DB_HOST || 'localhost'
+    const target = process.env.DATABASE_URL
+      ? 'la base de datos remota (DATABASE_URL)'
+      : `PostgreSQL en ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}`
     console.error(
-      `\n⚠️  No se pudo conectar a PostgreSQL en ${host}:${process.env.DB_PORT || 5432}\n` +
+      `\n⚠️  No se pudo conectar a ${target}\n` +
       `   Motivo: ${e.message}\n` +
       `   La API responderá con errores hasta que la base esté disponible.\n` +
       `   • Windows: inicia el servicio "postgresql-x64-16"\n` +
