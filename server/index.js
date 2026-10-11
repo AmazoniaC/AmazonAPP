@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { readFileSync, existsSync } from 'fs'
+import { randomBytes } from 'crypto'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -408,19 +409,34 @@ async function migrate() {
       -- promoted to a real sale.
       ALTER TABLE quotations ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'internal';
     `)
-    // Seed default admin if no users exist
+    // Seed a single admin account if no users exist yet. This used to also
+    // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with
+    // hardcoded passwords like 'maria123' directly in this file — harmless
+    // for a local-only demo, but this file lives in a public GitHub repo, so
+    // anyone could read those credentials and log into a real deployment.
+    // Real staff accounts get created from Configuración → Usuarios y roles
+    // instead. The admin's own initial password is never hardcoded either:
+    // set SEED_ADMIN_PASSWORD before the first deploy to choose it, or leave
+    // it unset and a random one is generated and printed ONCE to this log
+    // (visible only to whoever can see the server's own logs, never in git).
     const { rowCount } = await pool.query('SELECT 1 FROM users LIMIT 1')
     if (rowCount === 0) {
+      const generatedPassword = process.env.SEED_ADMIN_PASSWORD || randomBytes(9).toString('base64url')
       await pool.query(
         `INSERT INTO users (id, name, email, password, role, is_active)
-         VALUES ('u1','Admin General','admin@empresa.com','admin123','Administrador',true),
-                ('u2','María García','maria@empresa.com','maria123','Producción',true),
-                ('u3','Carlos López','carlos@empresa.com','carlos123','Producción',true),
-                ('u4','Ana Ramos','ana@empresa.com','ana123','Ventas',true),
-                ('u5','Roberto Méndez','roberto@empresa.com','roberto123','Inventario',false)
-         ON CONFLICT (id) DO NOTHING`
+         VALUES ('u1','Admin General','admin@empresa.com',$1,'Administrador',true)
+         ON CONFLICT (id) DO NOTHING`,
+        [generatedPassword]
       )
-      console.log('✅ Default users seeded')
+      if (process.env.SEED_ADMIN_PASSWORD) {
+        console.log('✅ Usuario admin creado con la contraseña de SEED_ADMIN_PASSWORD')
+      } else {
+        console.log(
+          `\n🔑 Usuario admin creado — admin@empresa.com / ${generatedPassword}\n` +
+          `   Guarda esta contraseña ahora: no se vuelve a mostrar. Cámbiala después\n` +
+          `   de tu primer login desde Configuración → Usuarios y roles.\n`
+        )
+      }
     }
     // Must run after the users table definitely exists and is seeded —
     // see the comment on hashExistingPasswords in routes/users.js for why
