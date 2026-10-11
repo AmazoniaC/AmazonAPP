@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 
 import { pool } from './db.js'
 import { authMiddleware } from './middleware/auth.js'
-import usersRouter          from './routes/users.js'
+import usersRouter, { hashExistingPasswords } from './routes/users.js'
 import emailRouter          from './routes/email.js'
 import suppliesRouter       from './routes/supplies.js'
 import productsRouter       from './routes/products.js'
@@ -422,6 +422,10 @@ async function migrate() {
       )
       console.log('✅ Default users seeded')
     }
+    // Must run after the users table definitely exists and is seeded —
+    // see the comment on hashExistingPasswords in routes/users.js for why
+    // this used to be a racy setTimeout instead of an awaited call here.
+    await hashExistingPasswords()
     console.log('✅ Migrations OK')
   } catch (e) {
     console.error('⚠️  Migration error:', e.message)

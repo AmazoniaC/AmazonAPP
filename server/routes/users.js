@@ -11,9 +11,18 @@ const SALT_ROUNDS = 10
 const router = Router()
 
 // ── Helper: hash existing plaintext passwords on first startup ──────────────
-// Runs once when the module loads. Passwords that are already bcrypt hashes
-// (starting with "$2b$" or "$2a$") are left untouched.
-async function hashExistingPasswords() {
+// Passwords that are already bcrypt hashes (starting with "$2b$" or "$2a$")
+// are left untouched. Exported so index.js's migrate() can await it right
+// after creating the users table and seeding the default accounts — it used
+// to fire on a fixed setTimeout instead, racing the schema migration. That
+// race was invisible against a local Postgres (always fast enough to win
+// it), but against a remote DB with real network latency (Neon, Render, any
+// hosted Postgres) the table sometimes didn't exist yet when the timer
+// fired, the migration errored out and never ran again, and the seeded
+// admin was left stuck with a plaintext password forever — bcrypt.compare
+// against a non-hash string always fails, so login for every default user
+// broke permanently on exactly this kind of deploy.
+export async function hashExistingPasswords() {
   try {
     const { rows } = await pool.query('SELECT id, password FROM users')
     for (const row of rows) {
@@ -27,8 +36,6 @@ async function hashExistingPasswords() {
     console.error('⚠️  Password migration error:', e.message)
   }
 }
-// Delay slightly so DB migrations in index.js run first
-setTimeout(hashExistingPasswords, 3000)
 
 // ── POST /api/users/login ─────────────────────────────────────────────────────
 router.post('/login', validate(loginSchema), async (req, res) => {
