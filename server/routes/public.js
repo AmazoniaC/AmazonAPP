@@ -182,6 +182,13 @@ router.post('/order-requests', validate(createPublicOrderSchema), async (req, re
         const lines = orderItems.map((i) => `• ${i.product} × ${i.qty}`)
         const msg = `🛒 *Nuevo pedido web* ${quoteNumber}\n\n${customerLabel} — ${customerPhone}\n\n${lines.join('\n')}\n\nTotal: $${total.toLocaleString('es-CO')}\n\nRevísalo en Cotizaciones.`
         await sendWhatsAppMessage(notifyPhone, msg)
+        console.log(`📤 Aviso de pedido web enviado a ${notifyPhone} (${quoteNumber})`)
+      } else {
+        // This used to fail completely silently — no error, no log — so a
+        // missing WhatsApp/phone in Configuración → Empresa looked
+        // indistinguishable from "working but nobody happened to order
+        // anything". Now it at least shows up in the server logs.
+        console.warn(`⚠️  public order-requests: pedido ${quoteNumber} recibido pero no hay WhatsApp/teléfono configurado en Configuración → Empresa — no se envió aviso.`)
       }
     } catch (e) {
       console.error('public order-requests: fallo al notificar por WhatsApp:', e.message)

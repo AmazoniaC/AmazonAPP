@@ -650,9 +650,17 @@ export default function Settings() {
                   🌐 Redes sociales (Factura)
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">WhatsApp (número)</label>
+                    <input className="input" value={company.whatsapp}
+                      placeholder="Ej: 573001234567"
+                      onChange={(e) => setCompany({ ...company, whatsapp: e.target.value })} />
+                    <p className="text-[10px] text-slate-400 dark:text-gray-500 mt-1">
+                      Con indicativo de país, sin espacios. Si lo dejas vacío, los pedidos del catálogo público y las alertas automáticas no tendrán a dónde avisarte.
+                    </p>
+                  </div>
                   {[
                     ['TikTok URL', 'tiktok'],
-                    ['WhatsApp (número)', 'whatsapp'],
                     ['Instagram URL', 'instagram'],
                     ['Instagram Handle (ej: @Amazoniaconcrete)', 'instagramHandle'],
                   ].map(([label, key]) => (
