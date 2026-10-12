@@ -38,7 +38,8 @@ router.get('/settings', async (_req, res) => {
     )
     res.json(rows[0] ?? {})
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    console.error('public settings error:', e.message)
+    res.status(500).json({ error: 'No se pudo cargar la información de la tienda.' })
   }
 })
 
@@ -159,7 +160,12 @@ router.post('/order-requests', validate(createPublicOrderSchema), async (req, re
     res.status(201).json({ ok: true, quoteNumber, total })
   } catch (e) {
     await client.query('ROLLBACK')
-    res.status(500).json({ error: e.message })
+    // Unlike the rest of this file's handlers (all gated behind a login),
+    // this one is reachable by anyone on the internet — a raw Postgres
+    // error message here could leak schema/column details to a stranger.
+    // The real message still goes to the server's own logs.
+    console.error('public order-requests error:', e.message)
+    res.status(500).json({ error: 'No se pudo procesar el pedido. Intenta de nuevo en unos minutos.' })
   } finally {
     client.release()
   }
