@@ -17,7 +17,6 @@ export function authMiddleware(req, res, next) {
   const publicPaths = [
     { method: 'POST', path: '/api/users/login' },
     { method: 'GET',  path: '/api/health' },
-    { method: 'GET',  path: '/api/products' },
   ]
 
   const isPublic = publicPaths.some(

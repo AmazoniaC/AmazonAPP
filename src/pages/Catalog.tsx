@@ -100,6 +100,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
     name: '', category: '', unit: 'u',
     stock: 0, price: 0, cost: 0,
     isActive: true, description: '', image: undefined, variants: [],
+    showInCatalog: true, isFeatured: false,
   })
   const [modalTab, setModalTab] = useState<'general' | 'variants'>('general')
 
@@ -224,6 +225,31 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
                 placeholder="Describe brevemente el producto..."
                 value={form.description ?? ''}
                 onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+
+            {/* Catálogo público */}
+            <div className="col-span-2 pt-3 border-t border-slate-100 dark:border-gray-700">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-gray-400 mb-3">Catálogo público</p>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 rounded text-amazonia-600"
+                    checked={form.showInCatalog ?? true}
+                    onChange={(e) => setForm({ ...form, showInCatalog: e.target.checked })} />
+                  <span className="text-sm text-slate-700 dark:text-gray-300">Mostrar en el catálogo público</span>
+                </label>
+                <p className="text-xs text-slate-400 dark:text-gray-500 ml-6 -mt-1">
+                  Desactívalo para seguir usando este producto internamente (producción, ventas) sin publicarlo todavía — por ejemplo mientras tomas la foto o defines el precio público.
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer mt-1">
+                  <input type="checkbox" className="w-4 h-4 rounded text-amber-500"
+                    checked={form.isFeatured ?? false}
+                    onChange={(e) => setForm({ ...form, isFeatured: e.target.checked })} />
+                  <span className="text-sm text-slate-700 dark:text-gray-300">⭐ Destacar en el catálogo</span>
+                </label>
+                <p className="text-xs text-slate-400 dark:text-gray-500 ml-6 -mt-1">
+                  Aparece primero, en la sección de productos destacados.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -745,6 +771,12 @@ function ProductCard({ product, soldUnits, revenue, onEdit, onDelete, onClick, o
             <span className={`badge ${product.isActive ? 'badge-green' : 'badge-gray'} text-xs`}>
               {product.isActive ? 'Activo' : 'Inactivo'}
             </span>
+            {product.isFeatured && (product.showInCatalog ?? true) && product.isActive && (
+              <span className="badge text-xs bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-900/40 dark:text-amber-300 dark:ring-amber-500/30">⭐ Destacado</span>
+            )}
+            {!(product.showInCatalog ?? true) && (
+              <span className="badge badge-gray text-xs" title="No aparece en el catálogo público">🔒 No público</span>
+            )}
           </div>
           <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button className="btn btn-sm btn-secondary flex items-center gap-1" onClick={onShare} title="Compartir">

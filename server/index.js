@@ -408,6 +408,13 @@ async function migrate() {
       -- staff know it still needs a human review before anything is
       -- promoted to a real sale.
       ALTER TABLE quotations ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'internal';
+      -- Catálogo público moderno: visibilidad y destacados se controlan por
+      -- producto, separado de isActive (un producto puede seguir activo para
+      -- producción/ventas internas sin estar listo para publicarse — falta
+      -- la foto, el precio público aún no está decidido, etc.).
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS show_in_catalog BOOLEAN DEFAULT TRUE;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with

@@ -23,6 +23,9 @@ export interface Product {
   unit: string; stock: number; price: number; cost: number
   isActive: boolean; recipeId?: string; image?: string; description?: string
   variants?: ProductVariant[]
+  showInCatalog?: boolean   // separate from isActive — controls public catalog visibility
+  isFeatured?: boolean      // highlighted in the public catalog's featured section
+  createdAt?: string
 }
 
 export interface Recipe {

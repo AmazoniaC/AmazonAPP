@@ -24,6 +24,36 @@ function nextOrderNumber(existingNumbers, prefix, pad = 3) {
   return `${prefix}${String(maxSeq + 1).padStart(pad, '0')}`
 }
 
+// Public-safe slice of products — never the full /api/products, which also
+// carries `cost`/`costOverride` (what the business pays, not what it
+// charges) and every inactive/hidden product. A visitor's network tab can
+// always see whatever this endpoint returns, so cost and hidden products
+// must never reach it in the first place, not just be hidden in the UI.
+router.get('/products', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, category, description, price::float, unit, image,
+              stock::float,
+              COALESCE(variants, '[]'::jsonb) AS variants,
+              is_featured AS "isFeatured",
+              to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
+       FROM products
+       WHERE is_active = TRUE AND show_in_catalog = TRUE
+       ORDER BY is_featured DESC, created_at DESC NULLS LAST`
+    )
+    const sanitized = rows.map((r) => ({
+      ...r,
+      variants: (r.variants || [])
+        .filter((v) => v.isActive !== false)
+        .map(({ costOverride, ...rest }) => rest),
+    }))
+    res.json(sanitized)
+  } catch (e) {
+    console.error('public products error:', e.message)
+    res.status(500).json({ error: 'No se pudo cargar el catálogo.' })
+  }
+})
+
 // Branding-only slice of settings — the public catalog needs the company
 // name/logo/contact info to render, but the full settings object also
 // carries bank details, SMTP credentials and the WhatsApp session state,

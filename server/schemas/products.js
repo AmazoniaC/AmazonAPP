@@ -2,10 +2,12 @@ import { z } from 'zod'
 
 const variantSchema = z.object({
   id: z.string().optional(),
-  color: z.string().optional(),
-  acabado: z.string().optional(),
-  price: z.number().min(0).optional(),
-  stock: z.number().min(0).optional(),
+  sku: z.string().optional(),
+  attributes: z.object({ color: z.string().optional(), acabado: z.string().optional() }).passthrough().default({}),
+  priceOverride: z.number().min(0).optional(),
+  costOverride: z.number().min(0).optional(),
+  stock: z.number().min(0).default(0),
+  isActive: z.boolean().default(true),
 }).passthrough()
 
 export const createProductSchema = z.object({
@@ -21,6 +23,8 @@ export const createProductSchema = z.object({
   image: z.string().default(''),
   recipeId: z.string().default(''),
   isActive: z.boolean().default(true),
+  showInCatalog: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
   variants: z.array(variantSchema).default([]),
 })
 

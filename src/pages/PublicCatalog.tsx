@@ -1,16 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Search, ShoppingBag, MessageCircle, Share2, Check, Phone, Mail, MapPin, ChevronDown,
-  ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2,
+  ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Star, SlidersHorizontal, ArrowUpDown,
+  PackageX, Sparkles,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProductVariant {
   id: string
-  sku: string
+  sku?: string
   attributes: Record<string, string>
   stock: number
-  price?: number
+  priceOverride?: number
 }
 
 interface Product {
@@ -20,7 +21,9 @@ interface Product {
   description: string
   price: number
   unit: string
-  isActive: boolean
+  stock: number
+  isFeatured?: boolean
+  createdAt?: string
   image?: string
   variants?: ProductVariant[]
 }
@@ -61,6 +64,25 @@ const variantLabel = (v: ProductVariant) =>
   Object.values(v.attributes).filter(Boolean).join(' / ')
 
 const cleanWA = (raw: string) => raw.replace(/\D/g, '')
+
+// A variant's own price if set, otherwise the product's base price — the
+// variant field is `priceOverride`, not `price`; using the wrong key here
+// silently fell back to the base price for every variant, no matter what
+// was configured in the admin catalog.
+const effectivePrice = (product: Product, variant: ProductVariant | null) =>
+  variant?.priceOverride ?? product.price
+
+// For sorting/filtering by price, a product with variants is represented by
+// its cheapest option — the usual "desde $X" convention.
+const productMinPrice = (product: Product) =>
+  product.variants?.length
+    ? Math.min(...product.variants.map((v) => v.priceOverride ?? product.price))
+    : product.price
+
+const isProductAvailable = (product: Product) =>
+  product.variants?.length
+    ? product.variants.some((v) => v.stock > 0)
+    : product.stock > 0
 
 // ─── Cart ────────────────────────────────────────────────────────────────────
 interface CartItem {
@@ -121,7 +143,7 @@ type UseCartReturn = ReturnType<typeof useCart>
 
 function buildWALink(product: Product, variant: ProductVariant | null, settings: Settings) {
   const varStr = variant ? ` — ${variantLabel(variant)}` : ''
-  const price = (variant?.price ?? product.price)
+  const price = effectivePrice(product, variant)
   const msg = encodeURIComponent(
     `Hola ${settings.companyName} 👋\n` +
     `Me interesa: *${product.name}*${varStr}\n` +
@@ -133,19 +155,21 @@ function buildWALink(product: Product, variant: ProductVariant | null, settings:
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ product, settings, idx, cart }: {
+function ProductCard({ product, settings, idx, cart, featured }: {
   product: Product
   settings: Settings
   idx: number
   cart: UseCartReturn
+  featured?: boolean
 }) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product.variants?.length ? product.variants[0] : null
   )
   const [justAdded, setJustAdded] = useState(false)
 
-  const price = selectedVariant?.price ?? product.price
+  const price = effectivePrice(product, selectedVariant)
   const waLink = buildWALink(product, selectedVariant, settings)
+  const available = selectedVariant ? selectedVariant.stock > 0 : product.stock > 0
 
   const handleAdd = () => {
     cart.addItem({
@@ -161,7 +185,9 @@ function ProductCard({ product, settings, idx, cart }: {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${
+      featured ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100'
+    }`}>
       {/* Image / Gradient placeholder */}
       <div className="h-48 flex-shrink-0 overflow-hidden relative">
         {product.image ? (
@@ -179,6 +205,18 @@ function ProductCard({ product, settings, idx, cart }: {
         <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-slate-700 text-xs font-semibold px-2 py-1 rounded-full shadow-sm">
           {catEmoji(product.category)} {product.category}
         </span>
+        {featured && (
+          <span className="absolute top-3 right-3 flex items-center gap-1 bg-amber-400 text-amber-950 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+            <Star size={11} fill="currentColor" /> Destacado
+          </span>
+        )}
+        {!available && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <span className="bg-white/95 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <PackageX size={13} /> Agotado
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -202,7 +240,7 @@ function ProductCard({ product, settings, idx, cart }: {
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 pr-8 appearance-none bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
               {product.variants.map(v => (
-                <option key={v.id} value={v.id}>{variantLabel(v)}</option>
+                <option key={v.id} value={v.id}>{variantLabel(v)}{v.stock <= 0 ? ' (agotado)' : ''}</option>
               ))}
             </select>
             <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -228,11 +266,13 @@ function ProductCard({ product, settings, idx, cart }: {
           </div>
           <button
             onClick={handleAdd}
+            disabled={!available}
             className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl transition-colors shadow-sm ${
+              !available ? 'bg-slate-200 text-slate-400 cursor-not-allowed' :
               justAdded ? 'bg-emerald-600 text-white' : 'bg-[#1B4332] hover:bg-[#2D6A4F] text-white'
             }`}
           >
-            {justAdded ? <><Check size={15} /> Agregado</> : <><ShoppingCart size={15} /> Agregar al pedido</>}
+            {!available ? 'Agotado' : justAdded ? <><Check size={15} /> Agregado</> : <><ShoppingCart size={15} /> Agregar al pedido</>}
           </button>
         </div>
       </div>
@@ -415,6 +455,18 @@ function CheckoutModal({ cart, onClose, onSuccess }: {
   )
 }
 
+// ─── Filters ──────────────────────────────────────────────────────────────────
+type SortKey = 'featured' | 'price-asc' | 'price-desc' | 'name' | 'newest'
+const SORT_LABELS: Record<SortKey, string> = {
+  featured: 'Destacados primero',
+  'price-asc': 'Precio: menor a mayor',
+  'price-desc': 'Precio: mayor a menor',
+  name: 'Nombre (A-Z)',
+  newest: 'Más nuevos',
+}
+
+function attrKey(k: string, v: string) { return `${k}::${v}` }
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PublicCatalog() {
   const [products, setProducts]   = useState<Product[]>([])
@@ -428,9 +480,17 @@ export default function PublicCatalog() {
   const [showCheckout, setShowCheckout] = useState(false)
   const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
 
+  // Filters
+  const [showFilters, setShowFilters] = useState(false)
+  const [sortBy, setSortBy]           = useState<SortKey>('featured')
+  const [priceMin, setPriceMin]       = useState('')
+  const [priceMax, setPriceMax]       = useState('')
+  const [onlyAvailable, setOnlyAvailable] = useState(false)
+  const [selectedAttrs, setSelectedAttrs] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     Promise.all([
-      fetch('/api/products').then(r => r.json()),
+      fetch('/api/public/products').then(r => r.json()),
       fetch('/api/public/settings').then(r => r.json()),
     ])
       .then(([prods, cfg]) => {
@@ -441,15 +501,60 @@ export default function PublicCatalog() {
       .finally(() => setLoading(false))
   }, [])
 
-  const active = useMemo(() => products.filter(p => p.isActive), [products])
+  // The server already returns only active + publicly-visible products.
+  const all = products
 
   const categories = useMemo(() => {
-    const cats = [...new Set(active.map(p => p.category))].sort()
+    const cats = [...new Set(all.map(p => p.category))].sort()
     return ['Todos', ...cats]
-  }, [active])
+  }, [all])
+
+  // Distinct variant attribute values across the whole catalog, grouped by
+  // key (e.g. { color: ['Rojo','Gris'], acabado: ['Mate','Brillante'] }) —
+  // the facets shown as filter chips.
+  const attrOptions = useMemo(() => {
+    const map: Record<string, Set<string>> = {}
+    for (const p of all) {
+      for (const v of p.variants ?? []) {
+        for (const [k, val] of Object.entries(v.attributes)) {
+          if (!val) continue
+          ;(map[k] ??= new Set()).add(val)
+        }
+      }
+    }
+    return Object.fromEntries(Object.entries(map).map(([k, s]) => [k, [...s].sort()]))
+  }, [all])
+
+  const featuredProducts = useMemo(() => all.filter(p => p.isFeatured), [all])
+
+  const noOtherFiltersActive = category === 'Todos' && search.trim() === '' &&
+    !priceMin && !priceMax && !onlyAvailable && selectedAttrs.size === 0
+
+  const toggleAttr = (k: string, v: string) => {
+    const key = attrKey(k, v)
+    setSelectedAttrs(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const productMatchesAttrs = (product: Product) => {
+    if (selectedAttrs.size === 0) return true
+    if (!product.variants?.length) return false
+    const byKey: Record<string, string[]> = {}
+    for (const s of selectedAttrs) {
+      const [k, v] = s.split('::')
+      ;(byKey[k] ??= []).push(v)
+    }
+    return Object.entries(byKey).every(([k, vals]) =>
+      product.variants!.some(v => vals.includes(v.attributes[k] ?? ''))
+    )
+  }
 
   const filtered = useMemo(() => {
-    let list = active
+    let list = all
     if (category !== 'Todos') list = list.filter(p => p.category === category)
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -459,8 +564,27 @@ export default function PublicCatalog() {
         (p.description ?? '').toLowerCase().includes(q)
       )
     }
-    return list
-  }, [active, category, search])
+    const min = priceMin ? Number(priceMin) : null
+    const max = priceMax ? Number(priceMax) : null
+    if (min !== null) list = list.filter(p => productMinPrice(p) >= min)
+    if (max !== null) list = list.filter(p => productMinPrice(p) <= max)
+    if (onlyAvailable) list = list.filter(isProductAvailable)
+    if (selectedAttrs.size > 0) list = list.filter(productMatchesAttrs)
+
+    const sorted = [...list]
+    switch (sortBy) {
+      case 'price-asc':  sorted.sort((a, b) => productMinPrice(a) - productMinPrice(b)); break
+      case 'price-desc': sorted.sort((a, b) => productMinPrice(b) - productMinPrice(a)); break
+      case 'name':       sorted.sort((a, b) => a.name.localeCompare(b.name)); break
+      case 'newest':     sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')); break
+      default:           sorted.sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured))
+    }
+    return sorted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, category, search, priceMin, priceMax, onlyAvailable, selectedAttrs, sortBy])
+
+  const activeFilterCount =
+    (priceMin ? 1 : 0) + (priceMax ? 1 : 0) + (onlyAvailable ? 1 : 0) + selectedAttrs.size
 
   const handleShare = () => {
     const url = window.location.href
@@ -487,16 +611,20 @@ export default function PublicCatalog() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ── Hero Header ── */}
-      <header className="bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white">
-        <div className="max-w-6xl mx-auto px-4 py-10">
+      {/* ── Hero ── */}
+      <header className="relative overflow-hidden bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#1B4332] text-white">
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        />
+        <div className="relative max-w-6xl mx-auto px-4 py-12 md:py-16">
           <div className="flex flex-col md:flex-row items-center gap-6">
             {/* Logo */}
             <div className="flex-shrink-0">
               {co?.logo ? (
-                <img src={co.logo} alt={co.companyName} className="h-24 w-24 rounded-2xl object-contain bg-white p-1 shadow-lg" />
+                <img src={co.logo} alt={co.companyName} className="h-24 w-24 rounded-2xl object-contain bg-white p-1 shadow-xl" />
               ) : (
-                <div className="h-24 w-24 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg">
+                <div className="h-24 w-24 rounded-2xl bg-white/20 flex items-center justify-center shadow-xl">
                   <ShoppingBag size={40} className="text-white/80" />
                 </div>
               )}
@@ -504,13 +632,16 @@ export default function PublicCatalog() {
 
             {/* Info */}
             <div className="flex-1 text-center md:text-left">
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+              <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm text-emerald-100 text-xs font-semibold px-3 py-1 rounded-full mb-2">
+                <Sparkles size={12} /> Catálogo en línea
+              </span>
+              <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">
                 {co?.companyName ?? 'Catálogo'}
               </h1>
               {co?.slogan && (
-                <p className="mt-1 text-emerald-200 text-lg">{co.slogan}</p>
+                <p className="mt-2 text-emerald-200 text-lg">{co.slogan}</p>
               )}
-              <div className="mt-3 flex flex-wrap items-center justify-center md:justify-start gap-4 text-emerald-100 text-sm">
+              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-4 text-emerald-100 text-sm">
                 {co?.phone && (
                   <span className="flex items-center gap-1"><Phone size={13} />{co.phone}</span>
                 )}
@@ -520,6 +651,11 @@ export default function PublicCatalog() {
                 {co?.address && (
                   <span className="flex items-center gap-1"><MapPin size={13} />{co.address}</span>
                 )}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs text-emerald-100/80">
+                <span>{all.length} producto{all.length === 1 ? '' : 's'}</span>
+                <span className="opacity-40">·</span>
+                <span>{categories.length - 1} categoría{categories.length - 1 === 1 ? '' : 's'}</span>
               </div>
             </div>
 
@@ -546,38 +682,144 @@ export default function PublicCatalog() {
         </div>
       </header>
 
-      {/* ── Filters ── */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-3 items-center">
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar productos…"
-              className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            />
-          </div>
-
-          {/* Category tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-0.5 flex-1">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`flex-shrink-0 text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  category === cat
-                    ? 'bg-[#1B4332] text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {cat !== 'Todos' && catEmoji(cat)} {cat}
-              </button>
+      {/* ── Featured strip ── */}
+      {featuredProducts.length > 0 && noOtherFiltersActive && co && (
+        <section className="max-w-6xl mx-auto px-4 pt-8">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 mb-3">
+            <Star size={18} className="text-amber-500" fill="currentColor" /> Destacados
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+            {featuredProducts.map((product, i) => (
+              <div key={product.id} className="w-64 flex-shrink-0">
+                <ProductCard product={product} settings={co} idx={i} cart={cart} featured />
+              </div>
             ))}
           </div>
+        </section>
+      )}
 
-          <p className="text-xs text-slate-400 flex-shrink-0">{filtered.length} productos</p>
+      {/* ── Filters ── */}
+      <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            {/* Search */}
+            <div className="relative w-full sm:w-64">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar productos…"
+                className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+
+            {/* Category tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-0.5 flex-1">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`flex-shrink-0 text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    category === cat
+                      ? 'bg-[#1B4332] text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat !== 'Todos' && catEmoji(cat)} {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Sort */}
+            <div className="relative flex-shrink-0">
+              <ArrowUpDown size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as SortKey)}
+                className="border border-slate-200 rounded-lg pl-7 pr-7 py-2 text-xs font-medium text-slate-600 bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+
+            {/* Filters toggle */}
+            <button
+              onClick={() => setShowFilters(s => !s)}
+              className={`flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                showFilters || activeFilterCount > 0
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal size={13} /> Filtros
+              {activeFilterCount > 0 && (
+                <span className="bg-emerald-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <p className="text-xs text-slate-400 flex-shrink-0">{filtered.length} producto{filtered.length === 1 ? '' : 's'}</p>
+          </div>
+
+          {/* Expandable filter panel */}
+          {showFilters && (
+            <div className="flex flex-wrap items-start gap-6 pt-3 border-t border-slate-100">
+              {/* Price range */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Precio</p>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" value={priceMin} onChange={e => setPriceMin(e.target.value)}
+                    placeholder="Desde" className="w-24 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                  <span className="text-slate-300 text-xs">—</span>
+                  <input type="number" min="0" value={priceMax} onChange={e => setPriceMax(e.target.value)}
+                    placeholder="Hasta" className="w-24 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                </div>
+              </div>
+
+              {/* Availability */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Disponibilidad</p>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
+                  <input type="checkbox" checked={onlyAvailable} onChange={e => setOnlyAvailable(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-emerald-600" />
+                  Solo disponibles
+                </label>
+              </div>
+
+              {/* Variant attribute facets */}
+              {Object.entries(attrOptions).map(([key, values]) => (
+                <div key={key}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{key}</p>
+                  <div className="flex flex-wrap gap-1.5 max-w-xs">
+                    {values.map(v => {
+                      const active = selectedAttrs.has(attrKey(key, v))
+                      return (
+                        <button key={v} onClick={() => toggleAttr(key, v)}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            active ? 'bg-[#1B4332] border-[#1B4332] text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}>
+                          {v}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => { setPriceMin(''); setPriceMax(''); setOnlyAvailable(false); setSelectedAttrs(new Set()) }}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium self-end mb-0.5"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -587,7 +829,7 @@ export default function PublicCatalog() {
           <div className="text-center py-24 text-slate-400">
             <ShoppingBag size={48} className="mx-auto mb-4 opacity-30" />
             <p className="text-lg">No se encontraron productos</p>
-            <p className="text-sm mt-1">Intenta con otra búsqueda o categoría</p>
+            <p className="text-sm mt-1">Intenta con otra búsqueda o ajusta los filtros</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
