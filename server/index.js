@@ -415,6 +415,15 @@ async function migrate() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS show_in_catalog BOOLEAN DEFAULT TRUE;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
+      -- Páginas institucionales del catálogo público (Nosotros, envíos,
+      -- devoluciones, FAQ) — texto libre que el dueño escribe desde
+      -- Configuración → Catálogo, nunca contenido inventado por el sistema.
+      -- Vacío por defecto: el catálogo público solo muestra el enlace a una
+      -- de estas secciones una vez el dueño realmente escribió algo ahí.
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_about            TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_shipping_policy  TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_returns_policy   TEXT DEFAULT '';
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_faq              JSONB DEFAULT '[]';
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with

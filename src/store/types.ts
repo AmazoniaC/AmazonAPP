@@ -95,6 +95,12 @@ export interface CompanySettings {
   // source of truth for what a module key means and falls back to its own
   // DEFAULT_ROLE_PERMS when this is absent (e.g. before this field existed).
   rolePermissions?: Record<string, { edit: string[]; delete: string[] }>
+  // Páginas institucionales del catálogo público — texto libre escrito por
+  // el dueño desde Configuración → Catálogo. Vacío hasta que lo llenen.
+  catalogAbout?: string
+  catalogShippingPolicy?: string
+  catalogReturnsPolicy?: string
+  catalogFaq?: { id: string; question: string; answer: string }[]
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,

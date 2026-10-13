@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Search, ShoppingBag, MessageCircle, Share2, Check, Phone, Mail, MapPin, ChevronDown,
   ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Star, SlidersHorizontal, ArrowUpDown,
-  PackageX, Sparkles,
+  PackageX, Sparkles, Users, Truck, RotateCcw, HelpCircle, ChevronUp,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -28,6 +28,12 @@ interface Product {
   variants?: ProductVariant[]
 }
 
+interface FaqEntry {
+  id: string
+  question: string
+  answer: string
+}
+
 interface Settings {
   companyName: string
   slogan: string
@@ -39,6 +45,10 @@ interface Settings {
   instagramHandle: string
   tiktok: string
   logo: string | null
+  catalogAbout?: string
+  catalogShippingPolicy?: string
+  catalogReturnsPolicy?: string
+  catalogFaq?: FaqEntry[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -467,6 +477,69 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 function attrKey(k: string, v: string) { return `${k}::${v}` }
 
+// ─── Institutional pages (Nosotros / Envíos / Devoluciones) ───────────────────
+function InfoPage({ icon: Icon, title, text, onBack }: {
+  icon: React.ElementType
+  title: string
+  text: string
+  onBack: () => void
+}) {
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-10">
+      <button onClick={onBack} className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-6 flex items-center gap-1">
+        ← Volver al catálogo
+      </button>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+          <Icon size={20} className="text-emerald-700" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
+      </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+        {text.split('\n').filter(p => p.trim()).map((p, i) => (
+          <p key={i} className="text-slate-600 leading-relaxed">{p}</p>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FaqPage({ faq, onBack }: { faq: FaqEntry[]; onBack: () => void }) {
+  const [openId, setOpenId] = useState<string | null>(faq[0]?.id ?? null)
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-10">
+      <button onClick={onBack} className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-6 flex items-center gap-1">
+        ← Volver al catálogo
+      </button>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+          <HelpCircle size={20} className="text-emerald-700" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-800">Preguntas frecuentes</h1>
+      </div>
+      <div className="space-y-2">
+        {faq.map((item) => {
+          const open = openId === item.id
+          return (
+            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+              <button
+                onClick={() => setOpenId(open ? null : item.id)}
+                className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left"
+              >
+                <span className="font-semibold text-slate-800 text-sm">{item.question}</span>
+                {open ? <ChevronUp size={16} className="text-slate-400 shrink-0" /> : <ChevronDown size={16} className="text-slate-400 shrink-0" />}
+              </button>
+              {open && (
+                <p className="px-5 pb-4 text-sm text-slate-600 leading-relaxed">{item.answer}</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PublicCatalog() {
   const [products, setProducts]   = useState<Product[]>([])
@@ -479,6 +552,7 @@ export default function PublicCatalog() {
   const [showCart, setShowCart]       = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
+  const [view, setView] = useState<'productos' | 'nosotros' | 'envios' | 'devoluciones' | 'faq'>('productos')
 
   // Filters
   const [showFilters, setShowFilters] = useState(false)
@@ -682,6 +756,67 @@ export default function PublicCatalog() {
         </div>
       </header>
 
+      {/* ── Institutional nav ── */}
+      {(co?.catalogAbout || co?.catalogShippingPolicy || co?.catalogReturnsPolicy || (co?.catalogFaq?.length ?? 0) > 0) && (
+        <nav className="bg-white border-b border-slate-100">
+          <div className="max-w-6xl mx-auto px-4 flex items-center gap-1 overflow-x-auto">
+            <button onClick={() => setView('productos')}
+              className={`flex items-center gap-1.5 text-sm font-medium px-4 py-3 border-b-2 transition-colors shrink-0 ${
+                view === 'productos' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}>
+              <ShoppingBag size={14} /> Productos
+            </button>
+            {co?.catalogAbout && (
+              <button onClick={() => setView('nosotros')}
+                className={`flex items-center gap-1.5 text-sm font-medium px-4 py-3 border-b-2 transition-colors shrink-0 ${
+                  view === 'nosotros' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}>
+                <Users size={14} /> Nosotros
+              </button>
+            )}
+            {co?.catalogShippingPolicy && (
+              <button onClick={() => setView('envios')}
+                className={`flex items-center gap-1.5 text-sm font-medium px-4 py-3 border-b-2 transition-colors shrink-0 ${
+                  view === 'envios' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}>
+                <Truck size={14} /> Envíos
+              </button>
+            )}
+            {co?.catalogReturnsPolicy && (
+              <button onClick={() => setView('devoluciones')}
+                className={`flex items-center gap-1.5 text-sm font-medium px-4 py-3 border-b-2 transition-colors shrink-0 ${
+                  view === 'devoluciones' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}>
+                <RotateCcw size={14} /> Devoluciones
+              </button>
+            )}
+            {(co?.catalogFaq?.length ?? 0) > 0 && (
+              <button onClick={() => setView('faq')}
+                className={`flex items-center gap-1.5 text-sm font-medium px-4 py-3 border-b-2 transition-colors shrink-0 ${
+                  view === 'faq' ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}>
+                <HelpCircle size={14} /> Preguntas frecuentes
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {/* ── Institutional pages ── */}
+      {view === 'nosotros' && co?.catalogAbout && (
+        <InfoPage icon={Users} title="Nosotros" text={co.catalogAbout} onBack={() => setView('productos')} />
+      )}
+      {view === 'envios' && co?.catalogShippingPolicy && (
+        <InfoPage icon={Truck} title="Envíos y entregas" text={co.catalogShippingPolicy} onBack={() => setView('productos')} />
+      )}
+      {view === 'devoluciones' && co?.catalogReturnsPolicy && (
+        <InfoPage icon={RotateCcw} title="Devoluciones y garantía" text={co.catalogReturnsPolicy} onBack={() => setView('productos')} />
+      )}
+      {view === 'faq' && (co?.catalogFaq?.length ?? 0) > 0 && (
+        <FaqPage faq={co!.catalogFaq!} onBack={() => setView('productos')} />
+      )}
+
+      {view === 'productos' && <>
       {/* ── Featured strip ── */}
       {featuredProducts.length > 0 && noOtherFiltersActive && co && (
         <section className="max-w-6xl mx-auto px-4 pt-8">
@@ -839,12 +974,33 @@ export default function PublicCatalog() {
           </div>
         )}
       </main>
+      </>}
 
       {/* ── Footer ── */}
       <footer className="bg-[#1B4332] text-emerald-200 text-center text-xs py-6 mt-8">
         <p className="font-semibold text-white text-sm">{co?.companyName}</p>
         {co?.slogan && <p className="mt-0.5">{co.slogan}</p>}
         <div className="flex items-center justify-center gap-4 mt-2 flex-wrap">
+          {co?.catalogAbout && (
+            <button onClick={() => setView('nosotros')} className="hover:text-white transition-colors">
+              Nosotros
+            </button>
+          )}
+          {co?.catalogShippingPolicy && (
+            <button onClick={() => setView('envios')} className="hover:text-white transition-colors">
+              Envíos y entregas
+            </button>
+          )}
+          {co?.catalogReturnsPolicy && (
+            <button onClick={() => setView('devoluciones')} className="hover:text-white transition-colors">
+              Devoluciones y garantía
+            </button>
+          )}
+          {(co?.catalogFaq?.length ?? 0) > 0 && (
+            <button onClick={() => setView('faq')} className="hover:text-white transition-colors">
+              Preguntas frecuentes
+            </button>
+          )}
           {co?.instagramHandle && (
             <a href={co.instagram || '#'} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
               @{co.instagramHandle}

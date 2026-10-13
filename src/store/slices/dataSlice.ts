@@ -90,6 +90,10 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         opsAlertQuoteExpiring: settings.opsAlertQuoteExpiring ?? defaultCompanySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: settings.opsAlertCrmStale ?? defaultCompanySettings.opsAlertCrmStale,
         opsAlertPipelineAction: settings.opsAlertPipelineAction ?? defaultCompanySettings.opsAlertPipelineAction,
+        catalogAbout: settings.catalogAbout ?? defaultCompanySettings.catalogAbout,
+        catalogShippingPolicy: settings.catalogShippingPolicy ?? defaultCompanySettings.catalogShippingPolicy,
+        catalogReturnsPolicy: settings.catalogReturnsPolicy ?? defaultCompanySettings.catalogReturnsPolicy,
+        catalogFaq: settings.catalogFaq ?? defaultCompanySettings.catalogFaq,
         rolePermissions: settings.rolePermissions ?? defaultCompanySettings.rolePermissions,
       }
 

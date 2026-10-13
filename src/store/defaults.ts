@@ -67,4 +67,8 @@ export const defaultCompanySettings: CompanySettings = {
   opsAlertQuoteExpiring: true,
   opsAlertCrmStale: true,
   opsAlertPipelineAction: true,
+  catalogAbout: '',
+  catalogShippingPolicy: '',
+  catalogReturnsPolicy: '',
+  catalogFaq: [],
 }

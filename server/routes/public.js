@@ -63,7 +63,11 @@ router.get('/settings', async (_req, res) => {
     const { rows } = await pool.query(
       `SELECT company_name AS "companyName", slogan, phone, email, address,
               whatsapp, instagram, instagram_handle AS "instagramHandle",
-              tiktok, logo
+              tiktok, logo,
+              catalog_about           AS "catalogAbout",
+              catalog_shipping_policy AS "catalogShippingPolicy",
+              catalog_returns_policy  AS "catalogReturnsPolicy",
+              COALESCE(catalog_faq, '[]'::jsonb) AS "catalogFaq"
        FROM settings WHERE id = 1`
     )
     res.json(rows[0] ?? {})

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen } from 'lucide-react'
+import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen, Globe } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { TeamMember, TeamRole } from '../store/useStore'
 import { UserAvatar } from '../components/layout/Topbar'
@@ -12,13 +12,13 @@ import { ALL_MODULES, MODULE_LABELS, DEFAULT_ROLE_PERMS, type AppModule } from '
 
 const TAB_ICONS: Record<string, any> = {
   empresa: Building, usuarios: Users, equipo: Users, pagos: CreditCard, precios: Tag,
-  impuestos: Percent, notificaciones: Bell, whatsapp: MessageCircle, seguridad: Shield, auditoria: ClipboardList, manual: BookOpen,
+  impuestos: Percent, notificaciones: Bell, whatsapp: MessageCircle, catalogo: Globe, seguridad: Shield, auditoria: ClipboardList, manual: BookOpen,
 }
 
-const tabs = ['empresa','usuarios','equipo','pagos','precios','impuestos','notificaciones','whatsapp','seguridad','auditoria','manual']
+const tabs = ['empresa','usuarios','equipo','pagos','precios','impuestos','notificaciones','whatsapp','catalogo','seguridad','auditoria','manual']
 const TAB_LABELS: Record<string, string> = {
   empresa:'Empresa', usuarios:'Usuarios y roles', equipo:'Equipo de trabajo', pagos:'Métodos de pago', precios:'Listas de precios',
-  impuestos:'Impuestos', notificaciones:'Notificaciones', whatsapp:'WhatsApp', seguridad:'Seguridad', auditoria:'Auditoría', manual:'Manual de usuario',
+  impuestos:'Impuestos', notificaciones:'Notificaciones', whatsapp:'WhatsApp', catalogo:'Catálogo público', seguridad:'Seguridad', auditoria:'Auditoría', manual:'Manual de usuario',
 }
 
 const TEAM_ROLES: { value: 'seller' | 'production' | 'driver'; label: string }[] = [
@@ -254,10 +254,14 @@ export default function Settings() {
     smtpFrom:          companySettings.smtpFrom,
     invoicePrefix:     companySettings.invoicePrefix,
     taxRate:           companySettings.taxRate,
+    catalogAbout:           companySettings.catalogAbout ?? '',
+    catalogShippingPolicy:  companySettings.catalogShippingPolicy ?? '',
+    catalogReturnsPolicy:   companySettings.catalogReturnsPolicy ?? '',
   })
   const [smtpTesting, setSmtpTesting]  = useState(false)
   const [smtpTestMsg, setSmtpTestMsg]  = useState<{ ok: boolean; text: string } | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(companySettings.logo)
+  const [faqList, setFaqList] = useState(companySettings.catalogFaq ?? [])
 
   // Sync local state when store loads from API
   useEffect(() => {
@@ -285,9 +289,23 @@ export default function Settings() {
       smtpFrom:          companySettings.smtpFrom,
       invoicePrefix:     companySettings.invoicePrefix,
       taxRate:           companySettings.taxRate,
+      catalogAbout:           companySettings.catalogAbout ?? '',
+      catalogShippingPolicy:  companySettings.catalogShippingPolicy ?? '',
+      catalogReturnsPolicy:   companySettings.catalogReturnsPolicy ?? '',
     })
     setLogoPreview(companySettings.logo)
+    setFaqList(companySettings.catalogFaq ?? [])
   }, [companySettings])
+
+  const addFaqEntry = () => {
+    setFaqList(f => [...f, { id: `faq${Date.now()}`, question: '', answer: '' }])
+  }
+  const updateFaqEntry = (id: string, patch: Partial<{ question: string; answer: string }>) => {
+    setFaqList(f => f.map(x => x.id === id ? { ...x, ...patch } : x))
+  }
+  const removeFaqEntry = (id: string) => {
+    setFaqList(f => f.filter(x => x.id !== id))
+  }
 
   const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -346,6 +364,10 @@ export default function Settings() {
         opsAlertCrmStale: companySettings.opsAlertCrmStale,
         opsAlertPipelineAction: companySettings.opsAlertPipelineAction,
         rolePermissions: companySettings.rolePermissions,
+        catalogAbout: company.catalogAbout,
+        catalogShippingPolicy: company.catalogShippingPolicy,
+        catalogReturnsPolicy: company.catalogReturnsPolicy,
+        catalogFaq: faqList,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -1587,6 +1609,74 @@ export default function Settings() {
                     <div key={variable} className="flex items-start gap-2 text-xs">
                       <code className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 rounded text-blue-700 dark:text-blue-400 font-mono flex-shrink-0">{variable}</code>
                       <span className="text-blue-600 dark:text-blue-400">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'catalogo' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2"><Globe size={18} /> Catálogo público</h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+                  Este contenido aparece como páginas aparte en tu catálogo público ({window.location.origin}/catalogo) — solo se muestra el enlace a una sección una vez escribas algo en ella.
+                </p>
+              </div>
+
+              <div>
+                <label className="label">Nosotros / Quiénes somos</label>
+                <textarea className="input resize-none" rows={5}
+                  placeholder="Cuenta la historia de tu empresa, tu misión, por qué comprarte a ti..."
+                  value={company.catalogAbout}
+                  onChange={(e) => setCompany({ ...company, catalogAbout: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="label">Política de envíos y entregas</label>
+                <textarea className="input resize-none" rows={5}
+                  placeholder="Tiempos de entrega, zonas de cobertura, costos de envío..."
+                  value={company.catalogShippingPolicy}
+                  onChange={(e) => setCompany({ ...company, catalogShippingPolicy: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="label">Política de devoluciones y garantía</label>
+                <textarea className="input resize-none" rows={5}
+                  placeholder="Qué hacer si un producto llega dañado, plazos para devolución, condiciones de garantía..."
+                  value={company.catalogReturnsPolicy}
+                  onChange={(e) => setCompany({ ...company, catalogReturnsPolicy: e.target.value })} />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="label mb-0">Preguntas frecuentes</label>
+                  <button onClick={addFaqEntry} className="btn btn-sm btn-secondary flex items-center gap-1.5">
+                    <Plus size={13} /> Agregar pregunta
+                  </button>
+                </div>
+                {faqList.length === 0 && (
+                  <p className="text-sm text-slate-400 dark:text-gray-500 text-center py-6 border-2 border-dashed border-slate-200 dark:border-gray-600 rounded-xl">
+                    Sin preguntas todavía. Agrega la primera con el botón de arriba.
+                  </p>
+                )}
+                <div className="space-y-3">
+                  {faqList.map((item, i) => (
+                    <div key={item.id} className="border border-slate-200 dark:border-gray-600 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 dark:text-gray-500 shrink-0">#{i + 1}</span>
+                        <input className="input flex-1" placeholder="Pregunta"
+                          value={item.question}
+                          onChange={(e) => updateFaqEntry(item.id, { question: e.target.value })} />
+                        <button onClick={() => removeFaqEntry(item.id)}
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 shrink-0">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <textarea className="input resize-none ml-7" rows={2} placeholder="Respuesta"
+                        value={item.answer}
+                        onChange={(e) => updateFaqEntry(item.id, { answer: e.target.value })} />
                     </div>
                   ))}
                 </div>
