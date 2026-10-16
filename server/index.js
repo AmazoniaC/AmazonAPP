@@ -581,11 +581,61 @@ app.get('/api/health', (req, res) => res.json({ ok: true }))
 const distPath = join(__dirname, '../dist')
 if (existsSync(distPath)) {
   app.use(express.static(distPath))
+  const indexHtmlPath = join(distPath, 'index.html')
+  const indexHtmlTemplate = readFileSync(indexHtmlPath, 'utf-8')
+
+  const escapeHtml = (str) =>
+    String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  // Link-preview crawlers (WhatsApp, Facebook, Slack, …) never execute the
+  // React app — they fetch the raw HTML once and read whatever <meta> tags
+  // are already in it. Everywhere else in the SPA, the single index.html
+  // (with its internal-panel <title>) is fine as-is, but /catalogo is the
+  // one link owners actually share with customers, so it gets its real
+  // company name/description/image baked in server-side before sending.
+  async function renderCatalogHtml(req) {
+    const { rows } = await pool.query(
+      `SELECT company_name AS "companyName", slogan, logo, catalog_about AS "catalogAbout"
+       FROM settings WHERE id = 1`
+    )
+    const s = rows[0] || {}
+    const title = escapeHtml(s.companyName || 'Catálogo') + ' — Catálogo'
+    const description = escapeHtml(
+      s.slogan || (s.catalogAbout || '').split('\n')[0].slice(0, 160) ||
+      'Mira nuestros productos y haz tu pedido directamente por WhatsApp.'
+    )
+    const origin = `${req.protocol}://${req.get('host')}`
+    const imageTags = s.logo
+      ? `<meta property="og:image" content="${origin}/api/public/logo" />\n    <meta name="twitter:card" content="summary_large_image" />`
+      : ''
+    return indexHtmlTemplate
+      .replace(/<title>.*?<\/title>/, `<title>${title}</title>`)
+      .replace(
+        '</head>',
+        `    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${origin}/catalogo" />
+    ${imageTags}
+  </head>`
+      )
+  }
+
   // Express 5 (path-to-regexp v8+) requires a named wildcard — a bare '*'
   // throws "Missing parameter name" at startup.
-  app.get('/*splat', (req, res, next) => {
+  app.get('/*splat', async (req, res, next) => {
     if (req.path.startsWith('/api/')) return next()
-    res.sendFile(join(distPath, 'index.html'))
+    if (req.path === '/catalogo') {
+      try {
+        res.set('Content-Type', 'text/html')
+        return res.send(await renderCatalogHtml(req))
+      } catch (e) {
+        console.error('Error generando vista previa del catálogo:', e.message)
+        // Falls through to the plain index.html below — a broken preview
+        // card is better than a broken page.
+      }
+    }
+    res.sendFile(indexHtmlPath)
   })
 }
 

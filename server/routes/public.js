@@ -77,6 +77,26 @@ router.get('/settings', async (_req, res) => {
   }
 })
 
+// The logo is stored as a base64 data: URI (see Settings.tsx's handleLogoChange),
+// which works fine for <img src> inside the React app but is useless for link
+// previews: WhatsApp/Facebook/Slack's preview crawlers fetch `og:image` over
+// HTTP and ignore data: URIs entirely. This route decodes the stored data URI
+// back into real image bytes at a stable URL the crawler can actually fetch.
+router.get('/logo', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT logo FROM settings WHERE id = 1')
+    const dataUri = rows[0]?.logo
+    const match = /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(dataUri || '')
+    if (!match) return res.status(404).end()
+    res.set('Content-Type', match[1])
+    res.set('Cache-Control', 'public, max-age=300')
+    res.send(Buffer.from(match[2], 'base64'))
+  } catch (e) {
+    console.error('public logo error:', e.message)
+    res.status(500).end()
+  }
+})
+
 // Public "request to order" from the catalog: never writes a SaleOrder or
 // touches stock directly — it lands as a draft Quotation (source='web') in
 // the same Cotizaciones queue the sales team already works from, so a human
