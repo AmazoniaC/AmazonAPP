@@ -367,7 +367,7 @@ function CartDrawer({ cart, onClose, onCheckout }: {
 function CheckoutModal({ cart, onClose, onSuccess }: {
   cart: UseCartReturn
   onClose: () => void
-  onSuccess: (quoteNumber: string) => void
+  onSuccess: (quoteNumber: string, customerNotified: boolean) => void
 }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -398,7 +398,7 @@ function CheckoutModal({ cart, onClose, onSuccess }: {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'No se pudo enviar el pedido')
       cart.clear()
-      onSuccess(data.quoteNumber)
+      onSuccess(data.quoteNumber, !!data.customerNotified)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo enviar el pedido')
     } finally {
@@ -552,6 +552,7 @@ export default function PublicCatalog() {
   const [showCart, setShowCart]       = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
+  const [confirmedNotified, setConfirmedNotified] = useState(false)
   const [view, setView] = useState<'productos' | 'nosotros' | 'envios' | 'devoluciones' | 'faq'>('productos')
 
   // Filters
@@ -1038,7 +1039,7 @@ export default function PublicCatalog() {
         <CheckoutModal
           cart={cart}
           onClose={() => setShowCheckout(false)}
-          onSuccess={(quoteNumber) => { setShowCheckout(false); setConfirmedQuote(quoteNumber) }}
+          onSuccess={(quoteNumber, customerNotified) => { setShowCheckout(false); setConfirmedQuote(quoteNumber); setConfirmedNotified(customerNotified) }}
         />
       )}
 
@@ -1053,6 +1054,11 @@ export default function PublicCatalog() {
               Tu solicitud <span className="font-mono font-semibold">{confirmedQuote}</span> fue enviada.
               Nuestro equipo te contactará pronto para confirmarla.
             </p>
+            {confirmedNotified && (
+              <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg py-2 px-3 mb-4">
+                ✅ Te enviamos la confirmación a tu WhatsApp
+              </p>
+            )}
             <button
               onClick={() => setConfirmedQuote(null)}
               className="w-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold py-2.5 rounded-xl transition-colors"

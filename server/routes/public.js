@@ -218,7 +218,24 @@ router.post('/order-requests', validate(createPublicOrderSchema), async (req, re
       console.error('public order-requests: fallo al notificar por WhatsApp:', e.message)
     }
 
-    res.status(201).json({ ok: true, quoteNumber, total })
+    // Confirmation back to the customer — independent try/catch from the
+    // business-owner notification above: a visitor's phone not being on
+    // WhatsApp, or WhatsApp being disconnected, must never block the owner's
+    // alert or fail the order itself. Previously the only confirmation was
+    // the on-screen message, lost the moment the visitor closed the tab.
+    let customerNotified = false
+    try {
+      const lines = orderItems.map((i) => `• ${i.product} × ${i.qty}`)
+      const firstName = (customerLabel || '').trim().split(/\s+/)[0] || ''
+      const msg = `✅ *Pedido recibido* — ${quoteNumber}\n\n${firstName ? `Gracias ${firstName}, r` : 'R'}ecibimos tu pedido:\n\n${lines.join('\n')}\n\nTotal: $${total.toLocaleString('es-CO')}\n\nTe contactaremos pronto para confirmar los detalles. Si tienes alguna duda, escríbenos por este mismo WhatsApp.`
+      await sendWhatsAppMessage(customerPhone, msg)
+      customerNotified = true
+      console.log(`📤 Confirmación de pedido web enviada al cliente ${customerPhone} (${quoteNumber})`)
+    } catch (e) {
+      console.warn(`⚠️  public order-requests: no se pudo enviar confirmación al cliente (${quoteNumber}):`, e.message)
+    }
+
+    res.status(201).json({ ok: true, quoteNumber, total, customerNotified })
   } catch (e) {
     await client.query('ROLLBACK')
     // Unlike the rest of this file's handlers (all gated behind a login),
