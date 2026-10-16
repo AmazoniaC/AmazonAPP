@@ -35,6 +35,7 @@ router.get('/products', async (_req, res) => {
       `SELECT id, name, category, description, price::float, unit, image,
               stock::float,
               COALESCE(variants, '[]'::jsonb) AS variants,
+              COALESCE(images, '[]'::jsonb) AS images,
               is_featured AS "isFeatured",
               to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
        FROM products

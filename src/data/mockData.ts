@@ -26,6 +26,7 @@ export interface Product {
   showInCatalog?: boolean   // separate from isActive — controls public catalog visibility
   isFeatured?: boolean      // highlighted in the public catalog's featured section
   createdAt?: string
+  images?: string[]         // extra gallery photos (base64), shown alongside `image` in the catalog's quick view
 }
 
 export interface Recipe {

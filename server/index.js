@@ -430,6 +430,11 @@ async function migrate() {
       -- desde Configuración → WhatsApp si el negocio prefiere avisar
       -- manualmente.
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS quote_status_notify_customer BOOLEAN DEFAULT TRUE;
+      -- Fotos adicionales por producto (además de "image", la foto de
+      -- portada que ya se usa en toda la app) — alimenta el carrusel de
+      -- la vista rápida del catálogo público. Capado a 6 en el schema de
+      -- validación para no inflar la fila de más (se guardan en base64).
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with

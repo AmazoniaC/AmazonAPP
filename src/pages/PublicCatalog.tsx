@@ -25,6 +25,7 @@ interface Product {
   isFeatured?: boolean
   createdAt?: string
   image?: string
+  images?: string[]
   variants?: ProductVariant[]
 }
 
@@ -165,12 +166,13 @@ function buildWALink(product: Product, variant: ProductVariant | null, settings:
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ product, settings, idx, cart, featured }: {
+function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
   product: Product
   settings: Settings
   idx: number
   cart: UseCartReturn
   featured?: boolean
+  onQuickView?: (product: Product, idx: number) => void
 }) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product.variants?.length ? product.variants[0] : null
@@ -195,16 +197,19 @@ function ProductCard({ product, settings, idx, cart, featured }: {
   }
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${
+    <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col ${
       featured ? 'border-amber-300 ring-1 ring-amber-200' : 'border-slate-100'
     }`}>
       {/* Image / Gradient placeholder */}
-      <div className="h-48 flex-shrink-0 overflow-hidden relative">
+      <div
+        className={`h-48 flex-shrink-0 overflow-hidden relative ${onQuickView ? 'cursor-pointer group' : ''}`}
+        onClick={() => onQuickView?.(product, idx)}
+      >
         {product.image ? (
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
           <div className={`w-full h-full bg-gradient-to-br ${catGrad(product.category, idx)} flex items-center justify-center`}>
@@ -232,7 +237,12 @@ function ProductCard({ product, settings, idx, cart, featured }: {
       {/* Body */}
       <div className="p-4 flex flex-col flex-1 gap-3">
         <div>
-          <h3 className="font-bold text-slate-800 text-base leading-tight">{product.name}</h3>
+          <h3
+            className={`font-bold text-slate-800 text-base leading-tight ${onQuickView ? 'cursor-pointer hover:text-emerald-700 transition-colors' : ''}`}
+            onClick={() => onQuickView?.(product, idx)}
+          >
+            {product.name}
+          </h3>
           {product.description && (
             <p className="text-slate-500 text-sm mt-1 line-clamp-2">{product.description}</p>
           )}
@@ -284,6 +294,152 @@ function ProductCard({ product, settings, idx, cart, featured }: {
           >
             {!available ? 'Agotado' : justAdded ? <><Check size={15} /> Agregado</> : <><ShoppingCart size={15} /> Agregar al pedido</>}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Product Quick View ─────────────────────────────────────────────────────
+function ProductQuickView({ product, settings, idx, cart, onClose }: {
+  product: Product
+  settings: Settings
+  idx: number
+  cart: UseCartReturn
+  onClose: () => void
+}) {
+  const gallery = [product.image, ...(product.images ?? [])].filter(Boolean) as string[]
+  const [activeImg, setActiveImg] = useState(0)
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    product.variants?.length ? product.variants[0] : null
+  )
+  const [justAdded, setJustAdded] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const price = effectivePrice(product, selectedVariant)
+  const waLink = buildWALink(product, selectedVariant, settings)
+  const available = selectedVariant ? selectedVariant.stock > 0 : product.stock > 0
+
+  const handleAdd = () => {
+    cart.addItem({
+      productId: product.id,
+      variantId: selectedVariant?.id,
+      name: selectedVariant ? `${product.name} — ${variantLabel(selectedVariant)}` : product.name,
+      price,
+      unit: product.unit,
+      qty: 1,
+    })
+    setJustAdded(true)
+    setTimeout(() => setJustAdded(false), 1500)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scaleIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-end px-4 pt-4">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 px-6 pb-6">
+          {/* Gallery */}
+          <div>
+            <div className="h-64 sm:h-80 rounded-xl overflow-hidden relative bg-slate-50">
+              {gallery.length > 0 ? (
+                <img src={gallery[activeImg]} alt={product.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className={`w-full h-full bg-gradient-to-br ${catGrad(product.category, idx)} flex items-center justify-center`}>
+                  <span className="text-7xl drop-shadow">{catEmoji(product.category)}</span>
+                </div>
+              )}
+              {!available && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <span className="bg-white/95 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                    <PackageX size={13} /> Agotado
+                  </span>
+                </div>
+              )}
+            </div>
+            {gallery.length > 1 && (
+              <div className="flex gap-2 mt-2 overflow-x-auto">
+                {gallery.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-colors ${
+                      activeImg === i ? 'border-emerald-500' : 'border-transparent opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Details */}
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-slate-400 mb-1">{catEmoji(product.category)} {product.category}</span>
+            <h2 className="text-xl font-bold text-slate-800">{product.name}</h2>
+            {product.description && (
+              <p className="text-slate-500 text-sm mt-2 leading-relaxed">{product.description}</p>
+            )}
+
+            {product.variants && product.variants.length > 1 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-slate-500 mb-1.5">Variante</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {product.variants.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => setSelectedVariant(v)}
+                      disabled={v.stock <= 0}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors ${
+                        v.stock <= 0 ? 'opacity-40 cursor-not-allowed border-slate-200 text-slate-400' :
+                        selectedVariant?.id === v.id
+                          ? 'bg-[#1B4332] text-white border-[#1B4332]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {variantLabel(v)}{v.stock <= 0 ? ' (agotado)' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-auto pt-5">
+              <p className="text-2xl font-bold text-emerald-700">{formatCOP(price)}</p>
+              <p className="text-xs text-slate-400 mb-3">por {product.unit}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAdd}
+                  disabled={!available}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold px-3 py-2.5 rounded-xl transition-colors shadow-sm ${
+                    !available ? 'bg-slate-200 text-slate-400 cursor-not-allowed' :
+                    justAdded ? 'bg-emerald-600 text-white' : 'bg-[#1B4332] hover:bg-[#2D6A4F] text-white'
+                  }`}
+                >
+                  {!available ? 'Agotado' : justAdded ? <><Check size={15} /> Agregado</> : <><ShoppingCart size={15} /> Agregar al pedido</>}
+                </button>
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Preguntar por WhatsApp"
+                  className="flex items-center justify-center w-11 h-11 bg-green-50 hover:bg-green-100 text-green-600 rounded-xl transition-colors border border-green-200 shrink-0"
+                >
+                  <MessageCircle size={18} />
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -554,6 +710,7 @@ export default function PublicCatalog() {
   const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
   const [confirmedNotified, setConfirmedNotified] = useState(false)
   const [view, setView] = useState<'productos' | 'nosotros' | 'envios' | 'devoluciones' | 'faq'>('productos')
+  const [quickView, setQuickView] = useState<{ product: Product; idx: number } | null>(null)
 
   // Filters
   const [showFilters, setShowFilters] = useState(false)
@@ -582,6 +739,12 @@ export default function PublicCatalog() {
   const categories = useMemo(() => {
     const cats = [...new Set(all.map(p => p.category))].sort()
     return ['Todos', ...cats]
+  }, [all])
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { Todos: all.length }
+    for (const p of all) counts[p.category] = (counts[p.category] ?? 0) + 1
+    return counts
   }, [all])
 
   // Distinct variant attribute values across the whole catalog, grouped by
@@ -827,7 +990,7 @@ export default function PublicCatalog() {
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
             {featuredProducts.map((product, i) => (
               <div key={product.id} className="w-64 flex-shrink-0">
-                <ProductCard product={product} settings={co} idx={i} cart={cart} featured />
+                <ProductCard product={product} settings={co} idx={i} cart={cart} featured onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
               </div>
             ))}
           </div>
@@ -855,13 +1018,18 @@ export default function PublicCatalog() {
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
-                  className={`flex-shrink-0 text-sm px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  className={`flex-shrink-0 flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-105 ${
                     category === cat
                       ? 'bg-[#1B4332] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {cat !== 'Todos' && catEmoji(cat)} {cat}
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    category === cat ? 'bg-white/20' : 'bg-white text-slate-400'
+                  }`}>
+                    {categoryCounts[cat] ?? 0}
+                  </span>
                 </button>
               ))}
             </div>
@@ -968,9 +1136,9 @@ export default function PublicCatalog() {
             <p className="text-sm mt-1">Intenta con otra búsqueda o ajusta los filtros</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 stagger-children">
             {co && filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} settings={co} idx={i} cart={cart} />
+              <ProductCard key={product.id} product={product} settings={co} idx={i} cart={cart} onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
             ))}
           </div>
         )}
@@ -1020,11 +1188,21 @@ export default function PublicCatalog() {
       {cart.count > 0 && !showCart && !showCheckout && !confirmedQuote && (
         <button
           onClick={() => setShowCart(true)}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold px-4 py-3 rounded-full shadow-lg transition-colors"
+          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold px-4 py-3 rounded-full shadow-lg transition-colors animate-scaleIn"
         >
           <ShoppingCart size={18} />
-          {cart.count} · {formatCOP(cart.total)}
+          <span key={cart.count} className="animate-countUp">{cart.count} · {formatCOP(cart.total)}</span>
         </button>
+      )}
+
+      {quickView && co && (
+        <ProductQuickView
+          product={quickView.product}
+          settings={co}
+          idx={quickView.idx}
+          cart={cart}
+          onClose={() => setQuickView(null)}
+        />
       )}
 
       {showCart && (

@@ -14,7 +14,8 @@ const SELECT_COLS = `
   show_in_catalog AS "showInCatalog",
   is_featured AS "isFeatured",
   to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
-  COALESCE(variants, '[]'::jsonb) AS variants`
+  COALESCE(variants, '[]'::jsonb) AS variants,
+  COALESCE(images, '[]'::jsonb) AS images`
 
 router.get('/', async (req, res) => {
   try {
@@ -26,12 +27,12 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', validate(createProductSchema), async (req, res) => {
-  const { id, sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, showInCatalog, isFeatured, variants } = req.body
+  const { id, sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, showInCatalog, isFeatured, variants, images } = req.body
   try {
     const { rows } = await pool.query(
-      `INSERT INTO products (id, sku, name, category, price, cost, stock, unit, description, image, recipe_id, is_active, show_in_catalog, is_featured, variants)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-      [id, sku ?? '', name, category, price, cost, stock, unit, description ?? '', image ?? '', recipeId ?? '', isActive ?? true, showInCatalog ?? true, isFeatured ?? false, JSON.stringify(variants ?? [])]
+      `INSERT INTO products (id, sku, name, category, price, cost, stock, unit, description, image, recipe_id, is_active, show_in_catalog, is_featured, variants, images)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [id, sku ?? '', name, category, price, cost, stock, unit, description ?? '', image ?? '', recipeId ?? '', isActive ?? true, showInCatalog ?? true, isFeatured ?? false, JSON.stringify(variants ?? []), JSON.stringify(images ?? [])]
     )
     const u = getUser(req)
     await log({ userName: u.name, userEmail: u.email, action: 'crear', entity: 'Producto', entityId: id, entityName: name })
@@ -42,12 +43,12 @@ router.post('/', validate(createProductSchema), async (req, res) => {
 })
 
 router.put('/:id', validate(updateProductSchema), async (req, res) => {
-  const { sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, showInCatalog, isFeatured, variants } = req.body
+  const { sku, name, category, price, cost, stock, unit, description, image, recipeId, isActive, showInCatalog, isFeatured, variants, images } = req.body
   try {
     const { rows } = await pool.query(
       `UPDATE products SET sku=$1, name=$2, category=$3, price=$4, cost=$5, stock=$6, unit=$7,
-              description=$8, image=$9, recipe_id=$10, is_active=$11, show_in_catalog=$12, is_featured=$13, variants=$14 WHERE id=$15 RETURNING *`,
-      [sku ?? '', name, category, price, cost, stock, unit, description ?? '', image ?? '', recipeId ?? '', isActive, showInCatalog ?? true, isFeatured ?? false, JSON.stringify(variants ?? []), req.params.id]
+              description=$8, image=$9, recipe_id=$10, is_active=$11, show_in_catalog=$12, is_featured=$13, variants=$14, images=$15 WHERE id=$16 RETURNING *`,
+      [sku ?? '', name, category, price, cost, stock, unit, description ?? '', image ?? '', recipeId ?? '', isActive, showInCatalog ?? true, isFeatured ?? false, JSON.stringify(variants ?? []), JSON.stringify(images ?? []), req.params.id]
     )
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
     const u = getUser(req)

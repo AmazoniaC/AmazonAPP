@@ -92,6 +92,50 @@ function ImageUpload({ value, onChange }: { value?: string; onChange: (b64: stri
   )
 }
 
+// ─── Gallery upload (extra photos beyond the cover image) ─────────────────
+const MAX_GALLERY_IMAGES = 6
+function GalleryUpload({ value, onChange }: { value: string[]; onChange: (images: string[]) => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    const slots = MAX_GALLERY_IMAGES - value.length
+    files.slice(0, slots).forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = () => onChange([...value, reader.result as string])
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+  const removeAt = (idx: number) => onChange(value.filter((_, i) => i !== idx))
+
+  return (
+    <div className="col-span-2">
+      <label className="label">Fotos adicionales (opcional)</label>
+      <p className="text-xs text-slate-400 dark:text-gray-500 mb-2">
+        Se muestran en la vista rápida del catálogo público, junto con la imagen principal. Máx {MAX_GALLERY_IMAGES} fotos.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {value.map((img, i) => (
+          <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 dark:border-gray-600 group">
+            <img src={img} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+            <button type="button" onClick={() => removeAt(i)}
+              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <X size={16} className="text-white" />
+            </button>
+          </div>
+        ))}
+        {value.length < MAX_GALLERY_IMAGES && (
+          <button type="button" onClick={() => ref.current?.click()}
+            className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 dark:border-gray-600 flex items-center justify-center hover:border-blue-400 transition-colors text-slate-300 dark:text-gray-500">
+            <Plus size={18} />
+          </button>
+        )}
+      </div>
+      <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+    </div>
+  )
+}
+
 // ─── ProductModal ──────────────────────────────────────────────────────────
 function ProductModal({ product, onClose }: { product?: Product; onClose: () => void }) {
   const { addProduct, updateProduct, recipes, products, supplies } = useStore()
@@ -99,7 +143,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
     sku: `PRD-${String(products.length + 1).padStart(4, '0')}`,
     name: '', category: '', unit: 'u',
     stock: 0, price: 0, cost: 0,
-    isActive: true, description: '', image: undefined, variants: [],
+    isActive: true, description: '', image: undefined, variants: [], images: [],
     showInCatalog: true, isFeatured: false,
   })
   const [modalTab, setModalTab] = useState<'general' | 'variants'>('general')
@@ -162,6 +206,7 @@ function ProductModal({ product, onClose }: { product?: Product; onClose: () => 
         {modalTab === 'general' && (
           <div className="px-6 py-4 grid grid-cols-2 gap-4">
             <ImageUpload value={form.image} onChange={(v) => setForm({ ...form, image: v })} />
+            <GalleryUpload value={form.images ?? []} onChange={(v) => setForm({ ...form, images: v })} />
             <div>
               <label className="label">SKU</label>
               <input className="input" value={form.sku ?? ''}

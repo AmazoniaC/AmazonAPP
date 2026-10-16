@@ -21,6 +21,7 @@ export const createProductSchema = z.object({
   sku: z.string().max(50).default(''),
   description: z.string().max(2000).default(''),
   image: z.string().default(''),
+  images: z.array(z.string()).max(6, 'Máximo 6 fotos adicionales').default([]),
   recipeId: z.string().default(''),
   isActive: z.boolean().default(true),
   showInCatalog: z.boolean().default(true),
