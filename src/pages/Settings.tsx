@@ -363,6 +363,7 @@ export default function Settings() {
         opsAlertQuoteExpiring: companySettings.opsAlertQuoteExpiring,
         opsAlertCrmStale: companySettings.opsAlertCrmStale,
         opsAlertPipelineAction: companySettings.opsAlertPipelineAction,
+        quoteStatusNotifyCustomer: companySettings.quoteStatusNotifyCustomer,
         rolePermissions: companySettings.rolePermissions,
         catalogAbout: company.catalogAbout,
         catalogShippingPolicy: company.catalogShippingPolicy,
@@ -392,6 +393,11 @@ export default function Settings() {
   }
   const updateQuoteFollowupDays = async (days: number) => {
     await saveCompanySettings({ ...companySettings, quoteFollowupDays: days })
+  }
+
+  // ── Quote status-change notifications to the customer (persisted in companySettings) ──
+  const toggleQuoteStatusNotifyCustomer = async () => {
+    await saveCompanySettings({ ...companySettings, quoteStatusNotifyCustomer: !companySettings.quoteStatusNotifyCustomer })
   }
 
   // ── Operational alerts bridge to WhatsApp (persisted in companySettings) ──
@@ -1503,6 +1509,29 @@ export default function Settings() {
                     <span className="text-xs text-slate-500 dark:text-gray-400">día(s) o menos para que venza</span>
                   </div>
                 )}
+              </div>
+
+              <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Avisar al cliente cuando cambie el estado de su cotización</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Cuando marcas una cotización como enviada, aceptada o rechazada, el cliente recibe un WhatsApp automático avisándole — sin que tengas que escribirle a mano cada vez. Solo aplica si el cliente tiene un teléfono registrado.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.quoteStatusNotifyCustomer}
+                    onClick={toggleQuoteStatusNotifyCustomer}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.quoteStatusNotifyCustomer ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.quoteStatusNotifyCustomer ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
               </div>
 
               <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">

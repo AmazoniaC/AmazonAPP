@@ -71,4 +71,5 @@ export const defaultCompanySettings: CompanySettings = {
   catalogShippingPolicy: '',
   catalogReturnsPolicy: '',
   catalogFaq: [],
+  quoteStatusNotifyCustomer: true,
 }

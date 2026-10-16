@@ -101,6 +101,10 @@ export interface CompanySettings {
   catalogShippingPolicy?: string
   catalogReturnsPolicy?: string
   catalogFaq?: { id: string; question: string; answer: string }[]
+  // Avisa al cliente por WhatsApp cuando el estado de su cotización cambia
+  // (enviada/aceptada/rechazada), sin que el vendedor tenga que escribirle
+  // a mano cada vez.
+  quoteStatusNotifyCustomer?: boolean
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,

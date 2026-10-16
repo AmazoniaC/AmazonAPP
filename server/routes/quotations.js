@@ -3,8 +3,47 @@ import { pool } from '../db.js'
 import { log, getUser } from '../audit.js'
 import { validate } from '../middleware/validate.js'
 import { createQuotationSchema, updateQuotationSchema } from '../schemas/quotations.js'
+import { sendWhatsAppMessage } from '../whatsapp.js'
 
 const router = Router()
+
+// Only these transitions are customer-facing events worth a WhatsApp —
+// 'draft' is pre-customer (never set via this route after creation) and
+// 'expired' is a computed display state (see effectiveStatus in
+// Quotations.tsx), never an actual stored value, so neither has a template.
+const STATUS_MESSAGES = {
+  sent: ({ companyName, quoteNumber }) =>
+    `📋 *${companyName}*\n\nTu cotización ${quoteNumber} está lista. Cualquier duda, escríbenos por este mismo WhatsApp.`,
+  accepted: ({ companyName, quoteNumber, total }) =>
+    `✅ *${companyName}*\n\n¡Tu cotización ${quoteNumber} fue aceptada! Total: $${(total ?? 0).toLocaleString('es-CO')}\n\nNos pondremos en contacto para coordinar los detalles de tu pedido.`,
+  rejected: ({ companyName, quoteNumber }) =>
+    `*${companyName}*\n\nTu cotización ${quoteNumber} no fue aprobada. Si quieres ajustar algo o tienes alguna duda, escríbenos por este mismo WhatsApp.`,
+}
+
+// Best-effort — every failure is caught and logged here, never thrown, so a
+// disconnected WhatsApp or a customer with no phone on file never turns an
+// already-successful status update into a failed request.
+async function notifyCustomerOfStatusChange({ customerId, quoteNumber, total, newStatus }) {
+  const buildMessage = STATUS_MESSAGES[newStatus]
+  if (!buildMessage || !customerId) return
+  try {
+    const { rows: settingsRows } = await pool.query(
+      `SELECT quote_status_notify_customer AS "enabled", company_name AS "companyName" FROM settings WHERE id = 1`
+    )
+    const settings = settingsRows[0]
+    if (!settings || settings.enabled === false) return
+
+    const { rows: customerRows } = await pool.query('SELECT phone FROM customers WHERE id=$1', [customerId])
+    const phone = customerRows[0]?.phone
+    if (!phone) return
+
+    const msg = buildMessage({ companyName: settings.companyName || 'Nuestra empresa', quoteNumber, total })
+    await sendWhatsAppMessage(phone, msg)
+    console.log(`📤 Aviso de cambio de estado (${newStatus}) enviado a ${phone} (${quoteNumber})`)
+  } catch (e) {
+    console.error(`quotations: fallo al notificar cambio de estado (${quoteNumber} → ${newStatus}):`, e.message)
+  }
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -48,6 +87,9 @@ router.put('/:id', validate(updateQuotationSchema), async (req, res) => {
   const { quoteNumber, customer, customerId, items, subtotal, tax, total,
           status, validUntil, date, deliveryEstimate, notes, internalNotes, convertedToOrderId } = req.body
   try {
+    const { rows: prevRows } = await pool.query('SELECT status FROM quotations WHERE id=$1', [req.params.id])
+    const prevStatus = prevRows[0]?.status
+
     const { rows } = await pool.query(
       `UPDATE quotations SET
          quote_number=$1, customer=$2, customer_id=$3, items=$4, subtotal=$5, tax=$6, total=$7,
@@ -63,6 +105,12 @@ router.put('/:id', validate(updateQuotationSchema), async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
     const u = getUser(req)
     await log({ userName: u.name, userEmail: u.email, action: 'editar', entity: 'Cotización', entityId: req.params.id, entityName: quoteNumber })
+
+    const newStatus = status ?? 'draft'
+    if (prevStatus && prevStatus !== newStatus) {
+      await notifyCustomerOfStatusChange({ customerId, quoteNumber, total: total ?? 0, newStatus })
+    }
+
     res.json(rows[0])
   } catch (e) {
     res.status(500).json({ error: e.message })

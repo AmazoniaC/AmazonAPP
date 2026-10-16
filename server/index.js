@@ -424,6 +424,12 @@ async function migrate() {
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_shipping_policy  TEXT DEFAULT '';
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_returns_policy   TEXT DEFAULT '';
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS catalog_faq              JSONB DEFAULT '[]';
+      -- Cuando el estado de una cotización cambia (enviada/aceptada/
+      -- rechazada), se le avisa al cliente por WhatsApp sin que el
+      -- vendedor tenga que escribirle a mano cada vez. Se puede apagar
+      -- desde Configuración → WhatsApp si el negocio prefiere avisar
+      -- manualmente.
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS quote_status_notify_customer BOOLEAN DEFAULT TRUE;
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with
