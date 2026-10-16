@@ -1681,6 +1681,19 @@ export default function Settings() {
                   ))}
                 </div>
               </div>
+
+              <button
+                className="btn btn-primary disabled:opacity-60"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Save size={15} />
+                )}
+                {saved ? '¡Guardado!' : saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
             </div>
           )}
 
