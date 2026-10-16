@@ -95,6 +95,18 @@ const isProductAvailable = (product: Product) =>
     ? product.variants.some((v) => v.stock > 0)
     : product.stock > 0
 
+// Matches name/category/description and, since products often come in a few
+// colors/finishes, also each variant's attribute values (e.g. searching
+// "negro" finds a product whose only matching trait is a black variant).
+// `q` is expected already lowercased.
+const productMatchesSearch = (product: Product, q: string) =>
+  product.name.toLowerCase().includes(q) ||
+  product.category.toLowerCase().includes(q) ||
+  (product.description ?? '').toLowerCase().includes(q) ||
+  (product.variants ?? []).some((v) =>
+    Object.values(v.attributes).some((val) => (val ?? '').toLowerCase().includes(q))
+  )
+
 // ─── Cart ────────────────────────────────────────────────────────────────────
 interface CartItem {
   productId: string
@@ -702,6 +714,7 @@ export default function PublicCatalog() {
   const [settings, setSettings]   = useState<Settings | null>(null)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
   const [category, setCategory]   = useState('Todos')
   const [copied, setCopied]       = useState(false)
   const cart = useCart()
@@ -796,11 +809,7 @@ export default function PublicCatalog() {
     if (category !== 'Todos') list = list.filter(p => p.category === category)
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        (p.description ?? '').toLowerCase().includes(q)
-      )
+      list = list.filter(p => productMatchesSearch(p, q))
     }
     const min = priceMin ? Number(priceMin) : null
     const max = priceMax ? Number(priceMax) : null
@@ -820,6 +829,16 @@ export default function PublicCatalog() {
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, category, search, priceMin, priceMax, onlyAvailable, selectedAttrs, sortBy])
+
+  // Quick-pick suggestions shown as a dropdown under the search box while
+  // typing — independent of `filtered` (which also applies category/price/
+  // etc.) so a suggestion always reflects the search term alone, capped to
+  // a handful so it reads as "top matches" rather than the whole list.
+  const searchSuggestions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return all.filter((p) => productMatchesSearch(p, q)).slice(0, 5)
+  }, [all, search])
 
   const activeFilterCount =
     (priceMin ? 1 : 0) + (priceMax ? 1 : 0) + (onlyAvailable ? 1 : 0) + selectedAttrs.size
@@ -1007,9 +1026,53 @@ export default function PublicCatalog() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 placeholder="Buscar productos…"
-                className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full border border-slate-200 rounded-lg pl-9 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
+                  title="Limpiar búsqueda"
+                >
+                  <X size={14} />
+                </button>
+              )}
+
+              {/* Suggestions dropdown */}
+              {searchFocused && search.trim() && (
+                <div className="absolute left-0 right-0 mt-1.5 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-30 animate-fadeIn">
+                  {searchSuggestions.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4 px-3">
+                      Sin resultados para "{search}"
+                    </p>
+                  ) : (
+                    searchSuggestions.map((p, i) => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setQuickView({ product: p, idx: i }); setSearchFocused(false) }}
+                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                          {p.image ? (
+                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={`w-full h-full bg-gradient-to-br ${catGrad(p.category, i)} flex items-center justify-center`}>
+                              <span className="text-sm">{catEmoji(p.category)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-700 truncate">{p.name}</p>
+                          <p className="text-xs text-slate-400">{formatCOP(productMinPrice(p))}</p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Category tabs */}
