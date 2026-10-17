@@ -36,6 +36,7 @@ import paymentsRouter            from './routes/payments.js'
 import inventoryMovementsRouter  from './routes/inventoryMovements.js'
 import calendarItemsRouter       from './routes/calendarItems.js'
 import whatsappRouter            from './routes/whatsapp.js'
+import catalogAnalyticsRouter    from './routes/catalogAnalytics.js'
 import { startWhatsApp }         from './whatsapp.js'
 import { startScheduler }        from './scheduler.js'
 
@@ -435,6 +436,19 @@ async function migrate() {
       -- la vista rápida del catálogo público. Capado a 6 en el schema de
       -- validación para no inflar la fila de más (se guardan en base64).
       ALTER TABLE products ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+      -- Catálogo público — estadísticas de visitas (propias, sin servicios
+      -- externos de pago): cada fila es una visita o una vista de producto,
+      -- anónima, sin cookies ni datos personales — solo para que el dueño
+      -- vea cuánta gente entra y qué productos miran más.
+      CREATE TABLE IF NOT EXISTS catalog_visits (
+        id SERIAL PRIMARY KEY,
+        visited_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS catalog_product_views (
+        id SERIAL PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        viewed_at TIMESTAMP DEFAULT NOW()
+      );
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with
@@ -579,6 +593,7 @@ app.use('/api/reset',             resetRouter)
 app.use('/api/audit',             auditLogRouter)
 app.use('/api/quotations',        quotationsRouter)
 app.use('/api/public',            publicRouter)
+app.use('/api/catalog-analytics', catalogAnalyticsRouter)
 app.use('/api/customer-activities', customerActivitiesRouter)
 app.use('/api/purchase-orders',    purchaseOrdersRouter)
 app.use('/api/dispatches',         dispatchesRouter)

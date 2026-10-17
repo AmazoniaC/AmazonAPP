@@ -307,4 +307,31 @@ router.post('/order-lookup', async (req, res) => {
   }
 })
 
+// ── Catalog analytics (anonymous, self-hosted) ─────────────────────────────
+// No cookies, no visitor id, no personal data — just a timestamped counter
+// row per event. Good enough to answer "is anyone visiting?" and "what do
+// they look at?" without wiring up a paid/external analytics service. Both
+// routes always respond 204 regardless of outcome: a dropped analytics beat
+// must never surface as an error to a visitor or break anything in the UI.
+router.post('/analytics/visit', async (_req, res) => {
+  try {
+    await pool.query('INSERT INTO catalog_visits DEFAULT VALUES')
+  } catch (e) {
+    console.error('catalog analytics (visit) error:', e.message)
+  }
+  res.status(204).end()
+})
+
+router.post('/analytics/product-view', async (req, res) => {
+  const productId = typeof req.body?.productId === 'string' ? req.body.productId.slice(0, 100) : ''
+  if (productId) {
+    try {
+      await pool.query('INSERT INTO catalog_product_views (product_id) VALUES ($1)', [productId])
+    } catch (e) {
+      console.error('catalog analytics (product-view) error:', e.message)
+    }
+  }
+  res.status(204).end()
+})
+
 export default router

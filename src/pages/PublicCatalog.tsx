@@ -95,6 +95,16 @@ const isProductAvailable = (product: Product) =>
     ? product.variants.some((v) => v.stock > 0)
     : product.stock > 0
 
+// Below this many units left, the card/quick-view shows an urgency badge
+// instead of just "available" — uses stock the owner already tracks, no
+// extra setting to configure. Doesn't apply once it hits 0 — that's the
+// stronger "Agotado" state, already shown separately.
+const LOW_STOCK_THRESHOLD = 3
+const lowStockCount = (product: Product, variant: ProductVariant | null) => {
+  const s = variant ? variant.stock : product.stock
+  return s > 0 && s <= LOW_STOCK_THRESHOLD ? s : null
+}
+
 // Matches name/category/description and, since products often come in a few
 // colors/finishes, also each variant's attribute values (e.g. searching
 // "negro" finds a product whose only matching trait is a black variant).
@@ -194,6 +204,7 @@ function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
   const price = effectivePrice(product, selectedVariant)
   const waLink = buildWALink(product, selectedVariant, settings)
   const available = selectedVariant ? selectedVariant.stock > 0 : product.stock > 0
+  const lowStock = lowStockCount(product, selectedVariant)
 
   const handleAdd = () => {
     cart.addItem({
@@ -281,6 +292,11 @@ function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
 
         {/* Price + CTA */}
         <div className="mt-auto">
+          {lowStock !== null && (
+            <p className="text-xs font-semibold text-amber-600 mb-1.5 flex items-center gap-1">
+              ⚡ ¡Últimas {lowStock} unidades!
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2 mb-2">
             <div>
               <p className="text-xl font-bold text-emerald-700">{formatCOP(price)}</p>
@@ -333,9 +349,22 @@ function ProductQuickView({ product, settings, idx, cart, onClose }: {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Opening the quick view is a real "someone looked at this" signal —
+  // fires once per open, unlike the card impression (which would just
+  // count every product on screen, not actual interest).
+  useEffect(() => {
+    fetch('/api/public/analytics/product-view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId: product.id }),
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id])
+
   const price = effectivePrice(product, selectedVariant)
   const waLink = buildWALink(product, selectedVariant, settings)
   const available = selectedVariant ? selectedVariant.stock > 0 : product.stock > 0
+  const lowStock = lowStockCount(product, selectedVariant)
 
   const handleAdd = () => {
     cart.addItem({
@@ -427,6 +456,11 @@ function ProductQuickView({ product, settings, idx, cart, onClose }: {
             )}
 
             <div className="mt-auto pt-5">
+              {lowStock !== null && (
+                <p className="text-sm font-semibold text-amber-600 mb-1.5 flex items-center gap-1">
+                  ⚡ ¡Últimas {lowStock} unidades!
+                </p>
+              )}
               <p className="text-2xl font-bold text-emerald-700">{formatCOP(price)}</p>
               <p className="text-xs text-slate-400 mb-3">por {product.unit}</p>
               <div className="flex gap-2">
@@ -744,6 +778,18 @@ export default function PublicCatalog() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }, [])
+
+  // Anonymous visit counter — once per browser tab (sessionStorage, not a
+  // persistent cookie) so navigating around the SPA or a quick reload
+  // doesn't inflate the count. Fire-and-forget: a dropped beacon must never
+  // affect the visitor's experience.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('catalog_visit_logged')) return
+      sessionStorage.setItem('catalog_visit_logged', '1')
+    } catch { /* private mode, etc. — just skip the dedupe, still fine */ }
+    fetch('/api/public/analytics/visit', { method: 'POST' }).catch(() => {})
   }, [])
 
   // The server already returns only active + publicly-visible products.

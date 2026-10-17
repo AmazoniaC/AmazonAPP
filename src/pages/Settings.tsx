@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen, Globe } from 'lucide-react'
+import { Users, CreditCard, Percent, Building, Bell, Shield, Save, Upload, X, Image, RotateCcw, AlertTriangle, ClipboardList, Search, RefreshCw, Plus, Pencil, Trash2, Eye, EyeOff, MessageCircle, Tag, BookOpen, Globe, BarChart3 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import type { TeamMember, TeamRole } from '../store/useStore'
 import { UserAvatar } from '../components/layout/Topbar'
@@ -1654,6 +1654,8 @@ export default function Settings() {
                 </p>
               </div>
 
+              <CatalogAnalyticsPanel />
+
               <div>
                 <label className="label">Nosotros / Quiénes somos</label>
                 <textarea className="input resize-none" rows={5}
@@ -1903,6 +1905,62 @@ export default function Settings() {
 }
 
 // ── WhatsApp connection (Baileys) ────────────────────────────────────────────
+// ── Catalog analytics (self-hosted, anonymous) ───────────────────────────────
+function CatalogAnalyticsPanel() {
+  const [stats, setStats] = useState<{
+    totalVisits: number; visitsLast30Days: number; totalProductViews: number
+    topProducts: { productId: string; name: string; views: number }[]
+  } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/catalog-analytics', { headers: { ...getAuthHeader() } })
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {})
+  }, [])
+
+  if (!stats) return null
+
+  return (
+    <div className="border border-slate-200 dark:border-gray-600 rounded-xl p-4">
+      <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 flex items-center gap-1.5 mb-3">
+        <BarChart3 size={15} /> Estadísticas del catálogo
+      </h3>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-slate-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+          <p className="text-xl font-bold text-slate-800 dark:text-white">{stats.totalVisits}</p>
+          <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-0.5">Visitas totales</p>
+        </div>
+        <div className="bg-slate-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+          <p className="text-xl font-bold text-slate-800 dark:text-white">{stats.visitsLast30Days}</p>
+          <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-0.5">Últimos 30 días</p>
+        </div>
+        <div className="bg-slate-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+          <p className="text-xl font-bold text-slate-800 dark:text-white">{stats.totalProductViews}</p>
+          <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-0.5">Vistas de producto</p>
+        </div>
+      </div>
+      {stats.topProducts.length > 0 ? (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 mb-1.5">Productos más vistos</p>
+          <div className="space-y-1">
+            {stats.topProducts.map((p, i) => (
+              <div key={p.productId} className="flex items-center justify-between text-sm px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-gray-700">
+                <span className="text-slate-600 dark:text-gray-300 truncate">#{i + 1} {p.name}</span>
+                <span className="text-slate-400 dark:text-gray-500 text-xs font-medium shrink-0 ml-2">{p.views} vistas</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 dark:text-gray-500 text-center py-2">
+          Todavía no hay vistas de producto registradas.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function WhatsAppConnectionPanel() {
   const [info, setInfo] = useState<{ available: boolean; status: string; qr: string | null; error: string | null } | null>(null)
   const [busy, setBusy] = useState(false)
