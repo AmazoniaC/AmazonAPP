@@ -551,6 +551,18 @@ const publicOrderLimiter = rateLimit({
 })
 app.use('/api/public/order-requests', publicOrderLimiter)
 
+// The order-lookup endpoint takes a quote number + phone pair as its only
+// "credential" — without a tight cap, a bot could brute-force phone number
+// variations against a known quote number. Same budget as order-requests.
+const orderLookupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes, intente de nuevo más tarde' },
+})
+app.use('/api/public/order-lookup', orderLookupLimiter)
+
 // ── Authentication middleware ───────────────────────────────────────────────
 app.use(authMiddleware)
 

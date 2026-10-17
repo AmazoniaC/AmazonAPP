@@ -250,4 +250,61 @@ router.post('/order-requests', validate(createPublicOrderSchema), async (req, re
   }
 })
 
+// Lets a customer check their order status without logging in — they only
+// ever got an on-screen confirmation and a WhatsApp message with the quote
+// number, with no way to come back and check progress later. Requires BOTH
+// the quote number AND the phone on file to match (not just the quote
+// number, which is a short sequential code anyone could guess/enumerate) so
+// a stranger can't browse other customers' orders.
+router.post('/order-lookup', async (req, res) => {
+  const { quoteNumber, phone } = req.body || {}
+  if (!quoteNumber || !phone) {
+    return res.status(400).json({ error: 'Escribe el número de cotización y el teléfono.' })
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT q.quote_number AS "quoteNumber", q.status, q.date, q.valid_until AS "validUntil",
+              q.items, q.total::float, q.converted_to_order_id AS "convertedToOrderId",
+              c.phone AS "customerPhone"
+       FROM quotations q
+       LEFT JOIN customers c ON c.id = q.customer_id
+       WHERE UPPER(q.quote_number) = UPPER($1)`,
+      [String(quoteNumber).trim()]
+    )
+    const order = rows[0]
+    const phoneDigits = digitsOnly(phone)
+    // Same generic message whether the quote number doesn't exist or the
+    // phone doesn't match it — never reveal which half was wrong, that's an
+    // enumeration oracle for guessing valid quote numbers.
+    if (!order || !order.customerPhone || digitsOnly(order.customerPhone) !== phoneDigits) {
+      return res.status(404).json({ error: 'No encontramos un pedido con esos datos. Revisa el número de cotización y el teléfono.' })
+    }
+
+    let saleOrderStatus = null
+    let saleOrderDeliveryDate = null
+    if (order.convertedToOrderId) {
+      const { rows: soRows } = await pool.query(
+        `SELECT status, delivery_date AS "deliveryDate" FROM sale_orders WHERE id = $1`,
+        [order.convertedToOrderId]
+      )
+      saleOrderStatus = soRows[0]?.status ?? null
+      saleOrderDeliveryDate = soRows[0]?.deliveryDate ?? null
+    }
+
+    res.json({
+      quoteNumber: order.quoteNumber,
+      status: order.status,
+      date: order.date,
+      validUntil: order.validUntil,
+      items: order.items,
+      total: order.total,
+      saleOrderStatus,
+      saleOrderDeliveryDate,
+    })
+  } catch (e) {
+    console.error('public order-lookup error:', e.message)
+    res.status(500).json({ error: 'No se pudo consultar el pedido. Intenta de nuevo en unos minutos.' })
+  }
+})
+
 export default router

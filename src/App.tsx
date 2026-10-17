@@ -24,6 +24,7 @@ const ExpensesPage      = lazy(() => import('./pages/Expenses'))
 const PipelinePage      = lazy(() => import('./pages/Pipeline'))
 const CalendarPage      = lazy(() => import('./pages/Calendar'))
 const PublicCatalog     = lazy(() => import('./pages/PublicCatalog'))
+const OrderTracking     = lazy(() => import('./pages/OrderTracking'))
 const ReturnsPage       = lazy(() => import('./pages/Returns'))
 const SuppliersPage     = lazy(() => import('./pages/Suppliers'))
 const CarteraPage       = lazy(() => import('./pages/Cartera'))
@@ -58,6 +59,7 @@ export default function App() {
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/catalogo" element={<PublicCatalog />} />
+          <Route path="/mi-pedido" element={<OrderTracking />} />
           <Route path="/login" element={<Login />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>

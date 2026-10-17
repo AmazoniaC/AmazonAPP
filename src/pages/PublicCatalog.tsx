@@ -1233,6 +1233,9 @@ export default function PublicCatalog() {
               Preguntas frecuentes
             </button>
           )}
+          <a href="/mi-pedido" className="hover:text-white transition-colors">
+            Rastrea tu pedido
+          </a>
           {co?.instagramHandle && (
             <a href={co.instagram || '#'} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
               @{co.instagramHandle}
@@ -1300,6 +1303,9 @@ export default function PublicCatalog() {
                 ✅ Te enviamos la confirmación a tu WhatsApp
               </p>
             )}
+            <p className="text-xs text-slate-400 mb-4">
+              Guarda tu número de pedido — en <a href="/mi-pedido" className="text-emerald-700 hover:text-emerald-800 font-semibold underline">Rastrea tu pedido</a> puedes consultar su estado cuando quieras.
+            </p>
             <button
               onClick={() => setConfirmedQuote(null)}
               className="w-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold py-2.5 rounded-xl transition-colors"
