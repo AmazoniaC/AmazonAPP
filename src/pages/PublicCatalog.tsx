@@ -831,6 +831,22 @@ export default function PublicCatalog() {
 
   const featuredProducts = useMemo(() => all.filter(p => p.isFeatured), [all])
 
+  // Real product photos for the hero's visual side — never stock/fake
+  // mockups. Featured products win; up to 2 distinct ones so the floating
+  // cards aren't just the same photo twice.
+  const heroProducts = useMemo(() => {
+    const withImage = [...featuredProducts, ...all].filter(p => p.image)
+    const seen = new Set<string>()
+    const picked: Product[] = []
+    for (const p of withImage) {
+      if (seen.has(p.id)) continue
+      seen.add(p.id)
+      picked.push(p)
+      if (picked.length === 2) break
+    }
+    return picked
+  }, [featuredProducts, all])
+
   const noOtherFiltersActive = category === 'Todos' && search.trim() === '' &&
     !priceMin && !priceMax && !onlyAvailable && selectedAttrs.size === 0
 
@@ -918,9 +934,6 @@ export default function PublicCatalog() {
   }
 
   const co = settings
-  // A real product photo for the hero's visual side — never a stock/fake
-  // mockup. Featured products win; otherwise whatever has a photo first.
-  const heroProduct = featuredProducts.find(p => p.image) ?? all.find(p => p.image)
   const scrollToProducts = () => document.getElementById('productos-top')?.scrollIntoView({ behavior: 'smooth' })
 
   return (
@@ -1011,21 +1024,32 @@ export default function PublicCatalog() {
             )}
           </div>
 
-          {/* Visual */}
+          {/* Visual — real products, not a static mockup: floats gently and
+              each card opens that product's quick view on click. */}
           <div className="hidden md:flex relative h-80 items-center justify-center">
-            <div className="absolute w-56 h-56 rounded-full bg-[#1B4332]/10 blur-2xl" />
-            {heroProduct ? (
+            <div className="absolute w-56 h-56 rounded-full bg-[#1B4332]/10 blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
+            {heroProducts.length > 0 ? (
               <>
-                <div className="absolute w-48 h-60 rotate-[-8deg] rounded-2xl bg-white shadow-xl overflow-hidden translate-x-16 -translate-y-4 opacity-80">
-                  <img src={heroProduct.image} alt="" className="w-full h-full object-cover" />
-                </div>
-                <div className="relative w-52 h-64 rotate-[4deg] rounded-2xl bg-white shadow-2xl overflow-hidden -translate-x-6">
-                  <img src={heroProduct.image} alt={heroProduct.name} className="w-full h-full object-cover" />
-                  <div className="absolute bottom-0 inset-x-0 bg-white/95 px-3 py-2">
-                    <p className="text-xs font-semibold text-slate-700 truncate">{heroProduct.name}</p>
-                    <p className="text-sm font-bold text-emerald-700">{formatCOP(productMinPrice(heroProduct))}</p>
+                {heroProducts[1] && (
+                  <button
+                    onClick={() => setQuickView({ product: heroProducts[1], idx: 1 })}
+                    style={{ '--tilt': '-8deg' } as React.CSSProperties}
+                    className="animate-floatA absolute w-48 h-60 rounded-2xl bg-white shadow-xl overflow-hidden translate-x-16 -translate-y-4 opacity-80 hover:opacity-100 hover:scale-105 transition-[opacity,transform] cursor-pointer"
+                  >
+                    <img src={heroProducts[1].image} alt={heroProducts[1].name} className="w-full h-full object-cover" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setQuickView({ product: heroProducts[0], idx: 0 })}
+                  style={{ '--tilt': '4deg' } as React.CSSProperties}
+                  className="animate-floatB relative w-52 h-64 rounded-2xl bg-white shadow-2xl overflow-hidden -translate-x-6 hover:scale-105 transition-transform cursor-pointer"
+                >
+                  <img src={heroProducts[0].image} alt={heroProducts[0].name} className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0 inset-x-0 bg-white/95 px-3 py-2 text-left">
+                    <p className="text-xs font-semibold text-slate-700 truncate">{heroProducts[0].name}</p>
+                    <p className="text-sm font-bold text-emerald-700">{formatCOP(productMinPrice(heroProducts[0]))}</p>
                   </div>
-                </div>
+                </button>
               </>
             ) : (
               <ShoppingBag size={72} className="text-[#1B4332]/20" />

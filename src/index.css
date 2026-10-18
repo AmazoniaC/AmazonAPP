@@ -393,3 +393,19 @@ body {
   0%, 100% { transform: scale(1);   opacity: 0.4; }
   50%       { transform: scale(1.6); opacity: 0; }
 }
+
+/* ── Gentle float (public catalog hero cards) ──
+   Two variants with different durations/rotation so stacked cards drift
+   out of sync instead of bobbing in lockstep. Respects the same rotate()
+   each card already sets inline via its own transform — reapplied here so
+   the animation doesn't reset it on every keyframe. */
+@keyframes floatA {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50%      { transform: translateY(-10px) rotate(var(--tilt, 0deg)); }
+}
+@keyframes floatB {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50%      { transform: translateY(-14px) rotate(var(--tilt, 0deg)); }
+}
+.animate-floatA { animation: floatA 4.5s ease-in-out infinite; }
+.animate-floatB { animation: floatB 5.5s ease-in-out infinite; }
