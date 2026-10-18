@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
               planned_start AS "plannedStart", planned_end AS "plannedEnd",
               estimated_cost::float AS "estimatedCost", actual_cost::float AS "actualCost",
               assigned_to AS "assignedTo", finished_at AS "finishedAt",
-              actual_ingredients AS "actualIngredients", notes
+              actual_ingredients AS "actualIngredients", notes,
+              sale_order_id AS "saleOrderId"
        FROM production_orders ORDER BY created_at DESC`
     )
     res.json(rows)
@@ -28,17 +29,18 @@ router.post('/', validate(createProductionOrderSchema), async (req, res) => {
   const {
     id, orderNumber, recipe, recipeId, product, plannedQty,
     status, priority, plannedStart, plannedEnd, estimatedCost, assignedTo, notes,
+    saleOrderId,
   } = req.body
   try {
     const { rows } = await pool.query(
       `INSERT INTO production_orders
          (id, order_number, recipe, recipe_id, product, planned_qty,
-          status, priority, planned_start, planned_end, estimated_cost, assigned_to, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+          status, priority, planned_start, planned_end, estimated_cost, assigned_to, notes, sale_order_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [
         id, orderNumber, recipe, recipeId ?? null, product, plannedQty,
         status ?? 'pending', priority ?? 3, plannedStart ?? null, plannedEnd ?? null,
-        estimatedCost ?? 0, assignedTo ?? '', notes ?? '',
+        estimatedCost ?? 0, assignedTo ?? '', notes ?? '', saleOrderId ?? null,
       ]
     )
     const u = getUser(req)

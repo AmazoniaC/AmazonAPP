@@ -460,6 +460,11 @@ async function migrate() {
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_hour            SMALLINT DEFAULT 19;
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_daily_sent_date  DATE;
       ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_weekly_sent_date DATE;
+      -- Structured link from a production order back to the sale it was
+      -- auto-generated to cover (see createProductionOrdersForSale), so the
+      -- app can tell when a sale's stock deficit is fully resolved instead
+      -- of only having the sale number as free text inside "notes".
+      ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS sale_order_id TEXT;
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with

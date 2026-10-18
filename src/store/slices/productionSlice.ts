@@ -3,6 +3,29 @@ import type { AppState } from '../state'
 import type { ProductionOrder } from '../../data/mockData'
 import { apiFetch } from '../api'
 import { toast } from '../../components/Toast'
+import { sendWhatsAppAuto } from '../../utils/whatsappSend'
+
+// After a production order finishes, check whether it was the last one still
+// blocking its sale's stock deficit (see createProductionOrdersForSale in
+// salesSlice.ts — the only place that sets saleOrderId) and, if so, nudge
+// the business's own WhatsApp that the sale is fully stocked and ready to
+// go out, closing the loop that started when the sale was confirmed.
+function notifySaleIfFullyStocked(get: () => AppState, saleOrderId: string | undefined) {
+  if (!saleOrderId) return
+  const s = get()
+  const stillPending = s.productionOrders.some(
+    (o) => o.saleOrderId === saleOrderId && (o.status === 'pending' || o.status === 'in_progress')
+  )
+  if (stillPending) return
+  const order = s.saleOrders.find((o) => o.id === saleOrderId)
+  const phone = (s.companySettings.whatsapp || '').trim()
+  if (!order || !phone) return
+  const dispatch = s.dispatches.find((d) => d.saleOrderId === saleOrderId)
+  const message = dispatch
+    ? `✅ *Producción completa*\n\nVenta ${order.orderNumber} — ${order.customer}.\nEl despacho ${dispatch.dispatchNumber} ya puede salir.`
+    : `✅ *Producción completa*\n\nVenta ${order.orderNumber} — ${order.customer}.\nAún no tiene despacho — créalo cuando quieras.`
+  sendWhatsAppAuto({ phone, message, successLabel: 'Aviso de producción completa enviado por WhatsApp' })
+}
 
 export interface ProductionSlice {
   productionOrders: ProductionOrder[]
@@ -26,12 +49,14 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
     await apiFetch(`/api/production-orders/${id}/status`, {
       method: 'PUT', body: JSON.stringify({ status }),
     })
+    let finishedSaleOrderId: string | undefined
     set((s) => {
       const updatedOrders = s.productionOrders.map((o) => o.id === id ? { ...o, status } : o)
 
       // When finishing a production order, auto-deduct supplies from inventory
       if (status === 'finished') {
         const order = s.productionOrders.find((o) => o.id === id)
+        finishedSaleOrderId = order?.saleOrderId
         if (order?.recipeId) {
           const recipe = s.recipes.find((r) => r.id === order.recipeId)
           if (recipe) {
@@ -56,6 +81,7 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
 
       return { productionOrders: updatedOrders }
     })
+    if (status === 'finished') notifySaleIfFullyStocked(get, finishedSaleOrderId)
   },
 
   finalizeProductionOrder: async (id, actuals) => {
@@ -70,10 +96,20 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
     if (!order) return
     const finishedAt = new Date().toISOString()
 
-    // Update the order with actuals
+    // Update the order with actuals. Notes is spread explicitly rather than
+    // via `...actuals` — the finalize form leaves it `undefined` when the
+    // operator doesn't type anything, which would otherwise wipe out a note
+    // set at creation (e.g. the auto-generated reference to the sale this
+    // order covers).
     const updatedOrders = s.productionOrders.map((o) =>
       o.id === id
-        ? { ...o, status: 'finished' as const, ...actuals, finishedAt }
+        ? {
+            ...o, status: 'finished' as const,
+            actualQty: actuals.actualQty, rejectedQty: actuals.rejectedQty,
+            actualCost: actuals.actualCost, actualIngredients: actuals.actualIngredients,
+            notes: actuals.notes ?? o.notes,
+            finishedAt,
+          }
         : o
     )
 
@@ -113,6 +149,7 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
     set({ productionOrders: updatedOrders, supplies: updatedSupplies })
     setTimeout(() => get().checkAlerts(), 0)
     toast.success(`Orden finalizada — ${actuals.actualQty} unidades producidas`)
+    notifySaleIfFullyStocked(get, order.saleOrderId)
   },
 
   addProductionOrder: async (order, opts) => {

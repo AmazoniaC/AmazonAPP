@@ -144,6 +144,7 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
         estimatedCost: parseFloat((recipe.costPerUnit * deficit).toFixed(2)),
         assignedTo: defaultAssignee,
         notes: `Generada automáticamente: faltante de ${deficit} ${recipe.yieldUnit} para la venta ${order.orderNumber}`,
+        saleOrderId: order.id,
       }
       await get().addProductionOrder(po, { silent: true })
       created += 1

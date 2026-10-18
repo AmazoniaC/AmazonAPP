@@ -45,6 +45,10 @@ export interface ProductionOrder {
   finishedAt?: string           // ISO datetime the order was finalized
   actualIngredients?: { supplyId: string; supplyName: string; qty: number; unit: string }[]
   notes?: string                // free-text at finish (issues, comments)
+  // Set only when this order was auto-generated to cover a confirmed sale's
+  // stock deficit (see createProductionOrdersForSale in salesSlice.ts) —
+  // lets the system know when that sale is fully stocked and ready to ship.
+  saleOrderId?: string
 }
 
 export interface PriceList {

@@ -14,6 +14,7 @@ export const createProductionOrderSchema = z.object({
   estimatedCost: z.number().min(0).default(0),
   assignedTo: z.string().max(200).nullish(),
   notes: z.string().max(2000).nullish(),
+  saleOrderId: z.string().nullish(),
 })
 
 export const updateProductionOrderStatusSchema = z.object({
