@@ -408,6 +408,14 @@ export default function Settings() {
     await saveCompanySettings({ ...companySettings, [field]: !companySettings[field] })
   }
 
+  // ── Daily/weekly WhatsApp business digest (persisted in companySettings) ──
+  const toggleDigest = async (field: 'digestDailyEnabled' | 'digestWeeklyEnabled') => {
+    await saveCompanySettings({ ...companySettings, [field]: !companySettings[field] })
+  }
+  const updateDigestHour = async (hour: number) => {
+    await saveCompanySettings({ ...companySettings, digestHour: hour })
+  }
+
   // ── Role permissions matrix (persisted in companySettings) ────────────
   const rolePermissions = companySettings.rolePermissions ?? DEFAULT_ROLE_PERMS
   const updateRolePermission = async (role: string, module: AppModule, level: 'none' | 'edit' | 'full') => {
@@ -1576,6 +1584,62 @@ export default function Settings() {
                         {label}
                       </label>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-slate-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Resumen diario por WhatsApp</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Cada día a las {String(companySettings.digestHour ?? 19).padStart(2, '0')}:00, un resumen de ventas, producción, despachos y pagos del día — al WhatsApp de la empresa ({companySettings.whatsapp || 'configúralo arriba en Empresa'}).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.digestDailyEnabled}
+                    onClick={() => toggleDigest('digestDailyEnabled')}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.digestDailyEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.digestDailyEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-100 dark:border-gray-700">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-gray-200">Resumen semanal por WhatsApp</p>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Cada lunes, el total de ventas, lo más vendido, producción y pagos de la semana anterior.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={companySettings.digestWeeklyEnabled}
+                    onClick={() => toggleDigest('digestWeeklyEnabled')}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      companySettings.digestWeeklyEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      companySettings.digestWeeklyEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                {(companySettings.digestDailyEnabled || companySettings.digestWeeklyEnabled) && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <label className="text-xs text-slate-500 dark:text-gray-400">Hora de envío</label>
+                    <select
+                      className="input !w-auto text-xs"
+                      value={companySettings.digestHour ?? 19}
+                      onChange={(e) => updateDigestHour(parseInt(e.target.value, 10))}>
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

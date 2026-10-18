@@ -449,6 +449,17 @@ async function migrate() {
         product_id TEXT NOT NULL,
         viewed_at TIMESTAMP DEFAULT NOW()
       );
+      -- Resumen diario/semanal del negocio por WhatsApp al número de la
+      -- empresa (mismo destino que las alertas operativas) — ventas,
+      -- producción, despachos y pagos, sin que el dueño tenga que entrar
+      -- a la app a revisar cada módulo. digest_hour es la hora local
+      -- (según settings.timezone) a partir de la que se envía; las
+      -- columnas *_sent_date evitan reenviarlo más de una vez por día.
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_daily_enabled   BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_weekly_enabled  BOOLEAN DEFAULT TRUE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_hour            SMALLINT DEFAULT 19;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_daily_sent_date  DATE;
+      ALTER TABLE settings ADD COLUMN IF NOT EXISTS digest_weekly_sent_date DATE;
     `)
     // Seed a single admin account if no users exist yet. This used to also
     // seed 4 fake demo employees (María, Carlos, Ana, Roberto) with

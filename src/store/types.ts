@@ -105,6 +105,12 @@ export interface CompanySettings {
   // (enviada/aceptada/rechazada), sin que el vendedor tenga que escribirle
   // a mano cada vez.
   quoteStatusNotifyCustomer?: boolean
+  // Resumen diario/semanal del negocio por WhatsApp al número de la empresa
+  // (ventas, producción, despachos, pagos) — digestHour es la hora local a
+  // partir de la que se envía (el resumen semanal llega los lunes).
+  digestDailyEnabled?: boolean
+  digestWeeklyEnabled?: boolean
+  digestHour?: number
 }
 
 // Roles del equipo que alimentan los selectores de la app (vendedor asignado,

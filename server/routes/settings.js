@@ -46,7 +46,10 @@ router.get('/', async (req, res) => {
               catalog_shipping_policy AS "catalogShippingPolicy",
               catalog_returns_policy  AS "catalogReturnsPolicy",
               COALESCE(catalog_faq, '[]'::jsonb) AS "catalogFaq",
-              quote_status_notify_customer AS "quoteStatusNotifyCustomer"
+              quote_status_notify_customer AS "quoteStatusNotifyCustomer",
+              digest_daily_enabled  AS "digestDailyEnabled",
+              digest_weekly_enabled AS "digestWeeklyEnabled",
+              digest_hour           AS "digestHour"
        FROM settings WHERE id = 1`
     )
     const s = rows[0] ?? {}
@@ -72,6 +75,7 @@ router.put('/', async (req, res) => {
     rolePermissions,
     catalogAbout, catalogShippingPolicy, catalogReturnsPolicy, catalogFaq,
     quoteStatusNotifyCustomer,
+    digestDailyEnabled, digestWeeklyEnabled, digestHour,
   } = req.body
   try {
     const { rows: existing } = await pool.query(
@@ -100,9 +104,10 @@ router.put('/', async (req, res) => {
          ops_alert_quote_expiring, ops_alert_crm_stale, role_permissions,
          ops_alert_pipeline_action,
          catalog_about, catalog_shipping_policy, catalog_returns_policy, catalog_faq,
-         quote_status_notify_customer
+         quote_status_notify_customer,
+         digest_daily_enabled, digest_weekly_enabled, digest_hour
        )
-       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46)
+       VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49)
        ON CONFLICT (id) DO UPDATE SET
          company_name=$1, slogan=$2, email=$3, phone=$4, address=$5,
          currency=$6, timezone=$7, logo=$8,
@@ -120,7 +125,8 @@ router.put('/', async (req, res) => {
          role_permissions=COALESCE($40, settings.role_permissions),
          ops_alert_pipeline_action=$41,
          catalog_about=$42, catalog_shipping_policy=$43, catalog_returns_policy=$44, catalog_faq=$45,
-         quote_status_notify_customer=$46
+         quote_status_notify_customer=$46,
+         digest_daily_enabled=$47, digest_weekly_enabled=$48, digest_hour=$49
        RETURNING company_name AS "companyName", slogan, email, phone, address,
                 currency, timezone, logo,
                 bank_name AS "bankName", bank_key AS "bankKey",
@@ -155,7 +161,10 @@ router.put('/', async (req, res) => {
                 catalog_shipping_policy AS "catalogShippingPolicy",
                 catalog_returns_policy  AS "catalogReturnsPolicy",
                 catalog_faq             AS "catalogFaq",
-                quote_status_notify_customer AS "quoteStatusNotifyCustomer"`,
+                quote_status_notify_customer AS "quoteStatusNotifyCustomer",
+                digest_daily_enabled  AS "digestDailyEnabled",
+                digest_weekly_enabled AS "digestWeeklyEnabled",
+                digest_hour           AS "digestHour"`,
       [
         companyName, slogan, email, phone, address, currency, timezone, logo ?? null,
         bankName ?? '', bankKey ?? '', bankAccountType ?? '',
@@ -177,6 +186,7 @@ router.put('/', async (req, res) => {
         catalogAbout ?? '', catalogShippingPolicy ?? '', catalogReturnsPolicy ?? '',
         JSON.stringify(catalogFaq ?? []),
         quoteStatusNotifyCustomer ?? true,
+        digestDailyEnabled ?? true, digestWeeklyEnabled ?? true, digestHour ?? 19,
       ]
     )
     const result = rows[0]

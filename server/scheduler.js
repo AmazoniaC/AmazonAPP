@@ -467,6 +467,205 @@ async function tickOpsAlerts() {
   }
 }
 
+// Throttle the digest "not connected" warning the same way as the others
+let lastDigestNotConnectedWarn = 0
+
+/** Current date/hour/weekday in a given IANA timezone (falls back to server-local time). */
+function nowInTz(tz) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz || undefined,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false, weekday: 'short',
+    }).formatToParts(new Date())
+    const p = (type) => parts.find((x) => x.type === type)?.value
+    return {
+      dateStr: `${p('year')}-${p('month')}-${p('day')}`,
+      hour: parseInt(p('hour'), 10) % 24, // some ICU builds render midnight as "24"
+      weekday: p('weekday'), // 'Mon', 'Tue', ...
+    }
+  } catch {
+    const d = new Date()
+    return {
+      dateStr: d.toISOString().split('T')[0],
+      hour: d.getHours(),
+      weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()],
+    }
+  }
+}
+
+/** Subtract N days from a YYYY-MM-DD string, return YYYY-MM-DD. */
+function subDaysISO(d, days) {
+  const dt = new Date(`${d}T12:00:00`)
+  dt.setDate(dt.getDate() - days)
+  return dt.toISOString().split('T')[0]
+}
+
+async function buildDailyDigest(today) {
+  const [sales, production, dispatches, payments, lowStock] = await Promise.all([
+    pool.query(
+      `SELECT count(*)::int AS cnt, COALESCE(sum(total), 0)::float AS total
+       FROM sale_orders WHERE date = $1 AND status <> 'cancelled'`,
+      [today]
+    ),
+    pool.query(
+      `SELECT
+         count(*) FILTER (WHERE created_at::date = $1)::int AS created,
+         count(*) FILTER (WHERE status = 'finished' AND finished_at::date = $1)::int AS finished,
+         COALESCE(sum(actual_qty) FILTER (WHERE status = 'finished' AND finished_at::date = $1), 0)::float AS "finishedQty"
+       FROM production_orders`,
+      [today]
+    ),
+    pool.query(
+      `SELECT
+         count(*) FILTER (WHERE scheduled_date = $1)::int AS scheduled,
+         count(*) FILTER (WHERE status = 'delivered' AND delivered_at = $1)::int AS delivered
+       FROM dispatches`,
+      [today]
+    ),
+    pool.query(`SELECT COALESCE(sum(amount), 0)::float AS total FROM payments WHERE date = $1`, [today]),
+    pool.query(`SELECT count(*)::int AS cnt FROM supplies WHERE stock <= min_stock`),
+  ])
+
+  const s = sales.rows[0]
+  const p = production.rows[0]
+  const d = dispatches.rows[0]
+  const pay = payments.rows[0]
+  const low = lowStock.rows[0]
+
+  if (s.cnt === 0 && p.created === 0 && p.finished === 0 && d.scheduled === 0 && d.delivered === 0 && pay.total === 0 && low.cnt === 0) {
+    return null // nothing happened today — skip sending an empty digest
+  }
+
+  const lines = [`📊 *Resumen del día* — ${today}`, '']
+  lines.push(`🛒 Ventas: ${s.cnt} por ${formatCOP(s.total)}`)
+  if (p.created > 0 || p.finished > 0) {
+    lines.push(`🏭 Producción: ${p.created} orden${p.created === 1 ? '' : 'es'} nueva${p.created === 1 ? '' : 's'}, ${p.finished} finalizada${p.finished === 1 ? '' : 's'} (${p.finishedQty} u)`)
+  }
+  lines.push(`🚚 Despachos: ${d.scheduled} programado${d.scheduled === 1 ? '' : 's'}, ${d.delivered} entregado${d.delivered === 1 ? '' : 's'}`)
+  if (pay.total > 0) lines.push(`💰 Pagos recibidos: ${formatCOP(pay.total)}`)
+  if (low.cnt > 0) lines.push('', `⚠️ ${low.cnt} insumo${low.cnt === 1 ? '' : 's'} en stock bajo.`)
+  return lines.join('\n')
+}
+
+async function buildWeeklyDigest(from, to) {
+  const [sales, topProducts, production, dispatches, payments, quotes] = await Promise.all([
+    pool.query(
+      `SELECT count(*)::int AS cnt, COALESCE(sum(total), 0)::float AS total
+       FROM sale_orders WHERE date >= $1 AND date <= $2 AND status <> 'cancelled'`,
+      [from, to]
+    ),
+    pool.query(
+      `SELECT soi.product_name AS name, COALESCE(sum(soi.subtotal), 0)::float AS revenue
+       FROM sale_order_items soi
+       JOIN sale_orders so ON so.id = soi.order_id
+       WHERE so.date >= $1 AND so.date <= $2 AND so.status <> 'cancelled'
+       GROUP BY soi.product_name ORDER BY revenue DESC LIMIT 3`,
+      [from, to]
+    ),
+    pool.query(
+      `SELECT count(*)::int AS finished, COALESCE(sum(actual_qty), 0)::float AS qty
+       FROM production_orders WHERE status = 'finished' AND finished_at::date >= $1 AND finished_at::date <= $2`,
+      [from, to]
+    ),
+    pool.query(
+      `SELECT count(*)::int AS delivered FROM dispatches WHERE status = 'delivered' AND delivered_at >= $1 AND delivered_at <= $2`,
+      [from, to]
+    ),
+    pool.query(`SELECT COALESCE(sum(amount), 0)::float AS total FROM payments WHERE date >= $1 AND date <= $2`, [from, to]),
+    pool.query(
+      `SELECT count(*)::int AS sent, count(*) FILTER (WHERE status = 'accepted')::int AS accepted
+       FROM quotations WHERE created_at::date >= $1 AND created_at::date <= $2`,
+      [from, to]
+    ),
+  ])
+
+  const s = sales.rows[0]
+  const prod = production.rows[0]
+  const d = dispatches.rows[0]
+  const pay = payments.rows[0]
+  const q = quotes.rows[0]
+
+  if (s.cnt === 0 && prod.finished === 0 && d.delivered === 0 && pay.total === 0 && q.sent === 0) {
+    return null // nothing happened this week — skip sending an empty digest
+  }
+
+  const lines = [`📈 *Resumen de la semana* — ${from} al ${to}`, '']
+  lines.push(`🛒 Ventas: ${s.cnt} por ${formatCOP(s.total)}`)
+  if (topProducts.rows.length > 0) {
+    lines.push('', '🏆 *Lo más vendido:*')
+    topProducts.rows.forEach((r, i) => lines.push(`${i + 1}. ${r.name} — ${formatCOP(r.revenue)}`))
+    lines.push('')
+  }
+  lines.push(`🏭 Producción: ${prod.finished} orden${prod.finished === 1 ? '' : 'es'} finalizada${prod.finished === 1 ? '' : 's'} (${prod.qty} u)`)
+  lines.push(`🚚 Despachos entregados: ${d.delivered}`)
+  if (pay.total > 0) lines.push(`💰 Pagos recibidos: ${formatCOP(pay.total)}`)
+  if (q.sent > 0) lines.push(`📋 Cotizaciones: ${q.sent} nueva${q.sent === 1 ? '' : 's'}, ${q.accepted} aceptada${q.accepted === 1 ? '' : 's'}`)
+  return lines.join('\n')
+}
+
+// Sends the configured daily/weekly business digest once its hour has
+// arrived (local time per settings.timezone) and it hasn't already gone
+// out today — mirrors tickCartera's "mark only on confirmed send" pattern
+// so a disconnected WhatsApp just retries on the next tick.
+async function tickDigest() {
+  let settings
+  try {
+    const { rows } = await pool.query(
+      `SELECT digest_daily_enabled AS "dailyEnabled", digest_weekly_enabled AS "weeklyEnabled",
+              digest_hour AS "hour", whatsapp, timezone,
+              digest_daily_sent_date AS "dailySentDate", digest_weekly_sent_date AS "weeklySentDate"
+       FROM settings WHERE id = 1`
+    )
+    settings = rows[0]
+  } catch {
+    return // settings table may not exist yet
+  }
+  if (!settings || (!settings.dailyEnabled && !settings.weeklyEnabled)) return
+  const phone = (settings.whatsapp || '').trim()
+  if (!phone) return
+
+  const { dateStr: today, hour, weekday } = nowInTz(settings.timezone)
+  if (hour < (settings.hour ?? 19)) return
+
+  const dailyDue = settings.dailyEnabled && String(settings.dailySentDate ?? '').slice(0, 10) !== today
+  const weeklyDue = settings.weeklyEnabled && weekday === 'Mon' && String(settings.weeklySentDate ?? '').slice(0, 10) !== today
+  if (!dailyDue && !weeklyDue) return
+
+  const wa = getWhatsAppStatus()
+  if (wa.status !== 'connected') {
+    const now = Date.now()
+    if (now - lastDigestNotConnectedWarn > NOT_CONNECTED_WARN_INTERVAL_MS) {
+      lastDigestNotConnectedWarn = now
+      console.warn(`⚠️  scheduler: resumen pendiente pero WhatsApp está "${wa.status}". Conecta WhatsApp en Configuración → WhatsApp para enviarlo.`)
+    }
+    return
+  }
+
+  if (dailyDue) {
+    try {
+      const message = await buildDailyDigest(today)
+      if (message) await sendWhatsAppMessage(phone, message)
+      await pool.query('UPDATE settings SET digest_daily_sent_date = $1 WHERE id = 1', [today])
+      console.log(`📤 Resumen diario ${message ? 'enviado' : 'omitido (sin actividad)'} → ${phone}`)
+    } catch (e) {
+      console.error('scheduler: fallo al enviar el resumen diario:', e.message)
+    }
+  }
+
+  if (weeklyDue) {
+    try {
+      const to = subDaysISO(today, 1)   // yesterday (Sunday)
+      const from = subDaysISO(today, 7) // the Monday before that
+      const message = await buildWeeklyDigest(from, to)
+      if (message) await sendWhatsAppMessage(phone, message)
+      await pool.query('UPDATE settings SET digest_weekly_sent_date = $1 WHERE id = 1', [today])
+      console.log(`📤 Resumen semanal ${message ? 'enviado' : 'omitido (sin actividad)'} → ${phone}`)
+    } catch (e) {
+      console.error('scheduler: fallo al enviar el resumen semanal:', e.message)
+    }
+  }
+}
+
 async function tick() {
   await loadTimezone()
   let due
@@ -542,6 +741,7 @@ export function startScheduler() {
     tickCartera().catch((e) => console.error('scheduler cartera tick error:', e.message))
     tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up tick error:', e.message))
     tickOpsAlerts().catch((e) => console.error('scheduler ops alerts tick error:', e.message))
+    tickDigest().catch((e) => console.error('scheduler digest tick error:', e.message))
   }, TICK_MS)
   // first tick after a short delay so Baileys has time to connect
   setTimeout(() => {
@@ -549,6 +749,7 @@ export function startScheduler() {
     tickCartera().catch((e) => console.error('scheduler cartera initial tick error:', e.message))
     tickQuoteFollowUp().catch((e) => console.error('scheduler quote follow-up initial tick error:', e.message))
     tickOpsAlerts().catch((e) => console.error('scheduler ops alerts initial tick error:', e.message))
+    tickDigest().catch((e) => console.error('scheduler digest initial tick error:', e.message))
   }, 10_000)
   console.log('⏰ Scheduler de recordatorios iniciado (cada 60s)')
 }

@@ -95,6 +95,9 @@ export const createDataSlice: StateCreator<AppState, [], [], DataSlice> = (set, 
         catalogReturnsPolicy: settings.catalogReturnsPolicy ?? defaultCompanySettings.catalogReturnsPolicy,
         catalogFaq: settings.catalogFaq ?? defaultCompanySettings.catalogFaq,
         quoteStatusNotifyCustomer: settings.quoteStatusNotifyCustomer ?? defaultCompanySettings.quoteStatusNotifyCustomer,
+        digestDailyEnabled: settings.digestDailyEnabled ?? defaultCompanySettings.digestDailyEnabled,
+        digestWeeklyEnabled: settings.digestWeeklyEnabled ?? defaultCompanySettings.digestWeeklyEnabled,
+        digestHour: settings.digestHour ?? defaultCompanySettings.digestHour,
         rolePermissions: settings.rolePermissions ?? defaultCompanySettings.rolePermissions,
       }
 

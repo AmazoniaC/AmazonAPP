@@ -72,4 +72,7 @@ export const defaultCompanySettings: CompanySettings = {
   catalogReturnsPolicy: '',
   catalogFaq: [],
   quoteStatusNotifyCustomer: true,
+  digestDailyEnabled: true,
+  digestWeeklyEnabled: true,
+  digestHour: 19,
 }
