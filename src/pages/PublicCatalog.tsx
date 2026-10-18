@@ -918,76 +918,118 @@ export default function PublicCatalog() {
   }
 
   const co = settings
+  // A real product photo for the hero's visual side — never a stock/fake
+  // mockup. Featured products win; otherwise whatever has a photo first.
+  const heroProduct = featuredProducts.find(p => p.image) ?? all.find(p => p.image)
+  const scrollToProducts = () => document.getElementById('productos-top')?.scrollIntoView({ behavior: 'smooth' })
 
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
+      {/* ── Top bar ── */}
+      <div className="bg-[#FAF6EE] border-b border-[#EDE6D8]">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {co?.logo ? (
+              <img src={co.logo} alt={co.companyName} className="h-9 w-9 rounded-lg object-contain bg-white shadow-sm shrink-0" />
+            ) : (
+              <div className="h-9 w-9 rounded-lg bg-[#1B4332]/10 flex items-center justify-center shrink-0">
+                <ShoppingBag size={16} className="text-[#1B4332]" />
+              </div>
+            )}
+            <span className="font-serif font-semibold text-slate-800 truncate">{co?.companyName ?? 'Catálogo'}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {(co?.whatsapp || co?.phone) && (
+              <a
+                href={`https://wa.me/${cleanWA(co.whatsapp || co.phone || '')}?text=${encodeURIComponent('Hola, quiero información sobre sus productos')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="WhatsApp"
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 transition-colors"
+              >
+                <MessageCircle size={16} />
+              </a>
+            )}
+            <button
+              onClick={handleShare}
+              title="Compartir"
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-[#1B4332]/10 hover:bg-[#1B4332]/15 text-[#1B4332] transition-colors"
+            >
+              {copied ? <Check size={16} /> : <Share2 size={16} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Hero ── */}
       <header className="relative overflow-hidden bg-[#F1EADB] text-slate-800">
         <div
           className="absolute inset-0 opacity-[0.25]"
           style={{ backgroundImage: 'radial-gradient(circle, #1B4332 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         />
-        <div className="relative max-w-6xl mx-auto px-4 py-12 md:py-16">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              {co?.logo ? (
-                <img src={co.logo} alt={co.companyName} className="h-24 w-24 rounded-2xl object-contain bg-white p-1 shadow-xl" />
-              ) : (
-                <div className="h-24 w-24 rounded-2xl bg-[#1B4332]/10 flex items-center justify-center shadow-xl">
-                  <ShoppingBag size={40} className="text-[#1B4332]/70" />
-                </div>
-              )}
+        <div className="relative max-w-6xl mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-10 items-center">
+          {/* Text */}
+          <div className="text-center md:text-left">
+            <span className="inline-flex items-center gap-1.5 bg-[#1B4332]/10 text-[#1B4332] text-xs font-semibold tracking-wide px-3 py-1 rounded-full mb-4">
+              <Sparkles size={12} /> Catálogo en línea
+            </span>
+            <h1 className="font-serif text-4xl md:text-6xl font-semibold tracking-tight text-slate-900 leading-[1.1]">
+              {co?.companyName ?? 'Catálogo'}
+            </h1>
+            {co?.slogan && (
+              <p className="mt-3 font-serif italic text-slate-600 text-xl">{co.slogan}</p>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-center md:justify-start gap-2">
+              <span className="bg-white text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                {all.length} producto{all.length === 1 ? '' : 's'}
+              </span>
+              <span className="bg-white text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm">
+                {categories.length - 1} categoría{categories.length - 1 === 1 ? '' : 's'}
+              </span>
             </div>
 
-            {/* Info */}
-            <div className="flex-1 text-center md:text-left">
-              <span className="inline-flex items-center gap-1.5 bg-[#1B4332]/10 text-[#1B4332] text-xs font-semibold tracking-wide px-3 py-1 rounded-full mb-2">
-                <Sparkles size={12} /> Catálogo en línea
-              </span>
-              <h1 className="font-serif text-3xl md:text-5xl font-semibold tracking-tight text-slate-900">
-                {co?.companyName ?? 'Catálogo'}
-              </h1>
-              {co?.slogan && (
-                <p className="mt-2 font-serif italic text-slate-600 text-lg">{co.slogan}</p>
-              )}
-              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-4 text-slate-500 text-sm">
+            <button
+              onClick={scrollToProducts}
+              className="mt-8 inline-flex items-center gap-2 bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow"
+            >
+              Explorar catálogo
+            </button>
+
+            {(co?.phone || co?.email || co?.address) && (
+              <div className="mt-5 flex flex-wrap items-center justify-center md:justify-start gap-4 text-slate-400 text-xs">
                 {co?.phone && (
-                  <span className="flex items-center gap-1"><Phone size={13} />{co.phone}</span>
+                  <span className="flex items-center gap-1"><Phone size={12} />{co.phone}</span>
                 )}
                 {co?.email && (
-                  <span className="flex items-center gap-1"><Mail size={13} />{co.email}</span>
+                  <span className="flex items-center gap-1"><Mail size={12} />{co.email}</span>
                 )}
                 {co?.address && (
-                  <span className="flex items-center gap-1"><MapPin size={13} />{co.address}</span>
+                  <span className="flex items-center gap-1"><MapPin size={12} />{co.address}</span>
                 )}
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs text-slate-400">
-                <span>{all.length} producto{all.length === 1 ? '' : 's'}</span>
-                <span className="opacity-40">·</span>
-                <span>{categories.length - 1} categoría{categories.length - 1 === 1 ? '' : 's'}</span>
-              </div>
-            </div>
+            )}
+          </div>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              {(co?.whatsapp || co?.phone) && (
-                <a
-                  href={`https://wa.me/${cleanWA(co.whatsapp || co.phone || '')}?text=${encodeURIComponent('Hola, quiero información sobre sus productos')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-semibold px-4 py-2 rounded-xl transition-colors shadow"
-                >
-                  <MessageCircle size={16} /> WhatsApp
-                </a>
-              )}
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-2 bg-[#1B4332]/10 hover:bg-[#1B4332]/15 text-[#1B4332] font-semibold px-4 py-2 rounded-xl transition-colors"
-              >
-                {copied ? <><Check size={16} /> ¡Copiado!</> : <><Share2 size={16} /> Compartir</>}
-              </button>
-            </div>
+          {/* Visual */}
+          <div className="hidden md:flex relative h-80 items-center justify-center">
+            <div className="absolute w-56 h-56 rounded-full bg-[#1B4332]/10 blur-2xl" />
+            {heroProduct ? (
+              <>
+                <div className="absolute w-48 h-60 rotate-[-8deg] rounded-2xl bg-white shadow-xl overflow-hidden translate-x-16 -translate-y-4 opacity-80">
+                  <img src={heroProduct.image} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="relative w-52 h-64 rotate-[4deg] rounded-2xl bg-white shadow-2xl overflow-hidden -translate-x-6">
+                  <img src={heroProduct.image} alt={heroProduct.name} className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0 inset-x-0 bg-white/95 px-3 py-2">
+                    <p className="text-xs font-semibold text-slate-700 truncate">{heroProduct.name}</p>
+                    <p className="text-sm font-bold text-emerald-700">{formatCOP(productMinPrice(heroProduct))}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <ShoppingBag size={72} className="text-[#1B4332]/20" />
+            )}
           </div>
         </div>
       </header>
@@ -1070,7 +1112,7 @@ export default function PublicCatalog() {
       )}
 
       {/* ── Filters ── */}
-      <div className="sticky top-0 z-20 bg-white border-b border-[#EDE6D8] shadow-sm">
+      <div id="productos-top" className="sticky top-0 z-20 bg-white border-b border-[#EDE6D8] shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3">
           <div className="flex flex-col sm:flex-row gap-3 items-center">
             {/* Search */}
