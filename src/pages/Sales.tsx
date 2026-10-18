@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck, Banknote, AlertCircle } from 'lucide-react'
+import { Plus, Search, X, ShoppingCart, DollarSign, Clock, CheckCircle, Trash2, Printer, FileText, Mail, Send, Copy, MessageCircle, Receipt, Loader2, Truck, Banknote, AlertCircle, Factory } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { SaleOrder } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
@@ -36,7 +36,7 @@ const PAY_LABELS: Record<string, string> = {
 }
 
 function NewSaleModal({ onClose }: { onClose: () => void }) {
-  const { customers, products, addSaleOrder, saleOrders, companySettings, priceLists } = useStore()
+  const { customers, products, recipes, addSaleOrder, saleOrders, companySettings, priceLists } = useStore()
   const [customerId, setCustomerId] = useState('')
   const [payMethod, setPayMethod]   = useState('Efectivo')
   const [items, setItems]           = useState<{productId:string;variantId:string;product:string;qty:number;price:number;discount:number}[]>([])
@@ -106,6 +106,8 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
   const total      = afterDisc + tax
 
   // ── Detect over-sold lines (qty > available stock) ──────────────────────
+  // A line with a matching recipe isn't blocked — confirming the sale will
+  // auto-generate a production order for the missing quantity instead.
   const overSold = items.map((it, idx) => {
     const p = products.find((x) => x.id === it.productId)
     if (!p) return null
@@ -113,15 +115,19 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
     const activeVars = p.variants?.filter(x => x.isActive) ?? []
     if (activeVars.length > 0 && !it.variantId) return null // still choosing variant
     const stock = v ? v.stock : p.stock
-    return it.qty > stock ? { idx, product: p.name, qty: it.qty, stock } : null
-  }).filter(Boolean) as { idx: number; product: string; qty: number; stock: number }[]
-  const hasOverSold = overSold.length > 0
+    if (it.qty <= stock) return null
+    const canProduce = !v && !!(p.recipeId && recipes.some((r) => r.id === p.recipeId))
+    return { idx, product: p.name, qty: it.qty, stock, canProduce }
+  }).filter(Boolean) as { idx: number; product: string; qty: number; stock: number; canProduce: boolean }[]
+  const blockingOverSold = overSold.filter((o) => !o.canProduce)
+  const producibleOverSold = overSold.filter((o) => o.canProduce)
+  const hasOverSold = blockingOverSold.length > 0
 
   const handleSave = async () => {
     const customer = customers.find((c) => c.id === customerId)
     if (!customer || items.length === 0) return
     if (hasOverSold) {
-      const line = overSold[0]
+      const line = blockingOverSold[0]
       toast.error(`Stock insuficiente para ${line.product} (disponibles: ${line.stock})`)
       return
     }
@@ -305,14 +311,28 @@ function NewSaleModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {hasOverSold && (
+          {blockingOverSold.length > 0 && (
             <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50/70 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-300 flex items-start gap-2 animate-scaleIn">
               <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
               <div>
                 <p className="font-semibold">Stock insuficiente</p>
                 <ul className="text-xs mt-1 space-y-0.5">
-                  {overSold.map((o) => (
+                  {blockingOverSold.map((o) => (
                     <li key={o.idx}>· {o.product}: piden <b>{o.qty}</b>, disponibles <b>{o.stock}</b></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {producibleOverSold.length > 0 && (
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2 animate-scaleIn">
+              <Factory size={16} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">Se generará producción automática</p>
+                <ul className="text-xs mt-1 space-y-0.5">
+                  {producibleOverSold.map((o) => (
+                    <li key={o.idx}>· {o.product}: piden <b>{o.qty}</b>, disponibles <b>{o.stock}</b> — se creará una orden de producción por el faltante ({o.qty - o.stock})</li>
                   ))}
                 </ul>
               </div>
@@ -1058,7 +1078,10 @@ export default function Sales() {
                           ['confirmed', 'processing'].includes(o.status) && {
                             label: dispatches.some((d) => d.saleOrderId === o.id) ? 'Ver despacho' : 'Crear despacho',
                             icon: Truck,
-                            onClick: () => navigate('/dispatch'),
+                            onClick: () => {
+                              const existing = dispatches.find((d) => d.saleOrderId === o.id)
+                              navigate(existing ? `/dispatch?viewDispatch=${existing.id}` : `/dispatch?saleOrderId=${o.id}`)
+                            },
                           },
                           cust?.phone && {
                             label: unpaid ? 'Cobrar por WhatsApp' : 'Enviar confirmación',

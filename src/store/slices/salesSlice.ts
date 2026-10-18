@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../state'
-import type { SaleOrder, Quotation, Payment } from '../../data/mockData'
+import type { SaleOrder, Quotation, Payment, ProductionOrder } from '../../data/mockData'
 import { apiFetch } from '../api'
 import { toast } from '../../components/Toast'
 import { nextOrderNumber } from '../../utils/orderNumber'
@@ -21,6 +21,7 @@ export interface SalesSlice {
   addPayment:    (p: Payment) => Promise<void>
   deletePayment: (id: string) => Promise<void>
   getOrderPayments: (saleOrderId: string) => Payment[]
+  createProductionOrdersForSale: (order: SaleOrder) => Promise<void>
 }
 
 export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set, get) => ({
@@ -32,11 +33,18 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
     await apiFetch('/api/sale-orders', { method: 'POST', body: JSON.stringify(order) })
     set((s) => ({ saleOrders: [...s.saleOrders, order] }))
     toast.success('Orden de venta creada')
+    if (order.status === 'confirmed') await get().createProductionOrdersForSale(order)
   },
   updateSaleOrder: async (order) => {
+    const prev = get().saleOrders.find((x) => x.id === order.id)
     await apiFetch(`/api/sale-orders/${order.id}`, { method: 'PUT', body: JSON.stringify(order) })
     set((s) => ({ saleOrders: s.saleOrders.map((x) => x.id === order.id ? order : x) }))
     toast.success('Orden de venta actualizada')
+    // Only trigger on the pending → confirmed transition, never on every edit
+    // of an already-confirmed order (payment status changes, notes, etc.).
+    if (order.status === 'confirmed' && prev?.status !== 'confirmed') {
+      await get().createProductionOrdersForSale(order)
+    }
   },
   deleteSaleOrder: async (id) => {
     await apiFetch(`/api/sale-orders/${id}`, { method: 'DELETE' })
@@ -99,6 +107,55 @@ export const createSalesSlice: StateCreator<AppState, [], [], SalesSlice> = (set
       saleOrders: [...s2.saleOrders, order],
       quotations: s2.quotations.map((x) => x.id === id ? updated : x),
     }))
+    await get().createProductionOrdersForSale(order)
+  },
+
+  // When a sale is confirmed, auto-create a draft production order for any
+  // item whose stock on hand can't cover the sold quantity — but only for
+  // products that have a matching recipe (we never invent a production
+  // formula). Items without a recipe are left for manual follow-up.
+  createProductionOrdersForSale: async (order) => {
+    const s = get()
+    let created = 0
+    const year = new Date().getFullYear()
+    const defaultAssignee = (s.companySettings.teamMembers ?? [])
+      .find((m) => m.role === 'production' && m.isActive)?.name ?? ''
+    const today = new Date().toISOString().split('T')[0]
+
+    for (const item of order.items) {
+      // Variant-level deficits aren't covered: production replenishes the
+      // base product's stock, not a specific variant's.
+      if (!item.productId || item.variantId) continue
+      const product = s.products.find((p) => p.id === item.productId)
+      if (!product?.recipeId) continue
+      const recipe = s.recipes.find((r) => r.id === product.recipeId)
+      if (!recipe) continue
+
+      const deficit = parseFloat((item.qty - product.stock).toFixed(4))
+      if (deficit <= 0) continue
+
+      const existingNumbers = get().productionOrders.map((o) => o.orderNumber)
+      const po: ProductionOrder = {
+        id: `po${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        orderNumber: nextOrderNumber(existingNumbers, `OP-${year}-`),
+        recipe: recipe.name, recipeId: recipe.id, product: recipe.name.split('(')[0].trim(),
+        plannedQty: deficit, status: 'pending', priority: 2,
+        plannedStart: `${today} 08:00`, plannedEnd: `${today} 16:00`,
+        estimatedCost: parseFloat((recipe.costPerUnit * deficit).toFixed(2)),
+        assignedTo: defaultAssignee,
+        notes: `Generada automáticamente: faltante de ${deficit} ${recipe.yieldUnit} para la venta ${order.orderNumber}`,
+      }
+      await get().addProductionOrder(po, { silent: true })
+      created += 1
+    }
+
+    if (created > 0) {
+      toast.success(
+        created === 1
+          ? `Se generó 1 orden de producción por stock insuficiente (venta ${order.orderNumber})`
+          : `Se generaron ${created} órdenes de producción por stock insuficiente (venta ${order.orderNumber})`
+      )
+    }
   },
 
   // ── Payments ─────────────────────────────────────────────────────────────

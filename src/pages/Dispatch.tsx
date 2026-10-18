@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Truck, Plus, Search, X, CheckCircle2, Clock, AlertCircle, Package2,
   MapPin, User, Calendar, Trash2, ChevronDown, ChevronUp, Send, Ban,
@@ -56,7 +57,7 @@ function fmt(d?: string) {
 }
 
 // ── Create/Edit Modal ─────────────────────────────────────────────────────────
-function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () => void }) {
+function DispatchModal({ initial, prefillSaleOrderId, onClose }: { initial?: Dispatch; prefillSaleOrderId?: string; onClose: () => void }) {
   const { saleOrders, dispatches, customers, addDispatch, updateDispatch, companySettings } = useStore()
   const today = new Date().toISOString().split('T')[0]
 
@@ -89,6 +90,13 @@ function DispatchModal({ initial, onClose }: { initial?: Dispatch; onClose: () =
       total:           o.total,
     }))
   }
+
+  // Deep link from Sales: "Crear despacho" pre-selects the originating order
+  // instead of forcing a manual re-selection.
+  useEffect(() => {
+    if (!initial && prefillSaleOrderId) handleOrderSelect(prefillSaleOrderId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const validate = () => {
     const e: Record<string, string> = {}
@@ -1000,11 +1008,13 @@ const PAGE_SIZE = 15
 export default function DispatchPage() {
   const { dispatches, deleteDispatch, customers, companySettings } = useStore()
   const { canDelete } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [search, setSearch]         = useState('')
   const [statusFilter, setStatus]   = useState('all')
   const [driverFilter, setDriver]   = useState('all')
   const [showModal, setShowModal]   = useState(false)
+  const [prefillSaleOrderId, setPrefillSaleOrderId] = useState<string | undefined>()
   const [editTarget, setEditTarget] = useState<Dispatch | null>(null)
   const [detail, setDetail]         = useState<Dispatch | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Dispatch | null>(null)
@@ -1012,6 +1022,21 @@ export default function DispatchPage() {
   const [page, setPage]                 = useState(1)
 
   const today = new Date().toISOString().split('T')[0]
+
+  // Deep links from Sales' "Crear despacho" / "Ver despacho" row action.
+  useEffect(() => {
+    const saleOrderId = searchParams.get('saleOrderId')
+    const viewDispatchId = searchParams.get('viewDispatch')
+    if (saleOrderId) {
+      setPrefillSaleOrderId(saleOrderId)
+      setShowModal(true)
+      setSearchParams({}, { replace: true })
+    } else if (viewDispatchId && dispatches.length > 0) {
+      const d = dispatches.find((x) => x.id === viewDispatchId)
+      if (d) setDetail(d)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, dispatches, setSearchParams])
 
   // ── Filters ──────────────────────────────────────────────────────────────
   const filtered = dispatches.filter((d) => {
@@ -1042,7 +1067,7 @@ export default function DispatchPage() {
         subtitle="Logística y seguimiento de entregas"
         accent="rgba(13, 148, 136, 0.20)"
         actions={
-          <button className="btn btn-sm btn-primary flex items-center gap-2" onClick={() => setShowModal(true)}>
+          <button className="btn btn-sm btn-primary flex items-center gap-2" onClick={() => { setPrefillSaleOrderId(undefined); setShowModal(true) }}>
             <Plus size={14} /> Nuevo despacho
           </button>
         }
@@ -1186,7 +1211,12 @@ export default function DispatchPage() {
       </div>
 
       {/* Modals */}
-      {showModal && <DispatchModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <DispatchModal
+          prefillSaleOrderId={prefillSaleOrderId}
+          onClose={() => { setShowModal(false); setPrefillSaleOrderId(undefined) }}
+        />
+      )}
       {editTarget && <DispatchModal initial={editTarget} onClose={() => setEditTarget(null)} />}
       {detail && (
         <DispatchDrawer

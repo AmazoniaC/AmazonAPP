@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Play, CheckCircle, XCircle, Clock, Factory, X, ChevronDown, Trash2, BookOpen } from 'lucide-react'
+import { Plus, Play, CheckCircle, XCircle, Clock, Factory, X, ChevronDown, Trash2, BookOpen, ShoppingCart } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { ProductionOrder, Recipe } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
@@ -52,6 +52,11 @@ function OrderCard({ order, onDelete, canDelete }: { order: ProductionOrder; onD
             </div>
             <h3 className="font-semibold text-slate-800 dark:text-white truncate">{order.product}</h3>
             <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">{order.recipe}</p>
+            {order.notes && (
+              <p className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 mt-1">
+                <ShoppingCart size={11} className="flex-shrink-0" /><span className="truncate">{order.notes}</span>
+              </p>
+            )}
           </div>
           <button onClick={() => setExpanded(!expanded)} className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 mt-1">
             <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />

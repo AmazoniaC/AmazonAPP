@@ -14,7 +14,7 @@ export interface ProductionSlice {
     actualIngredients: { supplyId: string; supplyName: string; qty: number; unit: string }[]
     notes?: string
   }) => Promise<void>
-  addProductionOrder: (o: ProductionOrder) => Promise<void>
+  addProductionOrder: (o: ProductionOrder, opts?: { silent?: boolean }) => Promise<void>
   deleteProductionOrder:(id: string) => Promise<void>
 }
 
@@ -115,10 +115,10 @@ export const createProductionSlice: StateCreator<AppState, [], [], ProductionSli
     toast.success(`Orden finalizada — ${actuals.actualQty} unidades producidas`)
   },
 
-  addProductionOrder: async (order) => {
+  addProductionOrder: async (order, opts) => {
     await apiFetch('/api/production-orders', { method: 'POST', body: JSON.stringify(order) })
     set((s) => ({ productionOrders: [...s.productionOrders, order] }))
-    toast.success('Orden de producción creada')
+    if (!opts?.silent) toast.success('Orden de producción creada')
   },
   deleteProductionOrder: async (id) => {
     await apiFetch(`/api/production-orders/${id}`, { method: 'DELETE' })
