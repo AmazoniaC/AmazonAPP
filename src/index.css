@@ -407,5 +407,5 @@ body {
   0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
   50%      { transform: translateY(-14px) rotate(var(--tilt, 0deg)); }
 }
-.animate-floatA { animation: floatA 4.5s ease-in-out infinite; }
-.animate-floatB { animation: floatB 5.5s ease-in-out infinite; }
+.animate-floatA { animation: floatA 2.4s ease-in-out infinite; }
+.animate-floatB { animation: floatB 2.9s ease-in-out infinite; }
