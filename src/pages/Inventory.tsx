@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { Plus, AlertTriangle, Search, Package, ArrowUpCircle, ArrowDownCircle, X, Trash2, Pencil, ShoppingCart, ChevronDown, ChevronUp, Upload, Layers, Boxes } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import { Supply } from '../data/mockData'
+import { Supply, PurchaseOrder, PurchaseOrderItem } from '../data/mockData'
 import { usePermissions } from '../hooks/usePermissions'
 import ConfirmDelete from '../components/ConfirmDelete'
 import ImportModal from '../components/ImportModal'
@@ -11,6 +11,7 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import RowActions from '../components/RowActions'
 import { formatCOP } from '../utils/currency'
+import { nextOrderNumber } from '../utils/orderNumber'
 
 const UNITS = ['u','kg','g','lb','oz','L','mL','m','cm','mm','m²','m³','rollo','par','caja','doc','bolsa']
 
@@ -161,8 +162,9 @@ function SupplyModal({ supply, onClose }: { supply?: Supply; onClose: () => void
 }
 
 export default function Inventory() {
-  const { supplies, deleteSupply, loadAllData, inventoryMovements, suppliers } = useStore()
+  const { supplies, deleteSupply, loadAllData, inventoryMovements, suppliers, purchaseOrders, addPurchaseOrder } = useStore()
   const { canEdit, canDelete } = usePermissions()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch]           = useState('')
   const [catFilter, setCatFilter]     = useState('Todos')
@@ -236,6 +238,54 @@ export default function Inventory() {
   }, [supplies, inventoryMovements, suppliers])
 
   const totalReorderCost = reorderSuggestions.reduce((a, s) => a + s.estimatedCost, 0)
+
+  // Groups the suggestions by supplier name so "Crear orden de compra" can
+  // turn one supplier's worth of suggestions into a single draft PO in one
+  // click — items with no supplier on file can't be turned into an order
+  // (PurchaseOrder.supplier is required), so they're grouped separately and
+  // just flagged for the owner to fill in manually.
+  const suggestionsBySupplier = useMemo(() => {
+    const groups = new Map<string, typeof reorderSuggestions>()
+    for (const s of reorderSuggestions) {
+      const key = s.supplier?.trim() || ''
+      const list = groups.get(key) ?? []
+      list.push(s)
+      groups.set(key, list)
+    }
+    return groups
+  }, [reorderSuggestions])
+
+  const [creatingPOFor, setCreatingPOFor] = useState<string | null>(null)
+
+  const createDraftPO = async (supplierName: string, items: typeof reorderSuggestions) => {
+    setCreatingPOFor(supplierName)
+    try {
+      const poItems: PurchaseOrderItem[] = items.map((s) => ({
+        supplyId: s.id,
+        supplyName: s.name,
+        unit: s.unit,
+        qty: s.suggestedQty,
+        unitCost: s.cost,
+        subtotal: Math.round(s.suggestedQty * s.cost),
+      }))
+      const subtotal = poItems.reduce((sum, i) => sum + i.subtotal, 0)
+      const po: PurchaseOrder = {
+        id: `oc${Date.now()}`,
+        orderNumber: nextOrderNumber(purchaseOrders.map((o) => o.orderNumber), `OC-${new Date().getFullYear()}-`, 3),
+        supplier: supplierName,
+        status: 'draft',
+        date: new Date().toISOString().split('T')[0],
+        items: poItems,
+        subtotal,
+        total: subtotal,
+        notes: 'Generada automáticamente desde las sugerencias de reorden de Inventario.',
+      }
+      await addPurchaseOrder(po)
+      navigate(`/purchases?open=${po.id}`)
+    } finally {
+      setCreatingPOFor(null)
+    }
+  }
 
   // Deep link: ?open=ID → open the supply edit modal
   useEffect(() => {
@@ -362,12 +412,46 @@ export default function Inventory() {
                   })}
                 </tbody>
               </table>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-gray-700">
-                <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Basado en consumo de los últimos 30 días × lead time del proveedor + stock de seguridad.
-                </p>
-                <Link to="/purchases" className="btn btn-sm btn-primary flex items-center gap-1">
-                  <ShoppingCart size={13} /> Ir a Órdenes de Compra
+              <p className="text-xs text-slate-500 dark:text-gray-400 mt-3 pt-3 border-t border-slate-100 dark:border-gray-700">
+                Basado en consumo de los últimos 30 días × lead time del proveedor + stock de seguridad.
+              </p>
+
+              {/* One-click draft PO per supplier — grouped so e.g. 3 supplies
+                  from the same supplier become a single order instead of 3. */}
+              {canEdit('purchases') && (
+                <div className="mt-3 space-y-2">
+                  {[...suggestionsBySupplier.entries()].map(([supplierName, items]) => {
+                    const cost = items.reduce((a, s) => a + s.estimatedCost, 0)
+                    if (!supplierName) {
+                      return (
+                        <div key="__none__" className="flex items-center justify-between gap-3 px-3 py-2 bg-white/60 dark:bg-gray-800/40 rounded-xl text-xs text-slate-500 dark:text-gray-400">
+                          <span>{items.length} insumo{items.length === 1 ? '' : 's'} sin proveedor asignado — configúralo en el insumo para poder generarle una orden.</span>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={supplierName} className="flex items-center justify-between gap-3 px-3 py-2 bg-white/70 dark:bg-gray-800/50 rounded-xl">
+                        <div className="text-xs text-slate-600 dark:text-gray-300">
+                          <span className="font-semibold text-slate-800 dark:text-gray-100">{supplierName}</span>
+                          {' · '}{items.length} insumo{items.length === 1 ? '' : 's'} · estimado {formatCOP(cost)}
+                        </div>
+                        <button
+                          onClick={() => createDraftPO(supplierName, items)}
+                          disabled={creatingPOFor === supplierName}
+                          className="btn btn-sm btn-primary flex items-center gap-1 shrink-0 disabled:opacity-60"
+                        >
+                          <ShoppingCart size={13} />
+                          {creatingPOFor === supplierName ? 'Creando...' : 'Crear orden de compra'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-3">
+                <Link to="/purchases" className="text-xs font-medium text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 flex items-center gap-1">
+                  <ShoppingCart size={12} /> Ver todas las órdenes de compra
                 </Link>
               </div>
             </div>
