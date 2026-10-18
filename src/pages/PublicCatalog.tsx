@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Search, ShoppingBag, MessageCircle, Share2, Check, Phone, Mail, MapPin, ChevronDown,
   ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Star, SlidersHorizontal, ArrowUpDown,
-  PackageX, Sparkles, Users, Truck, RotateCcw, HelpCircle, ChevronUp, Eye,
+  PackageX, Sparkles, Users, Truck, RotateCcw, HelpCircle, ChevronUp, Eye, Heart,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -174,6 +174,39 @@ function useCart() {
 }
 type UseCartReturn = ReturnType<typeof useCart>
 
+// ─── Favorites ───────────────────────────────────────────────────────────────
+// Unlike the cart (sessionStorage — gone once the tab closes), favorites use
+// localStorage: the whole point is for a visitor to come back another day
+// and still see what they'd marked. No account, no server round-trip —
+// purely a per-device convenience.
+const FAVORITES_KEY = 'public_favorites'
+
+function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY)
+    return new Set(raw ? JSON.parse(raw) : [])
+  } catch { return new Set() }
+}
+function saveFavorites(ids: Set<string>) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids])) } catch { /* private mode, etc. */ }
+}
+
+function useFavorites() {
+  const [ids, setIds] = useState<Set<string>>(() => loadFavorites())
+
+  const toggle = (productId: string) => {
+    const next = new Set(ids)
+    if (next.has(productId)) next.delete(productId)
+    else next.add(productId)
+    setIds(next)
+    saveFavorites(next)
+  }
+  const has = (productId: string) => ids.has(productId)
+
+  return { ids, toggle, has, count: ids.size }
+}
+type UseFavoritesReturn = ReturnType<typeof useFavorites>
+
 function buildWALink(product: Product, variant: ProductVariant | null, settings: Settings) {
   const varStr = variant ? ` — ${variantLabel(variant)}` : ''
   const price = effectivePrice(product, variant)
@@ -188,11 +221,12 @@ function buildWALink(product: Product, variant: ProductVariant | null, settings:
 }
 
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
+function ProductCard({ product, settings, idx, cart, favorites, featured, onQuickView }: {
   product: Product
   settings: Settings
   idx: number
   cart: UseCartReturn
+  favorites: UseFavoritesReturn
   featured?: boolean
   onQuickView?: (product: Product, idx: number) => void
 }) {
@@ -243,11 +277,20 @@ function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
         <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-slate-700 text-xs font-semibold px-2 py-1 rounded-full shadow-sm">
           {catEmoji(product.category)} {product.category}
         </span>
-        {featured && (
-          <span className="absolute top-3 right-3 flex items-center gap-1 bg-amber-400 text-amber-950 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
-            <Star size={11} fill="currentColor" /> Destacado
-          </span>
-        )}
+        <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+          {featured && (
+            <span className="flex items-center gap-1 bg-amber-400 text-amber-950 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+              <Star size={11} fill="currentColor" /> Destacado
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); favorites.toggle(product.id) }}
+            title={favorites.has(product.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            className="w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:bg-white transition-colors"
+          >
+            <Heart size={13} className={favorites.has(product.id) ? 'fill-red-500 text-red-500' : 'text-slate-500'} />
+          </button>
+        </div>
         {!available && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <span className="bg-white/95 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5">
@@ -256,7 +299,7 @@ function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
           </div>
         )}
         {available && onQuickView && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center pointer-events-none">
             <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/95 text-slate-800 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
               <Eye size={13} /> Ver más
             </span>
@@ -336,11 +379,12 @@ function ProductCard({ product, settings, idx, cart, featured, onQuickView }: {
 }
 
 // ─── Product Quick View ─────────────────────────────────────────────────────
-function ProductQuickView({ product, settings, idx, cart, onClose }: {
+function ProductQuickView({ product, settings, idx, cart, favorites, onClose }: {
   product: Product
   settings: Settings
   idx: number
   cart: UseCartReturn
+  favorites: UseFavoritesReturn
   onClose: () => void
 }) {
   const gallery = [product.image, ...(product.images ?? [])].filter(Boolean) as string[]
@@ -433,7 +477,16 @@ function ProductQuickView({ product, settings, idx, cart, onClose }: {
 
           {/* Details */}
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-slate-400 mb-1">{catEmoji(product.category)} {product.category}</span>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-400 mb-1">{catEmoji(product.category)} {product.category}</span>
+              <button
+                onClick={() => favorites.toggle(product.id)}
+                title={favorites.has(product.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                className="w-8 h-8 rounded-full bg-[#F5F0E6] hover:bg-[#EFE8D9] flex items-center justify-center shrink-0 transition-colors"
+              >
+                <Heart size={14} className={favorites.has(product.id) ? 'fill-red-500 text-red-500' : 'text-slate-500'} />
+              </button>
+            </div>
             <h2 className="font-serif text-xl font-semibold text-slate-800">{product.name}</h2>
             {product.description && (
               <p className="text-slate-500 text-sm mt-2 leading-relaxed">{product.description}</p>
@@ -759,6 +812,7 @@ export default function PublicCatalog() {
   const [category, setCategory]   = useState('Todos')
   const [copied, setCopied]       = useState(false)
   const cart = useCart()
+  const favorites = useFavorites()
   const [showCart, setShowCart]       = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [confirmedQuote, setConfirmedQuote] = useState<string | null>(null)
@@ -772,6 +826,7 @@ export default function PublicCatalog() {
   const [priceMin, setPriceMin]       = useState('')
   const [priceMax, setPriceMax]       = useState('')
   const [onlyAvailable, setOnlyAvailable] = useState(false)
+  const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [selectedAttrs, setSelectedAttrs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -848,7 +903,7 @@ export default function PublicCatalog() {
   }, [featuredProducts, all])
 
   const noOtherFiltersActive = category === 'Todos' && search.trim() === '' &&
-    !priceMin && !priceMax && !onlyAvailable && selectedAttrs.size === 0
+    !priceMin && !priceMax && !onlyAvailable && !onlyFavorites && selectedAttrs.size === 0
 
   const toggleAttr = (k: string, v: string) => {
     const key = attrKey(k, v)
@@ -885,6 +940,7 @@ export default function PublicCatalog() {
     if (min !== null) list = list.filter(p => productMinPrice(p) >= min)
     if (max !== null) list = list.filter(p => productMinPrice(p) <= max)
     if (onlyAvailable) list = list.filter(isProductAvailable)
+    if (onlyFavorites) list = list.filter(p => favorites.has(p.id))
     if (selectedAttrs.size > 0) list = list.filter(productMatchesAttrs)
 
     const sorted = [...list]
@@ -897,7 +953,7 @@ export default function PublicCatalog() {
     }
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, category, search, priceMin, priceMax, onlyAvailable, selectedAttrs, sortBy])
+  }, [all, category, search, priceMin, priceMax, onlyAvailable, onlyFavorites, favorites.ids, selectedAttrs, sortBy])
 
   // Quick-pick suggestions shown as a dropdown under the search box while
   // typing — independent of `filtered` (which also applies category/price/
@@ -910,7 +966,7 @@ export default function PublicCatalog() {
   }, [all, search])
 
   const activeFilterCount =
-    (priceMin ? 1 : 0) + (priceMax ? 1 : 0) + (onlyAvailable ? 1 : 0) + selectedAttrs.size
+    (priceMin ? 1 : 0) + (priceMax ? 1 : 0) + (onlyAvailable ? 1 : 0) + (onlyFavorites ? 1 : 0) + selectedAttrs.size
 
   const handleShare = () => {
     const url = window.location.href
@@ -1128,7 +1184,7 @@ export default function PublicCatalog() {
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
             {featuredProducts.map((product, i) => (
               <div key={product.id} className="w-64 flex-shrink-0">
-                <ProductCard product={product} settings={co} idx={i} cart={cart} featured onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
+                <ProductCard product={product} settings={co} idx={i} cart={cart} favorites={favorites} featured onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
               </div>
             ))}
           </div>
@@ -1276,6 +1332,18 @@ export default function PublicCatalog() {
                 </label>
               </div>
 
+              {/* Favorites */}
+              {favorites.count > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Favoritos</p>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
+                    <input type="checkbox" checked={onlyFavorites} onChange={e => setOnlyFavorites(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-emerald-600" />
+                    Solo mis favoritos ({favorites.count})
+                  </label>
+                </div>
+              )}
+
               {/* Variant attribute facets */}
               {Object.entries(attrOptions).map(([key, values]) => (
                 <div key={key}>
@@ -1298,7 +1366,7 @@ export default function PublicCatalog() {
 
               {activeFilterCount > 0 && (
                 <button
-                  onClick={() => { setPriceMin(''); setPriceMax(''); setOnlyAvailable(false); setSelectedAttrs(new Set()) }}
+                  onClick={() => { setPriceMin(''); setPriceMax(''); setOnlyAvailable(false); setOnlyFavorites(false); setSelectedAttrs(new Set()) }}
                   className="text-xs text-red-500 hover:text-red-700 font-medium self-end mb-0.5"
                 >
                   Limpiar filtros
@@ -1320,7 +1388,7 @@ export default function PublicCatalog() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 stagger-children">
             {co && filtered.map((product, i) => (
-              <ProductCard key={product.id} product={product} settings={co} idx={i} cart={cart} onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
+              <ProductCard key={product.id} product={product} settings={co} idx={i} cart={cart} favorites={favorites} onQuickView={(p, pIdx) => setQuickView({ product: p, idx: pIdx })} />
             ))}
           </div>
         )}
@@ -1386,6 +1454,7 @@ export default function PublicCatalog() {
           settings={co}
           idx={quickView.idx}
           cart={cart}
+          favorites={favorites}
           onClose={() => setQuickView(null)}
         />
       )}
