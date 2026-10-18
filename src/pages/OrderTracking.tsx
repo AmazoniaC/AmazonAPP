@@ -114,9 +114,9 @@ export default function OrderTracking() {
   const waLink = waNumber ? `https://wa.me/${waNumber}` : null
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#FAF6EE]">
       <header className="bg-[#1B4332] text-white py-8 px-4 text-center">
-        <h1 className="text-xl font-bold">{co?.companyName || 'Rastrea tu pedido'}</h1>
+        <h1 className="font-serif text-xl font-semibold">{co?.companyName || 'Rastrea tu pedido'}</h1>
         <p className="text-emerald-200 text-sm mt-1">Consulta el estado de tu pedido</p>
       </header>
 
@@ -126,7 +126,7 @@ export default function OrderTracking() {
         </a>
 
         {!result && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-[#EDE6D8] p-6 space-y-4">
             <div>
               <label className="text-xs font-semibold text-slate-500 block mb-1">Número de cotización</label>
               <input
@@ -134,7 +134,7 @@ export default function OrderTracking() {
                 onChange={(e) => setQuoteNumber(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Ej: COT-2026-004"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full border border-[#E2D9C5] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
             <div>
@@ -144,7 +144,7 @@ export default function OrderTracking() {
                 onChange={(e) => setPhone(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="300 123 4567"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full border border-[#E2D9C5] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -162,7 +162,7 @@ export default function OrderTracking() {
           const timeline = buildTimeline(result)
           return (
             <div className="space-y-4 animate-fadeIn">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-[#EDE6D8] p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-xs text-slate-400">Pedido</p>
@@ -184,7 +184,7 @@ export default function OrderTracking() {
                     {timeline.steps.map((s, i) => (
                       <div key={s.key} className="flex items-center gap-3">
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                          s.done ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-300'
+                          s.done ? 'bg-emerald-600 text-white' : 'bg-[#EFE8D9] text-slate-300'
                         }`}>
                           {s.done ? <CheckCircle2 size={14} /> : <span className="text-[10px] font-bold">{i + 1}</span>}
                         </div>
@@ -199,7 +199,7 @@ export default function OrderTracking() {
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-[#EDE6D8] p-6">
                 <p className="text-xs font-semibold text-slate-500 mb-2">Detalle</p>
                 <div className="space-y-1.5">
                   {result.items.map((it, i) => (
@@ -209,7 +209,7 @@ export default function OrderTracking() {
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between text-sm font-bold text-slate-800 pt-2 mt-2 border-t border-slate-100">
+                <div className="flex justify-between text-sm font-bold text-slate-800 pt-2 mt-2 border-t border-[#EDE6D8]">
                   <span>Total</span>
                   <span>{formatCOP(result.total)}</span>
                 </div>
@@ -218,7 +218,7 @@ export default function OrderTracking() {
               <div className="flex gap-2">
                 <button
                   onClick={() => { setResult(null); setQuoteNumber(''); setPhone('') }}
-                  className="flex-1 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl py-2.5 hover:bg-slate-50 transition-colors"
+                  className="flex-1 text-sm font-medium text-slate-600 bg-white border border-[#E2D9C5] rounded-xl py-2.5 hover:bg-[#F5F0E6] transition-colors"
                 >
                   Buscar otro pedido
                 </button>

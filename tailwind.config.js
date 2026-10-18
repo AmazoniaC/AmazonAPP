@@ -44,6 +44,9 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Only used in the public catalog (/catalogo, /mi-pedido) for an
+        // editorial/boutique feel on headings — the internal ERP keeps `sans`.
+        serif: ['"Playfair Display"', 'Georgia', 'serif'],
       },
       boxShadow: {
         'soft':     '0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 1px 3px -1px rgba(15, 23, 42, 0.04)',
